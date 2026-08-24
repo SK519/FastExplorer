@@ -1,0 +1,480 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 11. 特大アイコン (大: 230x240) テンプレート -->
+    <DataTemplate x:Key="ExtraLargeIconsLargeItemTemplate">
+        <Grid Width="230" Height="240" Padding="8,8" Opacity="{Binding Opacity}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <CheckBox Grid.Row="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      HorizontalAlignment="Left" VerticalAlignment="Top"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="8,8,0,0"/>
+
+            <Image Grid.Row="0"
+                   Source="{Binding Icon}"
+                   Width="180" Height="180"
+                   Stretch="Uniform"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"/>
+
+            <Grid Grid.Row="1" Margin="0,6,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Name}"
+                           FontSize="13"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxLines="2"
+                           TextTrimming="CharacterEllipsis"
+                           HorizontalAlignment="Center"
+                           Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                         FontSize="13"
+                         Height="30"
+                         Padding="4,2"
+                         HorizontalAlignment="Stretch"
+                         Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                         KeyDown="RenameBox_KeyDown"
+                         LostFocus="RenameBox_LostFocus"
+                         Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 12. 特大アイコン (小: 150x160) テンプレート -->
+    <DataTemplate x:Key="ExtraLargeIconsCompactItemTemplate">
+        <Grid Width="150" Height="160" Padding="6,6" Opacity="{Binding Opacity}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <CheckBox Grid.Row="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      HorizontalAlignment="Left" VerticalAlignment="Top"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="6,6,0,0"/>
+
+            <Image Grid.Row="0"
+                   Source="{Binding Icon}"
+                   Width="96" Height="96"
+                   Stretch="Uniform"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"/>
+
+            <Grid Grid.Row="1" Margin="0,4,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Name}"
+                           FontSize="11.5"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxLines="2"
+                           TextTrimming="CharacterEllipsis"
+                           HorizontalAlignment="Center"
+                           Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                         FontSize="11.5"
+                         Height="26"
+                         Padding="3,1"
+                         HorizontalAlignment="Stretch"
+                         Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                         KeyDown="RenameBox_KeyDown"
+                         LostFocus="RenameBox_LostFocus"
+                         Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 13. 大アイコン (大: 140x150) テンプレート -->
+    <DataTemplate x:Key="LargeIconsLargeItemTemplate">
+        <Grid Width="140" Height="150" Padding="6,6" Opacity="{Binding Opacity}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <CheckBox Grid.Row="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      HorizontalAlignment="Left" VerticalAlignment="Top"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="6,6,0,0"/>
+
+            <Image Grid.Row="0"
+                   Source="{Binding Icon}"
+                   Width="96" Height="96"
+                   Stretch="Uniform"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"/>
+
+            <Grid Grid.Row="1" Margin="0,4,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Name}"
+                           FontSize="12"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxLines="2"
+                           TextTrimming="CharacterEllipsis"
+                           HorizontalAlignment="Center"
+                           Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                         FontSize="12"
+                         Height="28"
+                         Padding="4,2"
+                         HorizontalAlignment="Stretch"
+                         Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                         KeyDown="RenameBox_KeyDown"
+                         LostFocus="RenameBox_LostFocus"
+                         Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 14. 大アイコン (小: 100x110) テンプレート -->
+    <DataTemplate x:Key="LargeIconsCompactItemTemplate">
+        <Grid Width="100" Height="110" Padding="4,4" Opacity="{Binding Opacity}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <CheckBox Grid.Row="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      HorizontalAlignment="Left" VerticalAlignment="Top"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="4,4,0,0"/>
+
+            <Image Grid.Row="0"
+                   Source="{Binding Icon}"
+                   Width="56" Height="56"
+                   Stretch="Uniform"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"/>
+
+            <Grid Grid.Row="1" Margin="0,3,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Name}"
+                           FontSize="11"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxLines="2"
+                           TextTrimming="CharacterEllipsis"
+                           HorizontalAlignment="Center"
+                           Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                         FontSize="11"
+                         Height="24"
+                         Padding="3,1"
+                         HorizontalAlignment="Stretch"
+                         Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                         KeyDown="RenameBox_KeyDown"
+                         LostFocus="RenameBox_LostFocus"
+                         Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 15. 中アイコン (大: 110x120) テンプレート -->
+    <DataTemplate x:Key="MediumIconsLargeItemTemplate">
+        <Grid Width="110" Height="120" Padding="5,5" Opacity="{Binding Opacity}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <CheckBox Grid.Row="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      HorizontalAlignment="Left" VerticalAlignment="Top"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="5,5,0,0"/>
+
+            <Image Grid.Row="0"
+                   Source="{Binding Icon}"
+                   Width="60" Height="60"
+                   Stretch="Uniform"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"/>
+
+            <Grid Grid.Row="1" Margin="0,3,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Name}"
+                           FontSize="11.5"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxLines="2"
+                           TextTrimming="CharacterEllipsis"
+                           HorizontalAlignment="Center"
+                           Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                         FontSize="11.5"
+                         Height="26"
+                         Padding="3,1"
+                         HorizontalAlignment="Stretch"
+                         Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                         KeyDown="RenameBox_KeyDown"
+                         LostFocus="RenameBox_LostFocus"
+                         Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 16. 中アイコン (小: 80x88) テンプレート -->
+    <DataTemplate x:Key="MediumIconsCompactItemTemplate">
+        <Grid Width="80" Height="88" Padding="3,3" Opacity="{Binding Opacity}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <CheckBox Grid.Row="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      HorizontalAlignment="Left" VerticalAlignment="Top"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="3,3,0,0"/>
+
+            <Image Grid.Row="0"
+                   Source="{Binding Icon}"
+                   Width="36" Height="36"
+                   Stretch="Uniform"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"/>
+
+            <Grid Grid.Row="1" Margin="0,2,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Name}"
+                           FontSize="10.5"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           MaxLines="2"
+                           TextTrimming="CharacterEllipsis"
+                           HorizontalAlignment="Center"
+                           Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                         FontSize="10.5"
+                         Height="22"
+                         Padding="2,1"
+                         HorizontalAlignment="Stretch"
+                         Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                         KeyDown="RenameBox_KeyDown"
+                         LostFocus="RenameBox_LostFocus"
+                         Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 17. 小アイコン (大: 190x38) テンプレート -->
+    <DataTemplate x:Key="SmallIconsLargeItemTemplate">
+        <Grid Width="190" Height="38" Padding="5,4,8,4" ColumnSpacing="8" Opacity="{Binding Opacity}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <CheckBox Grid.Column="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="8,0,6,0" VerticalAlignment="Center"/>
+
+            <Image Grid.Column="1" Source="{Binding Icon}" Width="24" Height="24" VerticalAlignment="Center"/>
+
+            <Grid Grid.Column="2" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}" FontSize="13" Height="28" Padding="3,1" Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}" KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus" Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 18. 小アイコン (小: 130x30) テンプレート -->
+    <DataTemplate x:Key="SmallIconsCompactItemTemplate">
+        <Grid Width="130" Height="30" Padding="3,3,4,3" ColumnSpacing="5" Opacity="{Binding Opacity}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <CheckBox Grid.Column="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="6,0,4,0" VerticalAlignment="Center"/>
+
+            <Image Grid.Column="1" Source="{Binding Icon}" Width="14" Height="14" VerticalAlignment="Center"/>
+
+            <Grid Grid.Column="2" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}" FontSize="11" Height="22" Padding="2,1" Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}" KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus" Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 19. 一覧 (大: 210x36) テンプレート -->
+    <DataTemplate x:Key="ListLargeItemTemplate">
+        <Grid Width="210" Height="36" Padding="5,4,8,4" ColumnSpacing="8" Opacity="{Binding Opacity}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <CheckBox Grid.Column="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="8,0,6,0" VerticalAlignment="Center"/>
+
+            <Image Grid.Column="1" Source="{Binding Icon}" Width="24" Height="24" VerticalAlignment="Center"/>
+
+            <Grid Grid.Column="2" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis" Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}" FontSize="13" Height="28" Padding="3,1" Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}" KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus" Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 20. 一覧 (小: 150x28) テンプレート -->
+    <DataTemplate x:Key="ListCompactItemTemplate">
+        <Grid Width="150" Height="28" Padding="3,3,4,3" ColumnSpacing="5" Opacity="{Binding Opacity}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <CheckBox Grid.Column="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="6,0,4,0" VerticalAlignment="Center"/>
+
+            <Image Grid.Column="1" Source="{Binding Icon}" Width="14" Height="14" VerticalAlignment="Center"/>
+
+            <Grid Grid.Column="2" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Name}" FontSize="11" TextTrimming="CharacterEllipsis" Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}" FontSize="11" Height="22" Padding="2,1" Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}" KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus" Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 21. タイル (大: 280x60) テンプレート -->
+    <DataTemplate x:Key="TilesLargeItemTemplate">
+        <Grid Width="280" Height="60" Padding="6,6,10,6" ColumnSpacing="10" Opacity="{Binding Opacity}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <CheckBox Grid.Column="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="8,0,6,0" VerticalAlignment="Center"/>
+
+            <Image Grid.Column="1" Source="{Binding Icon}" Width="48" Height="48" VerticalAlignment="Center"/>
+
+            <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="3">
+                <Grid VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Visibility="{Binding DisplayNameVisibility}"/>
+                    <TextBox Text="{Binding RenameText, Mode=TwoWay}" FontSize="13.5" Height="28" Padding="3,1" Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}" KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus" Loaded="RenameBox_Loaded"/>
+                </Grid>
+                <TextBlock Text="{Binding FileType}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11.5" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 22. タイル (小: 200x44) テンプレート -->
+    <DataTemplate x:Key="TilesCompactItemTemplate">
+        <Grid Width="200" Height="44" Padding="3,4,6,4" ColumnSpacing="6" Opacity="{Binding Opacity}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <CheckBox Grid.Column="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="6,0,4,0" VerticalAlignment="Center"/>
+
+            <Image Grid.Column="1" Source="{Binding Icon}" Width="26" Height="26" VerticalAlignment="Center"/>
+
+            <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="1">
+                <Grid VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" FontSize="11.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Visibility="{Binding DisplayNameVisibility}"/>
+                    <TextBox Text="{Binding RenameText, Mode=TwoWay}" FontSize="11.5" Height="22" Padding="2,1" Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}" KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus" Loaded="RenameBox_Loaded"/>
+                </Grid>
+                <TextBlock Text="{Binding FileType}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="10.5" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 23. 特大アイコン (極大: 300x310) テンプレート -->
+    <DataTemplate x:Key="ExtraLargeIconsHugeItemTemplate">
+        <Grid Width="300" Height="310" Padding="12,12" Opacity="{Binding Opacity}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <CheckBox Grid.Row="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      HorizontalAlignment="Left" VerticalAlignment="Top"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="10,10,0,0"/>
+
+            <Image Grid.Row="0" Source="{Binding Icon}" Width="240" Height="240" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+            <Grid Grid.Row="1" Margin="0,8,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Name}" FontSize="14" TextAlignment="Center" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}" FontSize="14" Height="34" Padding="4,2" HorizontalAlignment="Stretch" Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}" KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus" Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 24. 大アイコン (特大: 170x180) テンプレート -->
+    <DataTemplate x:Key="LargeIconsHugeItemTemplate">
+        <Grid Width="170" Height="180" Padding="8,8" Opacity="{Binding Opacity}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <CheckBox Grid.Row="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      HorizontalAlignment="Left" VerticalAlignment="Top"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="8,8,0,0"/>
+
+            <Image Grid.Row="0" Source="{Binding Icon}" Width="128" Height="128" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+            <Grid Grid.Row="1" Margin="0,6,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Name}" FontSize="12.5" TextAlignment="Center" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}" FontSize="12.5" Height="30" Padding="4,2" HorizontalAlignment="Stretch" Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}" KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus" Loaded="RenameBox_Loaded"/>
+            </Grid>
+        </Grid>
+    </DataTemplate>
+
+    <!-- 25. タイル (特大: 320x72) テンプレート -->
+    <DataTemplate x:Key="TilesHugeItemTemplate">
+        <Grid Width="320" Height="72" Padding="8,8,12,8" ColumnSpacing="12" Opacity="{Binding Opacity}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <CheckBox Grid.Column="0"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="8,0,6,0" VerticalAlignment="Center"/>
+
+            <Image Grid.Column="1" Source="{Binding Icon}" Width="64" Height="64" VerticalAlignment="Center"/>
+
+            <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="4">
+                <Grid VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}" FontSize="14.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Visibility="{Binding DisplayNameVisibility}"/>
+                    <TextBox Text="{Binding RenameText, Mode=TwoWay}" FontSize="14.5" Height="32" Padding="4,2" Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}" KeyDown="RenameBox_KeyDown" LostFocus="RenameBox_LostFocus" Loaded="RenameBox_Loaded"/>
+                </Grid>
+                <TextBlock Text="{Binding FileType}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Grid>
+    </DataTemplate>
+
+</ResourceDictionary>

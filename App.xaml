@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Application
+    x:Class="FastExplorer.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:FastExplorer">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <ResourceDictionary Source="ms-appx:///Resources/ContextMenuResources.xaml"/>
+                <ResourceDictionary Source="ms-appx:///Resources/FileItemDetailsTemplates.xaml"/>
+                <ResourceDictionary Source="ms-appx:///Resources/FileItemGridTemplates.xaml"/>
+                <ResourceDictionary Source="ms-appx:///Resources/FileItemGridScaledTemplates.xaml"/>
+                <ResourceDictionary Source="ms-appx:///Resources/LayoutTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <Style x:Key="ContextMenuItemButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                <Setter Property="Padding" Value="10,6"/>
+                <Setter Property="Height" Value="34"/>
+                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="FontSize" Value="13"/>
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

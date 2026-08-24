@@ -1,0 +1,57 @@
+## Visual Studio / .NET / C#
+.vs/
+bin/
+obj/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.sln.docstates
+*.DotSettings.user
+
+## WinUI / Windows App SDK / MSIX Packaging
+AppPackages/
+BundleArtifacts/
+Package.StoreAssociation.xml
+_pkginfo.txt
+*.msix
+*.appx
+*.appxbundle
+*.msixbundle
+*.appxupload
+*.msixupload
+
+## Build Outputs & Dist
+dist/
+publish/
+out/
+Release/
+Debug/
+x64/
+x86/
+ARM64/
+
+## Logs and Diagnostics
+*.log
+*.tlog
+*.sarif
+*.diagnosticpack
+
+## Inno Setup Artifacts / Temp Installers
+Output/
+*.exe.WebView2/
+
+## OS & IDE Generated Files
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.directory
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

@@ -1,0 +1,28 @@
+{
+  "editor": {
+    "path": "notepad.exe",
+    "args": [
+      "{filePath}"
+    ]
+  },
+  "terminal": {
+    "path": "wt.exe",
+    "args": [
+      "-d",
+      "{dirPath}"
+    ]
+  },
+  "startup": {
+    "residentOnBoot": true,
+    "defaultPath": "ThisPC"
+  },
+  "cache": {
+    "maxEntries": 2000,
+    "maxMemoryMB": 50
+  },
+  "ui": {
+    "theme": "system",
+    "showHiddenFiles": false,
+    "confirmDelete": true
+  }
+}

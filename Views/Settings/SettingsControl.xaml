@@ -1,0 +1,502 @@
+<UserControl
+    x:Class="FastExplorer.Views.Settings.SettingsControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="240"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- 1. 左側: ナビゲーションサイドバー -->
+        <Border Grid.Column="0"
+                Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                BorderThickness="0,0,1,0"
+                Padding="12,16">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- ヘッダー -->
+                <StackPanel Orientation="Horizontal" Spacing="10" Margin="8,4,0,20" VerticalAlignment="Center">
+                    <Border Width="32" Height="32" CornerRadius="6" Background="{ThemeResource AccentFillColorDefaultBrush}">
+                        <FontIcon Glyph="&#xE713;" FontSize="16" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="FastExplorer" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                        <TextBlock Text="設定" FontWeight="SemiBold" FontSize="18" Margin="0,-2,0,0"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- 縦タブボタンリスト -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,0,-6,0" Padding="0,0,6,0">
+                    <StackPanel Spacing="3">
+                        <!-- タブ1: 外観と表示 -->
+                        <Button x:Name="TabBtnTheme"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,9"
+                                CornerRadius="6"
+                                Style="{StaticResource DefaultButtonStyle}"
+                                Click="TabBtn_Click" Tag="Theme">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <FontIcon Glyph="&#xE771;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="外観と表示" FontWeight="Medium" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- タブ2: キーボードショートカット -->
+                        <Button x:Name="TabBtnShortcuts"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,9"
+                                CornerRadius="6"
+                                Style="{StaticResource DefaultButtonStyle}"
+                                Click="TabBtn_Click" Tag="Shortcuts">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <FontIcon Glyph="&#xE765;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="ショートカットキー" FontWeight="Medium" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- タブ3: 基本メニュー -->
+                        <Button x:Name="TabBtnStandard"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,9"
+                                CornerRadius="6"
+                                Style="{StaticResource DefaultButtonStyle}"
+                                Click="TabBtn_Click" Tag="Standard">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <FontIcon Glyph="&#xE8D2;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="基本メニュー" FontWeight="Medium" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- タブ4: 右クリック拡張 (Shift+右 検出項目) -->
+                        <Button x:Name="TabBtnDetected"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,9"
+                                CornerRadius="6"
+                                Style="{StaticResource DefaultButtonStyle}"
+                                Click="TabBtn_Click" Tag="Detected">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <FontIcon Glyph="&#xE74C;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="右クリック拡張 (Shift+右)" FontWeight="Medium" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- タブ5: 外部ツール -->
+                        <Button x:Name="TabBtnTools"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,9"
+                                CornerRadius="6"
+                                Style="{StaticResource DefaultButtonStyle}"
+                                Click="TabBtn_Click" Tag="Tools">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <FontIcon Glyph="&#xE756;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="外部ツール設定" FontWeight="Medium" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- タブ6: システム連携 (エクスプローラー置換) -->
+                        <Button x:Name="TabBtnIntegration"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,9"
+                                CornerRadius="6"
+                                Style="{StaticResource DefaultButtonStyle}"
+                                Click="TabBtn_Click" Tag="Integration">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <FontIcon Glyph="&#xE770;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="システム連携 (置換)" FontWeight="Medium" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- タブ7: 詳細と情報 -->
+                        <Button x:Name="TabBtnAbout"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Padding="12,9"
+                                CornerRadius="6"
+                                Style="{StaticResource DefaultButtonStyle}"
+                                Click="TabBtn_Click" Tag="About">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <FontIcon Glyph="&#xE946;" FontSize="15" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                                <TextBlock Text="詳細とシステム情報" FontWeight="Medium" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- 2. 右側: コンテンツ表示エリア -->
+        <ScrollViewer x:Name="MainScrollViewer" Grid.Column="1" Padding="36,24,36,24" VerticalScrollBarVisibility="Auto">
+            <Grid HorizontalAlignment="Stretch">
+
+                <!-- セクション 1: 外観と表示 -->
+                <StackPanel x:Name="SectionTheme" Spacing="20" Visibility="Visible">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="外観と表示" FontSize="22" FontWeight="SemiBold"/>
+                        <TextBlock Text="アプリケーションのカラーテーマ、項目の表示形式、基本動作を設定します" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
+                        <StackPanel Spacing="16">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="アプリのテーマ" FontWeight="Medium"/>
+                                    <TextBlock Text="ライト・ダーク・システム同期を選択します" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ComboBox x:Name="ThemeComboBox" Grid.Column="1" Width="170" SelectionChanged="ThemeComboBox_SelectionChanged">
+                                    <ComboBoxItem Content="システムに従う" Tag="system"/>
+                                    <ComboBoxItem Content="ダーク" Tag="dark"/>
+                                    <ComboBoxItem Content="ライト" Tag="light"/>
+                                </ComboBox>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                            <ToggleSwitch x:Name="ShowItemCheckBoxesToggle"
+                                          Header="項目チェックボックスを表示する"
+                                          Toggled="ShowItemCheckBoxesToggle_Toggled"/>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                            <ToggleSwitch x:Name="ShowHiddenFilesToggle"
+                                          Header="隠しファイルと隠しフォルダーを表示する"
+                                          Toggled="ShowHiddenFilesToggle_Toggled"/>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                            <ToggleSwitch x:Name="ConfirmDeleteToggle"
+                                          Header="ファイル削除時に確認ダイアログを表示する"
+                                          Toggled="ConfirmDeleteToggle_Toggled"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- セクション 2: キーボードショートカット -->
+                <StackPanel x:Name="SectionShortcuts" Spacing="18" Visibility="Collapsed">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="キーボードショートカット" FontSize="22" FontWeight="SemiBold"/>
+                        <TextBlock Text="FastExplorer 内の各種操作キーを好みに合わせてカスタマイズできます" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <!-- 検索 & フィルターツールバー -->
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="14">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="180"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox x:Name="ShortcutSearchBox" PlaceholderText="操作名やキーで検索..." TextChanged="ShortcutSearchBox_TextChanged"/>
+
+                            <ComboBox x:Name="ShortcutCategoryComboBox" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="ShortcutCategory_SelectionChanged">
+                                <ComboBoxItem Content="すべての操作" Tag="All"/>
+                                <ComboBoxItem Content="ファイル・フォルダー" Tag="ファイル・フォルダー操作"/>
+                                <ComboBoxItem Content="ナビゲーション" Tag="ナビゲーション"/>
+                                <ComboBoxItem Content="タブ・ウィンドウ" Tag="タブ・ウィンドウ"/>
+                                <ComboBoxItem Content="表示・ツール" Tag="表示・ツール"/>
+                            </ComboBox>
+
+                            <Button Grid.Column="2" Click="ResetAllShortcuts_Click" ToolTipService.ToolTip="すべてのショートカットを規定値に戻す">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <FontIcon Glyph="&#xE777;" FontSize="12"/>
+                                    <TextBlock Text="初期値に戻す"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- ショートカット一覧コンテナ -->
+                    <StackPanel x:Name="ShortcutsContainer" Spacing="10"/>
+                </StackPanel>
+
+                <!-- セクション 3: 基本コンテキストメニュー -->
+                <StackPanel x:Name="SectionStandard" Spacing="20" Visibility="Collapsed">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="基本コンテキストメニュー (標準機能)" FontSize="22" FontWeight="SemiBold"/>
+                        <TextBlock Text="右クリックメニューに表示する FastExplorer 標準アクションの個別オン/オフを設定します" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
+                        <StackPanel Spacing="12">
+                            <ToggleSwitch x:Name="ToggleOpenWith" Header="「プログラムから開く」を表示" Toggled="ToggleMenu_Toggled"/>
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                            <ToggleSwitch x:Name="ToggleEditWithEditor" Header="「テキストエディタで編集」を表示" Toggled="ToggleMenu_Toggled"/>
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                            <ToggleSwitch x:Name="ToggleOpenInTerminal" Header="「ターミナルで開く」を表示" Toggled="ToggleMenu_Toggled"/>
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                            <ToggleSwitch x:Name="ToggleCopyPath" Header="「パスをコピー」を表示" Toggled="ToggleMenu_Toggled"/>
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                            <ToggleSwitch x:Name="ToggleZipOptions" Header="「ZIP / 7-Zip / RAR 圧縮・展開」を表示" Toggled="ToggleMenu_Toggled"/>
+                            <StackPanel x:Name="ZipLevelSettingsPanel" Spacing="10" Margin="24,0,0,0">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="180"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="ZIP 規定の圧縮レベル" FontWeight="Medium"/>
+                                        <TextBlock Text="右クリック「ZIP ファイルに圧縮」時の圧縮レベル" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ComboBox x:Name="ZipDefaultLevelComboBox" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="CompressionLevelComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="最高圧縮 (Ultra)"/>
+                                        <ComboBoxItem Content="標準 (Normal)"/>
+                                        <ComboBoxItem Content="高速 (Fast)"/>
+                                        <ComboBoxItem Content="無圧縮 (Store)"/>
+                                    </ComboBox>
+                                </Grid>
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="180"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="7-Zip 規定の圧縮レベル" FontWeight="Medium"/>
+                                        <TextBlock Text="右クリック「7z ファイルに圧縮」時の圧縮レベル" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ComboBox x:Name="SevenZipDefaultLevelComboBox" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="CompressionLevelComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="最高圧縮 (Ultra)"/>
+                                        <ComboBoxItem Content="標準 (Normal)"/>
+                                        <ComboBoxItem Content="高速 (Fast)"/>
+                                        <ComboBoxItem Content="無圧縮 (Store)"/>
+                                    </ComboBox>
+                                </Grid>
+                            </StackPanel>
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                            <ToggleSwitch x:Name="ToggleProperties" Header="「プロパティ」を表示" Toggled="ToggleMenu_Toggled"/>
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                            <ToggleSwitch x:Name="ToggleOsStandardOption" Header="「その他のオプションを表示 (Shift+右クリック)」を表示" Toggled="ToggleMenu_Toggled"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- セクション 4: 右クリック拡張 (Shift+右 検出項目) -->
+                <StackPanel x:Name="SectionDetected" Spacing="18" Visibility="Collapsed">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="右クリック拡張メニュー (Shift+右 検出)" FontSize="22" FontWeight="SemiBold"/>
+                        <TextBlock Text="OS 右クリックメニューから自動検出された拡張機能をアプリ・ベンダー別に整理して細かく制御できます。" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <!-- 一括スイッチ & ツールバー -->
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel Spacing="14">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Spacing="2">
+                                    <TextBlock Text="すべての検出項目を一括自動表示" FontWeight="SemiBold"/>
+                                    <TextBlock Text="ONの場合、新しく検出された拡張機能も自動的にONで登録されます" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ToggleShowAllShellItems" Grid.Column="1" Toggled="ToggleMenu_Toggled"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                            <!-- 検索フィルター & 状態絞り込み & 一括操作ボタン -->
+                            <Grid ColumnSpacing="10" RowSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="SearchFilterBox" PlaceholderText="検出項目を検索..." TextChanged="SearchFilterBox_TextChanged"/>
+                                <ComboBox x:Name="DetectedFilterStatusComboBox" Grid.Column="1" HorizontalAlignment="Stretch" SelectedIndex="0" SelectionChanged="DetectedFilterStatus_SelectionChanged">
+                                    <ComboBoxItem Content="すべての状態" Tag="All"/>
+                                    <ComboBoxItem Content="有効のみ" Tag="Enabled"/>
+                                    <ComboBoxItem Content="無効のみ" Tag="Disabled"/>
+                                </ComboBox>
+                                <Button Grid.Column="2" Content="すべてON" Click="AllOn_Click"/>
+                                <Button Grid.Column="3" Content="すべてOFF" Click="AllOff_Click"/>
+                                <Button Grid.Column="4" Content="おすすめ構成" Click="RecommendedPreset_Click" ToolTipService.ToolTip="便利なツールのみONにします"/>
+                                <Button Grid.Column="5" Click="ResetDetectedItems_Click" ToolTipService.ToolTip="検出された項目を初期状態にリセットします">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <FontIcon Glyph="&#xE777;" FontSize="12"/>
+                                        <TextBlock Text="リセット"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 検出された項目の一覧カード（動的生成 & 並び替え） -->
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="16">
+                        <StackPanel x:Name="DetectedItemsContainer" Spacing="10">
+                            <!-- アプリ別にグループ化されたアコーディオン・トグルが動的生成されます -->
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- セクション 5: 外部ツール設定 -->
+                <StackPanel x:Name="SectionTools" Spacing="20" Visibility="Collapsed">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="外部ツール設定" FontSize="22" FontWeight="SemiBold"/>
+                        <TextBlock Text="規定のテキストエディタおよびターミナルの実行ファイルパスを設定します" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
+                        <StackPanel Spacing="16">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="規定のテキストエディタの実行ファイル" FontWeight="Medium"/>
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="EditorPathBox" PlaceholderText="notepad.exe" LostFocus="EditorPathBox_LostFocus"/>
+                                    <Button Grid.Column="1" Content="参照..." Click="BrowseEditorPath_Click"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="規定のターミナルの実行ファイル" FontWeight="Medium"/>
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TerminalPathBox" PlaceholderText="wt.exe" LostFocus="TerminalPathBox_LostFocus"/>
+                                    <Button Grid.Column="1" Content="参照..." Click="BrowseTerminalPath_Click"/>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- セクション 6: システム連携 (エクスプローラー置換) -->
+                <StackPanel x:Name="SectionIntegration" Spacing="20" Visibility="Collapsed">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="システム連携 (エクスプローラー置換)" FontSize="22" FontWeight="SemiBold"/>
+                        <TextBlock Text="Windows 標準エクスプローラーとの置き換えやシェル連携、キーボード連動を設定します" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <!-- 既定のファイルマネージャー (マスター設定) -->
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="6" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <TextBlock Text="FastExplorer を既定のファイルマネージャーにする" FontWeight="SemiBold" FontSize="16"/>
+                                    <Border x:Name="DefaultExplorerStatusBadge" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="4" Padding="8,3" VerticalAlignment="Center">
+                                        <TextBlock x:Name="DefaultExplorerStatusText" Text="既定に設定中" FontSize="11" Foreground="White" FontWeight="Medium"/>
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="フォルダー・ドライブ・ごみ箱を開いた際、標準の Windows エクスプローラーの代わりに FastExplorer を起動します。" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock Text="※ フォルダー右クリックメニューや Win + E キーショートカットも自動で FastExplorer に連動します。" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                <TextBlock Text="※ 管理者権限不要 (HKCU) で安全に登録され、いつでもワンクリックで元に戻せます。" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                            </StackPanel>
+                            <ToggleSwitch x:Name="ToggleDefaultExplorer" Grid.Column="1" VerticalAlignment="Center" Toggled="ToggleDefaultExplorer_Toggled"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- セクション 7: 詳細とシステム情報 -->
+                <StackPanel x:Name="SectionAbout" Spacing="20" Visibility="Collapsed">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="詳細とシステム情報" FontSize="22" FontWeight="SemiBold"/>
+                        <TextBlock Text="キャッシュ容量の管理やアプリケーション設定のメンテナンスを行います" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </StackPanel>
+
+                    <!-- キャッシュ管理 -->
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
+                        <StackPanel Spacing="16">
+                            <TextBlock Text="パフォーマンスとキャッシュ" FontWeight="SemiBold" FontSize="15"/>
+
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="サムネイル・アイコンキャッシュ" FontWeight="Medium"/>
+                                    <TextBlock Text="フォルダー移動を高速化するためにメモリ上に保持されるキャッシュです" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="キャッシュをクリア" Click="ClearCache_Click"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="140"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="最大メモリキャッシュ容量" FontWeight="Medium"/>
+                                    <TextBlock Text="キャッシュに使用する最大メモリ量 (MB)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <NumberBox x:Name="MaxCacheMemoryBox" Grid.Column="1" Value="50" Minimum="10" Maximum="500" SmallChange="10" ValueChanged="MaxCacheMemoryBox_ValueChanged"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- アプリケーション情報 -->
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="アプリケーションについて" FontWeight="SemiBold" FontSize="15"/>
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Width="48" Height="48" CornerRadius="10" Background="{ThemeResource AccentFillColorDefaultBrush}">
+                                    <FontIcon Glyph="&#xE713;" FontSize="24" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Text="FastExplorer" FontSize="16" FontWeight="SemiBold"/>
+                                    <TextBlock Text="バージョン 1.0 (WinUI 3 / Windows App SDK)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock Text="極限の応答速度と高機能を追求した次世代ファイルエクスプローラー" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="すべての設定を初期状態にリセット" FontWeight="Medium" Foreground="OrangeRed"/>
+                                    <TextBlock Text="テーマ、メニュー設定、ショートカットキーなど全ての設定を初期化します" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="すべてリセット..." Click="ResetAllSettings_Click"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

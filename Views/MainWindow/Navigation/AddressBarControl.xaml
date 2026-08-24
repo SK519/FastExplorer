@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="FastExplorer.Views.MainWindow.Navigation.AddressBarControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:FastExplorer"
+    xmlns:models="using:FastExplorer.Models"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="ms-appx:///Resources/LayoutTemplates.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <DataTemplate x:Key="BreadcrumbItemTemplate" x:DataType="local:BreadcrumbItem">
+                <StackPanel Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
+                    <HyperlinkButton Click="BreadcrumbFolder_Click" Padding="6,2" Height="30" VerticalAlignment="Center" CornerRadius="4">
+                        <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                            <FontIcon Glyph="{x:Bind Glyph}" FontSize="12" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"/>
+                            <TextBlock Text="{x:Bind Label}" FontSize="12.5" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                        </StackPanel>
+                    </HyperlinkButton>
+                    <Button Style="{StaticResource BreadcrumbArrowButtonStyle}" Click="BreadcrumbArrow_Click" ToolTipService.ToolTip="サブフォルダーを表示">
+                        <FontIcon Glyph="&#xE76C;" FontSize="9" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                    </Button>
+                </StackPanel>
+            </DataTemplate>
+            <DataTemplate x:Key="SuggestionItemTemplate" x:DataType="models:TypedPathSuggestionItem">
+                <Grid Padding="4,4" ColumnSpacing="10" HorizontalAlignment="Stretch">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <FontIcon Grid.Column="0" Glyph="{x:Bind Glyph}" FontSize="13" Foreground="{ThemeResource TextFillColorTertiaryBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{x:Bind Path}" FontSize="13" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorPrimaryBrush}"/>
+                    <Button Grid.Column="2" Click="DeleteSuggestion_Click" PointerPressed="DeleteSuggestion_PointerPressed"
+                            IsTabStop="False" Style="{StaticResource BreadcrumbArrowButtonStyle}"
+                            Width="24" Height="24" Padding="0" ToolTipService.ToolTip="履歴から削除" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE711;" FontSize="10" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    </Button>
+                </Grid>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Padding="12,4,12,8" ColumnSpacing="6">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="240"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Button x:Name="BackButton" Grid.Column="0" Click="BackButton_Click" ToolTipService.ToolTip="戻る (Alt+Left)"><FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE72B;" FontSize="13"/></Button>
+        <Button x:Name="ForwardButton" Grid.Column="1" Click="ForwardButton_Click" ToolTipService.ToolTip="進む (Alt+Right)"><FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE72A;" FontSize="13"/></Button>
+        <Button x:Name="UpButton" Grid.Column="2" Click="UpButton_Click" ToolTipService.ToolTip="上へ (Alt+Up)"><FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE74A;" FontSize="13"/></Button>
+        <Button x:Name="RefreshButton" Grid.Column="3" Click="RefreshButton_Click" ToolTipService.ToolTip="最新の情報に更新 (F5)"><FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE72C;" FontSize="13"/></Button>
+        <Grid Grid.Column="4" VerticalAlignment="Center">
+            <Border x:Name="BreadcrumbContainer" Background="{ThemeResource ControlFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="4" MinHeight="34" Padding="4,0,28,0" PointerPressed="BreadcrumbContainer_PointerPressed" ToolTipService.ToolTip="パス入力"
+                    AllowDrop="True" DragOver="Breadcrumb_DragOver" Drop="Breadcrumb_Drop">
+                <ScrollViewer HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Enabled">
+                    <ItemsControl x:Name="BreadcrumbItemsControl" ItemTemplate="{StaticResource BreadcrumbItemTemplate}">
+                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal" VerticalAlignment="Center"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+            <AutoSuggestBox x:Name="AddressSuggestBox" Height="34" VerticalAlignment="Center" Visibility="Collapsed"
+                            PlaceholderText="パスを入力..."
+                            ItemTemplate="{StaticResource SuggestionItemTemplate}"
+                            TextChanged="AddressSuggestBox_TextChanged"
+                            QuerySubmitted="AddressSuggestBox_QuerySubmitted"
+                            SuggestionChosen="AddressSuggestBox_SuggestionChosen"
+                            KeyDown="AddressSuggestBox_KeyDown"
+                            GotFocus="AddressSuggestBox_GotFocus"
+                            LostFocus="AddressSuggestBox_LostFocus" />
+            <Button x:Name="HistoryDropDownButton" HorizontalAlignment="Right" VerticalAlignment="Center" Width="26" Height="28" Margin="0,0,3,0" Padding="0" Background="Transparent" BorderBrush="Transparent" Style="{StaticResource BreadcrumbArrowButtonStyle}" Click="HistoryDropDownButton_Click" ToolTipService.ToolTip="入力履歴 (Alt+Down)">
+                <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+            </Button>
+        </Grid>
+        <TextBox x:Name="SearchFilterBox" Grid.Column="5" Height="34" VerticalAlignment="Center" TextChanged="SearchFilterBox_TextChanged" KeyDown="SearchFilterBox_KeyDown" PlaceholderText="フィルター検索 (Ctrl+F)..."/>
+        <Button x:Name="SettingsButton" Grid.Column="6" Click="SettingsButton_Click" ToolTipService.ToolTip="設定"><FontIcon Glyph="&#xE713;" FontSize="13"/></Button>
+    </Grid>
+</UserControl>

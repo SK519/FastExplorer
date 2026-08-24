@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- 1. 詳細表示テンプレート (ListView 用) -->
+    <DataTemplate x:Key="DetailsItemTemplate">
+        <StackPanel Orientation="Horizontal" Height="{Binding RowHeight, FallbackValue=34}" Padding="4,0,12,0" Spacing="0" Opacity="{Binding Opacity}">
+            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="8,0,8,0" VerticalAlignment="Center"/>
+
+            <Image Source="{Binding Icon}"
+                   Width="{Binding ItemIconSize, FallbackValue=20}"
+                   Height="{Binding ItemIconSize, FallbackValue=20}"
+                   Margin="0,0,8,0"
+                   VerticalAlignment="Center"/>
+
+            <!-- 名前列 (可変幅) -->
+            <Grid Width="{Binding ColNameWidth}" VerticalAlignment="Center" Padding="0,0,8,0">
+                <TextBlock Text="{Binding Name}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           FontSize="{Binding ItemFontSize, FallbackValue=13}"
+                           Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                         VerticalAlignment="Center"
+                         FontSize="{Binding ItemFontSize, FallbackValue=13}"
+                         Height="28"
+                         Padding="4,2"
+                         Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                         KeyDown="RenameBox_KeyDown"
+                         LostFocus="RenameBox_LostFocus"
+                         Loaded="RenameBox_Loaded"/>
+            </Grid>
+
+            <!-- 2列目 (通常: 更新日時 / ごみ箱: 元の場所) (可変幅) -->
+            <TextBlock Width="{Binding ColDateWidth}"
+                       Text="{Binding DisplayCol2Text}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Padding="0,0,8,0"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       FontSize="{Binding ItemSubFontSize, FallbackValue=12}"/>
+
+            <!-- 3列目 (通常: 種類 / ごみ箱: 削除日時) (可変幅) -->
+            <TextBlock Width="{Binding ColTypeWidth}"
+                       Text="{Binding DisplayCol3Text}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Padding="0,0,8,0"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       FontSize="{Binding ItemSubFontSize, FallbackValue=12}"/>
+
+            <!-- サイズ列 (可変幅) -->
+            <TextBlock Width="{Binding ColSizeWidth}"
+                       Text="{Binding FormattedSize}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       FontSize="{Binding ItemSubFontSize, FallbackValue=12}"/>
+        </StackPanel>
+    </DataTemplate>
+
+    <!-- 2. コンテンツ表示テンプレート (ListView 用) -->
+    <DataTemplate x:Key="ContentItemTemplate">
+        <StackPanel Orientation="Horizontal" Height="50" Padding="4,4,12,4" Spacing="0" Opacity="{Binding Opacity}">
+            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="8,0,8,0" VerticalAlignment="Center"/>
+
+            <Image Source="{Binding Icon}"
+                   Width="32"
+                   Height="32"
+                   Margin="0,0,12,0"
+                   VerticalAlignment="Center"/>
+
+            <StackPanel Width="{Binding ColNameWidth}" VerticalAlignment="Center" Spacing="2">
+                <Grid VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Name}"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding DisplayNameVisibility}"/>
+                    <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                             FontSize="13"
+                             Height="28"
+                             Padding="4,2"
+                             Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                             KeyDown="RenameBox_KeyDown"
+                             LostFocus="RenameBox_LostFocus"
+                             Loaded="RenameBox_Loaded"/>
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="{Binding FormattedDateModified}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               FontSize="11"/>
+                    <TextBlock Text="{Binding FileType}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               FontSize="11"/>
+                    <TextBlock Text="{Binding FormattedSize}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               FontSize="11"/>
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </DataTemplate>
+
+    <!-- 9. 詳細表示 (大) テンプレート -->
+    <DataTemplate x:Key="DetailsLargeItemTemplate">
+        <StackPanel Orientation="Horizontal" Height="42" Padding="4,0,12,0" Spacing="0" Opacity="{Binding Opacity}">
+            <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
+
+            <Image Source="{Binding Icon}"
+                   Width="24" Height="24"
+                   Margin="0,0,8,0"
+                   VerticalAlignment="Center"/>
+
+            <Grid Width="{Binding ColNameWidth}" VerticalAlignment="Center" Padding="0,0,8,0">
+                <TextBlock Text="{Binding Name}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           FontSize="14"
+                           Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                         VerticalAlignment="Center"
+                         FontSize="14"
+                         Height="30"
+                         Padding="4,2"
+                         Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                         KeyDown="RenameBox_KeyDown"
+                         LostFocus="RenameBox_LostFocus"
+                         Loaded="RenameBox_Loaded"/>
+            </Grid>
+
+            <TextBlock Width="{Binding ColDateWidth}" Text="{Binding DisplayCol2Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Padding="0,0,8,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="13"/>
+            <TextBlock Width="{Binding ColTypeWidth}" Text="{Binding DisplayCol3Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Padding="0,0,8,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="13"/>
+            <TextBlock Width="{Binding ColSizeWidth}" Text="{Binding FormattedSize}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="13"/>
+        </StackPanel>
+    </DataTemplate>
+
+    <!-- 10. 詳細表示 (小) テンプレート -->
+    <DataTemplate x:Key="DetailsCompactItemTemplate">
+        <StackPanel Orientation="Horizontal" Height="28" Padding="4,0,10,0" Spacing="0" Opacity="{Binding Opacity}">
+            <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
+
+            <Image Source="{Binding Icon}"
+                   Width="16" Height="16"
+                   Margin="0,0,6,0"
+                   VerticalAlignment="Center"/>
+
+            <Grid Width="{Binding ColNameWidth}" VerticalAlignment="Center" Padding="0,0,6,0">
+                <TextBlock Text="{Binding Name}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           FontSize="12"
+                           Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                         VerticalAlignment="Center"
+                         FontSize="12"
+                         Height="24"
+                         Padding="3,1"
+                         Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                         KeyDown="RenameBox_KeyDown"
+                         LostFocus="RenameBox_LostFocus"
+                         Loaded="RenameBox_Loaded"/>
+            </Grid>
+
+            <TextBlock Width="{Binding ColDateWidth}" Text="{Binding DisplayCol2Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Padding="0,0,6,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"/>
+            <TextBlock Width="{Binding ColTypeWidth}" Text="{Binding DisplayCol3Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Padding="0,0,6,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"/>
+            <TextBlock Width="{Binding ColSizeWidth}" Text="{Binding FormattedSize}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="11"/>
+        </StackPanel>
+    </DataTemplate>
+
+    <!-- 11. 詳細表示 (特大) テンプレート -->
+    <DataTemplate x:Key="DetailsExtraLargeItemTemplate">
+        <StackPanel Orientation="Horizontal" Height="52" Padding="4,0,14,0" Spacing="0" Opacity="{Binding Opacity}">
+            <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
+
+            <Image Source="{Binding Icon}"
+                   Width="32" Height="32"
+                   Margin="0,0,10,0"
+                   VerticalAlignment="Center"/>
+
+            <Grid Width="{Binding ColNameWidth}" VerticalAlignment="Center" Padding="0,0,10,0">
+                <TextBlock Text="{Binding Name}"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           Visibility="{Binding DisplayNameVisibility}"/>
+                <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                         VerticalAlignment="Center"
+                         FontSize="16"
+                         Height="34"
+                         Padding="4,2"
+                         Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                         KeyDown="RenameBox_KeyDown"
+                         LostFocus="RenameBox_LostFocus"
+                         Loaded="RenameBox_Loaded"/>
+            </Grid>
+
+            <TextBlock Width="{Binding ColDateWidth}" Text="{Binding DisplayCol2Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Padding="0,0,10,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14"/>
+            <TextBlock Width="{Binding ColTypeWidth}" Text="{Binding DisplayCol3Text}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Padding="0,0,10,0" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14"/>
+            <TextBlock Width="{Binding ColSizeWidth}" Text="{Binding FormattedSize}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="14"/>
+        </StackPanel>
+    </DataTemplate>
+
+    <!-- 12. コンテンツ表示 (特大) テンプレート -->
+    <DataTemplate x:Key="ContentExtraLargeItemTemplate">
+        <StackPanel Orientation="Horizontal" Height="68" Padding="6,0,14,0" Spacing="0" Opacity="{Binding Opacity}">
+            <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
+
+            <Image Source="{Binding Icon}"
+                   Width="48" Height="48"
+                   Margin="0,0,12,0"
+                   VerticalAlignment="Center"/>
+
+            <StackPanel VerticalAlignment="Center" Spacing="3">
+                <Grid Width="{Binding ColNameWidth}" Padding="0,0,10,0">
+                    <TextBlock Text="{Binding Name}"
+                               TextTrimming="CharacterEllipsis"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Visibility="{Binding DisplayNameVisibility}"/>
+                    <TextBox Text="{Binding RenameText, Mode=TwoWay}"
+                             FontSize="16"
+                             Height="34"
+                             Padding="4,2"
+                             Visibility="{Binding RenameBoxVisibility, FallbackValue=Collapsed}"
+                             KeyDown="RenameBox_KeyDown"
+                             LostFocus="RenameBox_LostFocus"
+                             Loaded="RenameBox_Loaded"/>
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <TextBlock Text="{Binding FileType}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12"/>
+                    <TextBlock Text="{Binding FormattedDateModified}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12"/>
+                    <TextBlock Text="{Binding FormattedSize}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12"/>
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </DataTemplate>
+
+</ResourceDictionary>
