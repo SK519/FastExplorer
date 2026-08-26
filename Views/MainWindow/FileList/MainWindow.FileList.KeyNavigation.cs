@@ -32,6 +32,14 @@ namespace FastExplorer
         {
             if (CurrentTab == null) return;
 
+            // テキストボックス入力中または名前変更中の場合は、ファイルリストのショートカット操作（Backspace, Ctrl+V, Delete, Ctrl+C等）を抑止
+            if (e.OriginalSource is TextBox ||
+                CurrentTab.Items?.Any(x => x.IsRenaming) == true ||
+                (this.Content?.XamlRoot != null && Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(this.Content.XamlRoot) is TextBox))
+            {
+                return;
+            }
+
             bool isCtrl = IsCtrlPressed();
             bool isShift = IsShiftPressed();
             bool isAlt = IsAltPressed();

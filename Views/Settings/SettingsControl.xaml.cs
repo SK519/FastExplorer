@@ -473,27 +473,18 @@ namespace FastExplorer.Views.Settings
             {
                 ConfigService.Current.SystemIntegration.ReplaceDefaultExplorer = isEnabled;
 
-                // 親トグルが変更された場合、子オプション（右クリック、Win+E）も連動
-                if (isEnabled)
-                {
-                    // 一括で有効化
-                    SystemIntegrationService.SetContextMenuIntegration(true);
-                    ConfigService.Current.SystemIntegration.AddContextMenuToFolders = true;
+                // 既定の切り替えに伴い、右クリックメニュー連携および Win+E キー連動も自動で一括連動
+                SystemIntegrationService.SetContextMenuIntegration(isEnabled);
+                ConfigService.Current.SystemIntegration.AddContextMenuToFolders = isEnabled;
+                ConfigService.Current.SystemIntegration.InterceptWinE = isEnabled;
 
-                    ConfigService.Current.SystemIntegration.InterceptWinE = true;
-                    if (App.CurrentWindow is global::FastExplorer.MainWindow mw)
+                if (App.CurrentWindow is global::FastExplorer.MainWindow mw)
+                {
+                    if (isEnabled)
                     {
                         SystemIntegrationService.RegisterWinEHotKey(mw.WindowHandle);
                     }
-                }
-                else
-                {
-                    // 一括で解除
-                    SystemIntegrationService.SetContextMenuIntegration(false);
-                    ConfigService.Current.SystemIntegration.AddContextMenuToFolders = false;
-
-                    ConfigService.Current.SystemIntegration.InterceptWinE = false;
-                    if (App.CurrentWindow is global::FastExplorer.MainWindow mw)
+                    else
                     {
                         SystemIntegrationService.UnregisterWinEHotKey(mw.WindowHandle);
                     }

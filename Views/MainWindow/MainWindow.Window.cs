@@ -136,6 +136,17 @@ namespace FastExplorer
                     // OS の自動ドラッグ領域を明示的にクリアして、単押し追従バグを防ぐ
                     AppWindow.TitleBar.SetDragRectangles([]);
                 }
+
+                // DWM / Win32 ノンクライアント領域の初期白線（フレーム境界）を即座に再計算・除去
+                nint hWnd = WindowHandle;
+                if (hWnd != nint.Zero)
+                {
+                    Win32Interop.SetWindowPos(
+                        hWnd,
+                        nint.Zero,
+                        0, 0, 0, 0,
+                        Win32Interop.SWP_NOMOVE | Win32Interop.SWP_NOSIZE | Win32Interop.SWP_NOZORDER | Win32Interop.SWP_FRAMECHANGED);
+                }
             }
             catch
             {
@@ -285,7 +296,8 @@ namespace FastExplorer
                 CancelActiveRenaming();
             }
 
-            if (FocusManager.GetFocusedElement(this.Content.XamlRoot) is TextBox)
+            if (FocusManager.GetFocusedElement(this.Content.XamlRoot) is TextBox ||
+                CurrentTab?.Items?.Any(x => x.IsRenaming) == true)
             {
                 return;
             }

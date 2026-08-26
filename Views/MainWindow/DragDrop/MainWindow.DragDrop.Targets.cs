@@ -177,9 +177,10 @@ namespace FastExplorer
 
             e.Data.RequestedOperation = DataPackageOperation.Copy | DataPackageOperation.Move;
 
-            try
+            e.Data.SetDataProvider(StandardDataFormats.StorageItems, async request =>
             {
-                var storageItems = Task.Run(async () =>
+                var def = request.GetDeferral();
+                try
                 {
                     var sList = new List<IStorageItem>();
                     foreach (var p in list)
@@ -191,15 +192,14 @@ namespace FastExplorer
                         }
                         catch { }
                     }
-                    return sList;
-                }).Result;
-
-                if (storageItems.Count > 0)
-                {
-                    e.Data.SetStorageItems(storageItems);
+                    request.SetData(sList);
                 }
-            }
-            catch { }
+                catch { }
+                finally
+                {
+                    def.Complete();
+                }
+            });
 
             e.Data.SetText(string.Join(Environment.NewLine, list));
         }

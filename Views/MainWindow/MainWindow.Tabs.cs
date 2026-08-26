@@ -4,9 +4,12 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using FastExplorer.Core;
+using FastExplorer.Helpers;
 using FastExplorer.Models;
 using FastExplorer.Services;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer.DragDrop;
 
 namespace FastExplorer
@@ -358,7 +361,8 @@ namespace FastExplorer
             }
             else if (IsDataPackageSupported(e.DataView))
             {
-                var tabItem = GetTabViewItemAtPosition(e.GetPosition(MainTabView));
+                e.Handled = true; // WinUI TabView のタブ並び替え・ドッキングアニメーション誤発火を防止
+                var tabItem = GetTabViewItemAtPosition(e.GetPosition(MainTabView), e);
                 if (tabItem?.DataContext is NavigationTabItem navTab && Directory.Exists(navTab.CurrentPath))
                 {
                     bool isCtrl = e.Modifiers.HasFlag(DragDropModifiers.Control);
@@ -376,6 +380,7 @@ namespace FastExplorer
             else
             {
                 e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.None;
+                e.Handled = true;
             }
         }
 
@@ -436,7 +441,8 @@ namespace FastExplorer
             }
             else if (IsDataPackageSupported(e.DataView))
             {
-                var tabItem = GetTabViewItemAtPosition(e.GetPosition(MainTabView));
+                e.Handled = true;
+                var tabItem = GetTabViewItemAtPosition(e.GetPosition(MainTabView), e);
                 if (tabItem?.DataContext is NavigationTabItem navTab && Directory.Exists(navTab.CurrentPath))
                 {
                     var def = e.GetDeferral();
@@ -467,11 +473,32 @@ namespace FastExplorer
             }
         }
 
-        private TabViewItem? GetTabViewItemAtPosition(Windows.Foundation.Point dropPos)
+        private TabViewItem? GetTabViewItemAtPosition(Windows.Foundation.Point dropPos, Microsoft.UI.Xaml.DragEventArgs? e = null)
         {
+            if (e != null)
+            {
+                try
+                {
+                    var hitElements = VisualTreeHelper.FindElementsInHostCoordinates(e.GetPosition(null), MainTabView);
+                    foreach (var el in hitElements)
+                    {
+                        if (el is DependencyObject dep)
+                        {
+                            var item = dep.FindParent<TabViewItem>();
+                            if (item != null && MainTabView.TabItems.Contains(item))
+                            {
+                                return item;
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+
             for (int i = 0; i < MainTabView.TabItems.Count; i++)
             {
-                if (MainTabView.ContainerFromIndex(i) is TabViewItem tabItem)
+                var tabItem = (MainTabView.TabItems[i] as TabViewItem) ?? (MainTabView.ContainerFromIndex(i) as TabViewItem);
+                if (tabItem != null)
                 {
                     try
                     {
@@ -496,7 +523,8 @@ namespace FastExplorer
             var dropPos = e.GetPosition(MainTabView);
             for (int i = 0; i < MainTabView.TabItems.Count; i++)
             {
-                if (MainTabView.ContainerFromIndex(i) is TabViewItem tabItem)
+                var tabItem = (MainTabView.TabItems[i] as TabViewItem) ?? (MainTabView.ContainerFromIndex(i) as TabViewItem);
+                if (tabItem != null)
                 {
                     try
                     {
@@ -555,6 +583,22 @@ namespace FastExplorer
             }
 
             newWindow.Activate();
+
+            // 新規分離ウィンドウの DWM フレーム再計算をトリガーして上部の白い枠線を即座に消去
+            try
+            {
+                nint newHwnd = newWindow.WindowHandle;
+                if (newHwnd != nint.Zero)
+                {
+                    Win32Interop.SetWindowPos(
+                        newHwnd,
+                        nint.Zero,
+                        0, 0, 0, 0,
+                        Win32Interop.SWP_NOMOVE | Win32Interop.SWP_NOSIZE | Win32Interop.SWP_NOZORDER | Win32Interop.SWP_FRAMECHANGED);
+                }
+            }
+            catch { }
+
             TabDragDropService.Clear();
         }
 

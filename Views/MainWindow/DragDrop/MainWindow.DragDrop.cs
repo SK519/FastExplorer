@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using FastExplorer.Core;
 using FastExplorer.Helpers;
 using FastExplorer.Models;
 using FastExplorer.Services;
@@ -43,10 +44,11 @@ namespace FastExplorer
             // コピーと移動の両方を許可
             e.Data.RequestedOperation = DataPackageOperation.Copy | DataPackageOperation.Move;
 
-            // 1. StorageItems の設定 (Windows Explorer / 外部アプリ / WinUI 連携用)
-            try
+            // 1. StorageItems の遅延・非同期設定 (Windows Explorer / 外部アプリ / WinUI 連携用)
+            e.Data.SetDataProvider(StandardDataFormats.StorageItems, async request =>
             {
-                var storageItems = Task.Run(async () =>
+                var def = request.GetDeferral();
+                try
                 {
                     var list = new List<IStorageItem>();
                     foreach (var path in validPaths)
@@ -69,18 +71,17 @@ namespace FastExplorer
                             Debug.WriteLine($"[DragItemsStarting] StorageItem resolve error for {path}: {ex.Message}");
                         }
                     }
-                    return list;
-                }).Result;
-
-                if (storageItems.Count > 0)
-                {
-                    e.Data.SetStorageItems(storageItems);
+                    request.SetData(list);
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[DragItemsStarting] SetStorageItems error: {ex.Message}");
-            }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[DragItemsStarting] SetDataProvider error: {ex.Message}");
+                }
+                finally
+                {
+                    def.Complete();
+                }
+            });
 
             // 2. テキスト形式 (フルパス) の設定 (テキストエディタ・ターミナル等へのドロップ互換)
             e.Data.SetText(string.Join(Environment.NewLine, validPaths));
@@ -105,10 +106,26 @@ namespace FastExplorer
             bool isCtrl = e.Modifiers.HasFlag(DragDropModifiers.Control);
             bool isShift = e.Modifiers.HasFlag(DragDropModifiers.Shift);
 
-            // ドロップ先フォルダーの判定 (カーソル下のフォルダーアイテム、またはカレントフォルダ背景)
-            var (targetDir, targetName) = GetFileListDropTarget(e);
+            // ドロップ先 (フォルダー、実行可能ファイル、またはカレントフォルダ背景) の判定
+            var (targetPath, targetName, isExecutable) = GetFileListDropTarget(e);
 
-            if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir))
+            if (string.IsNullOrEmpty(targetPath))
+            {
+                e.AcceptedOperation = DataPackageOperation.None;
+                return;
+            }
+
+            if (isExecutable)
+            {
+                e.AcceptedOperation = DataPackageOperation.Link;
+                e.DragUIOverride.IsCaptionVisible = true;
+                e.DragUIOverride.IsGlyphVisible = true;
+                e.DragUIOverride.IsContentVisible = true;
+                e.DragUIOverride.Caption = $"{targetName} で開く";
+                return;
+            }
+
+            if (!Directory.Exists(targetPath))
             {
                 e.AcceptedOperation = DataPackageOperation.None;
                 return;
@@ -145,12 +162,21 @@ namespace FastExplorer
             var def = e.GetDeferral();
             try
             {
-                var (targetDir, _) = GetFileListDropTarget(e);
-                if (string.IsNullOrEmpty(targetDir) || !Directory.Exists(targetDir))
+                var (targetPath, _, isExecutable) = GetFileListDropTarget(e);
+                var paths = await ExtractPathsFromDataPackageAsync(e.DataView);
+                if (paths.Count == 0) return;
+
+                if (isExecutable && !string.IsNullOrEmpty(targetPath))
+                {
+                    LaunchExecutableWithFiles(targetPath, paths);
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(targetPath) || !Directory.Exists(targetPath))
                 {
                     if (CurrentTab != null && Directory.Exists(CurrentTab.CurrentPath))
                     {
-                        targetDir = CurrentTab.CurrentPath;
+                        targetPath = CurrentTab.CurrentPath;
                     }
                     else
                     {
@@ -158,13 +184,10 @@ namespace FastExplorer
                     }
                 }
 
-                var paths = await ExtractPathsFromDataPackageAsync(e.DataView);
-                if (paths.Count == 0) return;
-
                 bool isMove = (e.AcceptedOperation == DataPackageOperation.Move) ||
                               e.Modifiers.HasFlag(DragDropModifiers.Shift);
 
-                bool success = await PerformFileTransferWithDialogAsync(paths, targetDir, isMove);
+                bool success = await PerformFileTransferWithDialogAsync(paths, targetPath, isMove);
                 if (success)
                 {
                     CurrentTab?.Refresh();
@@ -185,7 +208,7 @@ namespace FastExplorer
             // ドラッグ離脱時のクリーンアップ
         }
 
-        private (string? Path, string? DisplayName) GetFileListDropTarget(DragEventArgs e)
+        private (string? Path, string? DisplayName, bool IsExecutable) GetFileListDropTarget(DragEventArgs e)
         {
             var listControl = ActiveListControl;
             if (listControl != null)
@@ -196,9 +219,17 @@ namespace FastExplorer
                     if (element is FrameworkElement fe)
                     {
                         var container = fe.FindParent<SelectorItem>();
-                        if (container?.Content is FileItem item && item.IsDirectory && !string.IsNullOrEmpty(item.FullPath) && Directory.Exists(item.FullPath))
+                        var item = (fe.DataContext as FileItem) ?? (container?.Content as FileItem) ?? (container?.DataContext as FileItem);
+                        if (item != null && !string.IsNullOrEmpty(item.FullPath))
                         {
-                            return (item.FullPath, item.Name);
+                            if (item.IsDirectory && Directory.Exists(item.FullPath))
+                            {
+                                return (item.FullPath, item.Name, false);
+                            }
+                            if (!item.IsDirectory && IsExecutableDropTarget(item.FullPath))
+                            {
+                                return (item.FullPath, item.Name, true);
+                            }
                         }
                     }
                 }
@@ -206,10 +237,71 @@ namespace FastExplorer
 
             if (CurrentTab != null && Directory.Exists(CurrentTab.CurrentPath))
             {
-                return (CurrentTab.CurrentPath, CurrentTab.Header);
+                return (CurrentTab.CurrentPath, CurrentTab.Header, false);
             }
 
-            return (null, null);
+            return (null, null, false);
+        }
+
+        private static bool IsExecutableDropTarget(string path)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
+            string ext = Path.GetExtension(path).ToLowerInvariant();
+            return ext is ".exe" or ".bat" or ".cmd" or ".ps1" or ".vbs" or ".lnk";
+        }
+
+        private static void LaunchExecutableWithFiles(string exePath, IEnumerable<string> filePaths)
+        {
+            try
+            {
+                string targetPath = exePath;
+                string? workingDir = null;
+
+                // ショートカット (.lnk) の場合はリンク先の実体を取得
+                if (Path.GetExtension(exePath).Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+                {
+                    string? resolved = Win32Interop.ResolveShortcut(exePath);
+                    if (!string.IsNullOrEmpty(resolved) && (File.Exists(resolved) || Directory.Exists(resolved)))
+                    {
+                        targetPath = resolved;
+                    }
+                }
+
+                try
+                {
+                    workingDir = Path.GetDirectoryName(targetPath);
+                }
+                catch { }
+
+                string args = string.Join(" ", filePaths.Select(p => $"\"{p}\""));
+                var psi = new ProcessStartInfo
+                {
+                    FileName = targetPath,
+                    Arguments = args,
+                    UseShellExecute = true,
+                    WorkingDirectory = workingDir ?? string.Empty
+                };
+                Process.Start(psi);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[LaunchExecutableWithFiles] Process.Start error: {ex.Message}");
+                try
+                {
+                    string args = string.Join(" ", filePaths.Select(p => $"\"{p}\""));
+                    var pExecInfo = new Win32Interop.SHELLEXECUTEINFOW
+                    {
+                        cbSize = System.Runtime.InteropServices.Marshal.SizeOf<Win32Interop.SHELLEXECUTEINFOW>(),
+                        lpVerb = "open",
+                        lpFile = exePath,
+                        lpParameters = args,
+                        lpDirectory = Path.GetDirectoryName(exePath),
+                        nShow = Win32Interop.SW_SHOWNORMAL
+                    };
+                    Win32Interop.ShellExecuteExW(ref pExecInfo);
+                }
+                catch { }
+            }
         }
 
         #endregion

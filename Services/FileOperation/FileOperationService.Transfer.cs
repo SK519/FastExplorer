@@ -24,16 +24,30 @@ namespace FastExplorer.Services
             var pathList = sourcePaths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (pathList.Count == 0) return false;
 
-            // 事前にファイル総数と合計サイズを計算
-            var (totalBytes, totalFiles) = await Task.Run(() => CalculateTotalSize(pathList));
-
+            // 初期化（UIをブロックせず即座に転送を開始）
             var state = new FileTransferState
             {
-                TotalBytes = totalBytes,
-                TotalFiles = totalFiles,
+                TotalBytes = 0,
+                TotalFiles = 1,
                 DestinationDirectory = destinationDirectory,
                 IsMove = isMove
             };
+
+            // バックグラウンドで非同期に合計サイズを計算・更新（コピー開始を一切ブロックしない）
+            using var sizeCts = new System.Threading.CancellationTokenSource();
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var (tBytes, tFiles) = CalculateTotalSize(pathList, sizeCts.Token);
+                    if (!sizeCts.IsCancellationRequested)
+                    {
+                        state.TotalBytes = Math.Max(state.BytesTransferred, tBytes);
+                        state.TotalFiles = Math.Max(state.FilesTransferred, tFiles);
+                    }
+                }
+                catch { }
+            }, sizeCts.Token);
 
             ConflictResolution? rememberedResolution = null;
 
@@ -45,6 +59,32 @@ namespace FastExplorer.Services
                     if (controller?.IsCancelled == true)
                     {
                         break;
+                    }
+
+                    // 1. フォルダーの自己・子孫移動/コピー防止（無限再帰ループ 2\2\2... の完全阻止）
+                    if (Directory.Exists(src))
+                    {
+                        if (IsSameOrSubPath(src, destinationDirectory))
+                        {
+                            Debug.WriteLine($"[FileOperation] Blocked recursive copy/move of '{src}' into '{destinationDirectory}'");
+                            continue;
+                        }
+                    }
+
+                    // 2. 移動操作で、移動元と移動先の親フォルダーが同一の場合はスキップ（同一フォルダーへの移動は無効）
+                    if (isMove)
+                    {
+                        string? srcParent = Path.GetDirectoryName(src);
+                        if (!string.IsNullOrEmpty(srcParent))
+                        {
+                            string parentFull = Path.GetFullPath(srcParent).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                            string destFull = Path.GetFullPath(destinationDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                            if (parentFull.Equals(destFull, StringComparison.OrdinalIgnoreCase))
+                            {
+                                Debug.WriteLine($"[FileOperation] Skipped move of '{src}' to its own folder '{destinationDirectory}'");
+                                continue;
+                            }
+                        }
                     }
 
                     string name = Path.GetFileName(src);
@@ -117,6 +157,10 @@ namespace FastExplorer.Services
             {
                 Debug.WriteLine($"[FileOperation] ExecuteCopyOrMoveAsync error: {ex.Message}");
                 return false;
+            }
+            finally
+            {
+                sizeCts.Cancel();
             }
         }
 
@@ -216,6 +260,11 @@ namespace FastExplorer.Services
             FileTransferController? controller,
             FileTransferState state)
         {
+            if (IsSameOrSubPath(sourceDir, targetDir))
+            {
+                return;
+            }
+
             Directory.CreateDirectory(targetDir);
 
             foreach (string file in Directory.GetFiles(sourceDir))
@@ -231,6 +280,9 @@ namespace FastExplorer.Services
             {
                 controller?.WaitIfPaused();
                 if (controller?.IsCancelled == true) throw new OperationCanceledException();
+
+                // サブフォルダーのコピー先が循環参照にならないかチェック
+                if (IsSameOrSubPath(subDir, targetDir)) continue;
 
                 string dest = Path.Combine(targetDir, Path.GetFileName(subDir));
                 await CopyOrMoveDirectoryAsync(subDir, dest, isMove, progress, controller, state);
@@ -249,13 +301,36 @@ namespace FastExplorer.Services
             }
         }
 
-        private static (long TotalBytes, int TotalFiles) CalculateTotalSize(IEnumerable<string> paths)
+        public static bool IsSameOrSubPath(string basePath, string candidatePath)
+        {
+            if (string.IsNullOrWhiteSpace(basePath) || string.IsNullOrWhiteSpace(candidatePath))
+                return false;
+
+            try
+            {
+                string baseFull = Path.GetFullPath(basePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string candidateFull = Path.GetFullPath(candidatePath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+                if (baseFull.Equals(candidateFull, StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+                return candidateFull.StartsWith(baseFull + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                       candidateFull.StartsWith(baseFull + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static (long TotalBytes, int TotalFiles) CalculateTotalSize(IEnumerable<string> paths, System.Threading.CancellationToken ct = default)
         {
             long totalBytes = 0;
             int totalFiles = 0;
 
             foreach (var path in paths)
             {
+                if (ct.IsCancellationRequested) break;
                 try
                 {
                     if (File.Exists(path))
@@ -268,6 +343,7 @@ namespace FastExplorer.Services
                         var dirInfo = new DirectoryInfo(path);
                         foreach (var file in dirInfo.EnumerateFiles("*", SearchOption.AllDirectories))
                         {
+                            if (ct.IsCancellationRequested) break;
                             totalBytes += file.Length;
                             totalFiles++;
                         }

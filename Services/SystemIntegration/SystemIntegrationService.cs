@@ -433,24 +433,38 @@ namespace FastExplorer.Services
 
         #region Win + E Global Keyboard Interception
 
-        public static bool RegisterWinEHotKey(nint hWnd)
+        public static void EnsureCleanExplorerDisabledHotkeys()
         {
-            // 1. レジストリで Explorer の Win+E を無効化する (DisabledHotkeys)
             try
             {
-                using var advKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced");
+                using var advKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", true);
                 if (advKey != null)
                 {
                     string existing = (advKey.GetValue("DisabledHotkeys") as string) ?? string.Empty;
-                    if (!existing.Contains("E", StringComparison.OrdinalIgnoreCase))
+                    if (existing.Contains("E", StringComparison.OrdinalIgnoreCase))
                     {
-                        advKey.SetValue("DisabledHotkeys", existing + "E");
+                        string updated = existing.Replace("E", "", StringComparison.OrdinalIgnoreCase).Replace("e", "", StringComparison.OrdinalIgnoreCase);
+                        if (string.IsNullOrEmpty(updated))
+                        {
+                            advKey.DeleteValue("DisabledHotkeys", false);
+                        }
+                        else
+                        {
+                            advKey.SetValue("DisabledHotkeys", updated);
+                        }
                     }
                 }
             }
             catch { }
+        }
 
-            // 2. RegisterHotKey を試行
+        public static bool RegisterWinEHotKey(nint hWnd)
+        {
+            // レジストリの DisabledHotkeys は不要（低レベルキーボードフック WH_KEYBOARD_LL 単体で Explorer より先に消費できるため）
+            // 過去に設定された DisabledHotkeys があれば念のため削除して Windows 標準の動作を保護
+            EnsureCleanExplorerDisabledHotkeys();
+
+            // 1. RegisterHotKey を試行
             if (hWnd != nint.Zero)
             {
                 try
@@ -464,7 +478,7 @@ namespace FastExplorer.Services
                 catch { }
             }
 
-            // 3. 低レベルキーボードフックを常駐 (100% 確実に Win+E をインターセプト)
+            // 2. 低レベルキーボードフックを常駐 (100% 確実に Win+E をインターセプト)
             try
             {
                 if (_hookHandle == nint.Zero)
@@ -493,28 +507,8 @@ namespace FastExplorer.Services
 
         public static bool UnregisterWinEHotKey(nint hWnd)
         {
-            // 1. レジストリの DisabledHotkeys から "E" を削除して Windows Explorer の標準動作に戻す
-            try
-            {
-                using var advKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", true);
-                if (advKey != null)
-                {
-                    string existing = (advKey.GetValue("DisabledHotkeys") as string) ?? string.Empty;
-                    if (existing.Contains("E", StringComparison.OrdinalIgnoreCase))
-                    {
-                        string updated = existing.Replace("E", "", StringComparison.OrdinalIgnoreCase).Replace("e", "", StringComparison.OrdinalIgnoreCase);
-                        if (string.IsNullOrEmpty(updated))
-                        {
-                            advKey.DeleteValue("DisabledHotkeys", false);
-                        }
-                        else
-                        {
-                            advKey.SetValue("DisabledHotkeys", updated);
-                        }
-                    }
-                }
-            }
-            catch { }
+            // 1. レジストリの DisabledHotkeys のクリーンアップ
+            EnsureCleanExplorerDisabledHotkeys();
 
             // 2. UnregisterHotKey
             if (hWnd != nint.Zero)

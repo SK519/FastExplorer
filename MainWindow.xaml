@@ -146,7 +146,7 @@
         <Grid x:Name="AppTitleBar" Grid.Row="0" Height="42" VerticalAlignment="Top">
             <TabView x:Name="MainTabView" VerticalAlignment="Stretch"
                      Background="Transparent"
-                     CanReorderTabs="True"
+                     CanReorderTabs="False"
                      CanDragTabs="True"
                      AllowDrop="True"
                      AddTabButtonClick="MainTabView_AddTabButtonClick"
