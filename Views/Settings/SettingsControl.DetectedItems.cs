@@ -33,14 +33,14 @@ namespace FastExplorer.Views.Settings
             {
                 var emptyBorder = new Border
                 {
-                    Background = (Brush)Application.Current.Resources["LayerFillColorDefaultBrush"],
-                    BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                    Background = GetThemeBrush("LayerFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent)),
+                    BorderBrush = GetThemeBrush("CardStrokeColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(8),
                     Padding = new Thickness(24, 20, 24, 20)
                 };
                 var emptyStack = new StackPanel { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
-                emptyStack.Children.Add(new FontIcon { Glyph = "\uE74C", FontSize = 28, Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"] });
+                emptyStack.Children.Add(new FontIcon { Glyph = "\uE74C", FontSize = 28, Foreground = GetThemeBrush("AccentTextFillColorPrimaryBrush", new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue)) });
                 emptyStack.Children.Add(new TextBlock
                 {
                     Text = "まだ検出された項目がありません",
@@ -50,7 +50,7 @@ namespace FastExplorer.Views.Settings
                 emptyStack.Children.Add(new TextBlock
                 {
                     Text = "ファイルやフォルダーを右クリックすると、OSのシェル拡張項目が自動的にここに収集・分類されます。",
-                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                    Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                     TextWrapping = TextWrapping.Wrap,
                     HorizontalAlignment = HorizontalAlignment.Center
                 });
@@ -164,8 +164,8 @@ namespace FastExplorer.Views.Settings
             {
                 var noMatchCard = new Border
                 {
-                    Background = (Brush)Application.Current.Resources["LayerFillColorDefaultBrush"],
-                    BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                    Background = GetThemeBrush("LayerFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent)),
+                    BorderBrush = GetThemeBrush("CardStrokeColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(8),
                     Padding = new Thickness(20, 16, 20, 16)
@@ -173,7 +173,7 @@ namespace FastExplorer.Views.Settings
                 var noMatchText = new TextBlock
                 {
                     Text = "条件に一致する項目がありません。",
-                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                    Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                     HorizontalAlignment = HorizontalAlignment.Center
                 };
                 noMatchCard.Child = noMatchText;
@@ -186,8 +186,8 @@ namespace FastExplorer.Views.Settings
             var cardGrid = new Grid
             {
                 Padding = new Thickness(12, 8, 12, 8),
-                Background = (Brush)Application.Current.Resources["ControlFillColorDefaultBrush"],
-                BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                Background = GetThemeBrush("ControlFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent)),
+                BorderBrush = GetThemeBrush("CardStrokeColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(6),
                 Margin = new Thickness(0, 0, 0, 4),

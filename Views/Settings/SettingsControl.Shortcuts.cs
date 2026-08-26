@@ -51,15 +51,15 @@ namespace FastExplorer.Views.Settings
             {
                 var emptyCard = new Border
                 {
-                    Background = (Brush)Application.Current.Resources["LayerFillColorDefaultBrush"],
-                    BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                    Background = GetThemeBrush("LayerFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent)),
+                    BorderBrush = GetThemeBrush("CardStrokeColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(8),
                     Padding = new Thickness(24, 20, 24, 20)
                 };
                 var emptyStack = new StackPanel { Spacing = 6, HorizontalAlignment = HorizontalAlignment.Center };
-                emptyStack.Children.Add(new FontIcon { Glyph = "\uE721", FontSize = 24, Foreground = (Brush)Application.Current.Resources["TextFillColorTertiaryBrush"] });
-                emptyStack.Children.Add(new TextBlock { Text = "一致するショートカットが見つかりませんでした", Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"], HorizontalAlignment = HorizontalAlignment.Center });
+                emptyStack.Children.Add(new FontIcon { Glyph = "\uE721", FontSize = 24, Foreground = GetThemeBrush("TextFillColorTertiaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)) });
+                emptyStack.Children.Add(new TextBlock { Text = "一致するショートカットが見つかりませんでした", Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)), HorizontalAlignment = HorizontalAlignment.Center });
                 emptyCard.Child = emptyStack;
                 ShortcutsContainer.Children.Add(emptyCard);
                 return;
@@ -75,15 +75,15 @@ namespace FastExplorer.Views.Settings
                     Text = group.Key,
                     FontSize = 14,
                     FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-                    Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"],
+                    Foreground = GetThemeBrush("AccentTextFillColorPrimaryBrush", new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue)),
                     Margin = new Thickness(4, 12, 0, 4)
                 };
                 ShortcutsContainer.Children.Add(categoryHeader);
 
                 var cardBorder = new Border
                 {
-                    Background = (Brush)Application.Current.Resources["LayerFillColorDefaultBrush"],
-                    BorderBrush = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                    Background = GetThemeBrush("LayerFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent)),
+                    BorderBrush = GetThemeBrush("CardStrokeColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(8),
                     Padding = new Thickness(16, 12, 16, 12),
@@ -104,7 +104,7 @@ namespace FastExplorer.Views.Settings
                         itemStack.Children.Add(new Rectangle
                         {
                             Height = 1,
-                            Fill = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                            Fill = GetThemeBrush("CardStrokeColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                             Opacity = 0.6
                         });
                     }
@@ -126,7 +126,7 @@ namespace FastExplorer.Views.Settings
             // 左: 名前と説明
             var textStack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
             var nameBlock = new TextBlock { Text = action.Name, FontWeight = Microsoft.UI.Text.FontWeights.Medium, FontSize = 13.5 };
-            var descBlock = new TextBlock { Text = action.Description, FontSize = 11.5, Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"] };
+            var descBlock = new TextBlock { Text = action.Description, FontSize = 11.5, Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)) };
             textStack.Children.Add(nameBlock);
             textStack.Children.Add(descBlock);
 
@@ -205,10 +205,10 @@ namespace FastExplorer.Views.Settings
             {
                 var keyBorder = new Border
                 {
-                    Background = (Brush)Application.Current.Resources["CardBackgroundFillColorDefaultBrush"],
+                    Background = GetThemeBrush("CardBackgroundFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent)),
                     BorderBrush = isCustom
-                        ? (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"]
-                        : (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                        ? GetThemeBrush("AccentFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue))
+                        : GetThemeBrush("CardStrokeColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                     BorderThickness = new Thickness(1),
                     CornerRadius = new CornerRadius(4),
                     Padding = new Thickness(6, 2, 6, 2),
@@ -221,8 +221,8 @@ namespace FastExplorer.Views.Settings
                     FontSize = 11.5,
                     FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                     Foreground = isCustom
-                        ? (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"]
-                        : (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"]
+                        ? GetThemeBrush("AccentTextFillColorPrimaryBrush", new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue))
+                        : GetThemeBrush("TextFillColorPrimaryBrush", new SolidColorBrush(Microsoft.UI.Colors.White))
                 };
 
                 keyBorder.Child = keyText;
@@ -249,7 +249,7 @@ namespace FastExplorer.Views.Settings
             {
                 Text = "キーボードのキーを押して新しいショートカットを設定してください (Ctrl, Shift, Alt と同時押し可能)",
                 FontSize = 11.5,
-                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                 TextWrapping = TextWrapping.Wrap
             };
 
@@ -320,7 +320,7 @@ namespace FastExplorer.Views.Settings
             var saveBtn = new Button
             {
                 Content = "決定",
-                Style = (Style)Application.Current.Resources["AccentButtonStyle"]
+                Style = GetThemeStyle("AccentButtonStyle")
             };
 
             var cancelBtn = new Button

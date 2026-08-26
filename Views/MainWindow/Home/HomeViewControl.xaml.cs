@@ -127,15 +127,16 @@ namespace FastExplorer.Views.MainWindow.Home
 
         private static void ApplyPillButtonStyle(Button btn, bool isActive)
         {
+            if (btn == null) return;
             if (isActive)
             {
-                btn.Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
-                btn.Foreground = (Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"];
+                btn.Background = Views.Settings.SettingsControl.GetThemeBrush("AccentFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue));
+                btn.Foreground = Views.Settings.SettingsControl.GetThemeBrush("TextOnAccentFillColorPrimaryBrush", new SolidColorBrush(Microsoft.UI.Colors.White));
             }
             else
             {
-                btn.Background = (Brush)Application.Current.Resources["SubtleFillColorTransparentBrush"];
-                btn.Foreground = (Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+                btn.Background = Views.Settings.SettingsControl.GetThemeBrush("SubtleFillColorTransparentBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent));
+                btn.Foreground = Views.Settings.SettingsControl.GetThemeBrush("TextFillColorPrimaryBrush", new SolidColorBrush(Microsoft.UI.Colors.White));
             }
         }
 

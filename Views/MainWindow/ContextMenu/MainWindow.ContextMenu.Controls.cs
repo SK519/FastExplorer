@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using FastExplorer.Views.Settings;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -215,7 +216,7 @@ namespace FastExplorer
                 Glyph = "\uE76C",
                 FontSize = 10,
                 HorizontalAlignment = HorizontalAlignment.Right,
-                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                Foreground = SettingsControl.GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray))
             };
             Grid.SetColumn(arrow, 2);
 
@@ -257,7 +258,7 @@ namespace FastExplorer
             return new Border
             {
                 Height = 1,
-                Background = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"],
+                Background = SettingsControl.GetThemeBrush("CardStrokeColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                 Margin = new Thickness(4, 2, 4, 2)
             };
         }

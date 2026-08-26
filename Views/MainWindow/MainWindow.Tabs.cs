@@ -190,36 +190,39 @@ namespace FastExplorer
 
         public void OpenSettingsTab()
         {
-            foreach (var item in MainTabView.TabItems.OfType<TabViewItem>())
+            try
             {
-                if (item.Tag as string == "SettingsTab")
+                foreach (var item in MainTabView.TabItems.OfType<TabViewItem>())
                 {
-                    if (MainTabView.SelectedItem is TabViewItem selected && selected == item)
+                    if (item.Tag as string == "SettingsTab")
                     {
+                        MainTabView.SelectedItem = item;
+                        BindCurrentTabToUi();
                         if (item.DataContext is Views.Settings.SettingsControl sc)
                         {
                             sc.ReloadSettings();
                         }
+                        return;
                     }
-                    else
-                    {
-                        MainTabView.SelectedItem = item;
-                    }
-                    return;
                 }
+
+                var settingsControl = new Views.Settings.SettingsControl();
+                var settingsTabItem = new TabViewItem
+                {
+                    Header = "設定",
+                    IconSource = new FontIconSource { Glyph = "\uE713" },
+                    Tag = "SettingsTab",
+                    DataContext = settingsControl
+                };
+
+                MainTabView.TabItems.Add(settingsTabItem);
+                MainTabView.SelectedItem = settingsTabItem;
+                BindCurrentTabToUi();
             }
-
-            var settingsControl = new Views.Settings.SettingsControl();
-            var settingsTabItem = new TabViewItem
+            catch (Exception ex)
             {
-                Header = "設定",
-                IconSource = new FontIconSource { Glyph = "\uE713" },
-                Tag = "SettingsTab",
-                DataContext = settingsControl
-            };
-
-            MainTabView.TabItems.Add(settingsTabItem);
-            MainTabView.SelectedItem = settingsTabItem;
+                System.Diagnostics.Debug.WriteLine($"[OpenSettingsTab] Exception: {ex}");
+            }
         }
 
         private void CloseTab(TabViewItem tabViewItem)
@@ -268,10 +271,15 @@ namespace FastExplorer
                             SettingsTabHostGrid.Children.Add(settingsElement);
                         }
                     }
-                    if (tabViewItem.DataContext is Views.Settings.SettingsControl sc)
+                    try
                     {
-                        sc.ReloadSettings();
+                        if (tabViewItem.DataContext is Views.Settings.SettingsControl sc)
+                        {
+                            sc.ReloadSettings();
+                        }
                     }
+                    catch { }
+
                     AddressBar?.SwitchToBreadcrumbs();
                     AddressBar?.SetBreadcrumbs(new[] { new BreadcrumbItem { Label = "設定", FullPath = "FastExplorer://Settings", Glyph = "\uE713" } });
                     AddressBar?.SetSearchFilterText(string.Empty);

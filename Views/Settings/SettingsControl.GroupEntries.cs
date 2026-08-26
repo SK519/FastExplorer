@@ -16,7 +16,7 @@ namespace FastExplorer.Views.Settings
 
             var groupBorder = new Border
             {
-                Background = (Brush)Application.Current.Resources["ControlFillColorDefaultBrush"],
+                Background = GetThemeBrush("ControlFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent)),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(12, 8, 12, 8),
                 Margin = new Thickness(0, 0, 0, 4),
@@ -53,7 +53,7 @@ namespace FastExplorer.Views.Settings
 
             var badgeBorder = new Border
             {
-                Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"],
+                Background = GetThemeBrush("SubtleFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent)),
                 CornerRadius = new CornerRadius(4),
                 Padding = new Thickness(6, 1, 6, 1),
                 VerticalAlignment = VerticalAlignment.Center
@@ -62,7 +62,7 @@ namespace FastExplorer.Views.Settings
             {
                 Text = $"{enabledCount}/{children.Count} 有効",
                 FontSize = 11,
-                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray))
             };
             badgeBorder.Child = badgeText;
 
@@ -70,7 +70,7 @@ namespace FastExplorer.Views.Settings
             {
                 Glyph = "\uE70D", // ChevronDown
                 FontSize = 12,
-                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                 VerticalAlignment = VerticalAlignment.Center
             };
             headerTitleStack.Children.Add(headerText);
@@ -163,7 +163,7 @@ namespace FastExplorer.Views.Settings
 
                     var itemCard = new Border
                     {
-                        Background = (Brush)Application.Current.Resources["SubtleFillColorTertiaryBrush"],
+                        Background = GetThemeBrush("SubtleFillColorTertiaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent)),
                         CornerRadius = new CornerRadius(4),
                         Padding = new Thickness(10, 4, 10, 4)
                     };
@@ -177,7 +177,7 @@ namespace FastExplorer.Views.Settings
                         Text = childDisplayName,
                         VerticalAlignment = VerticalAlignment.Center,
                         FontSize = 12.5,
-                        Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                        Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                         TextTrimming = TextTrimming.CharacterEllipsis
                     };
 
@@ -244,7 +244,7 @@ namespace FastExplorer.Views.Settings
                         Text = singleDisplayName,
                         VerticalAlignment = VerticalAlignment.Center,
                         FontSize = 13,
-                        Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                        Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray))
                     };
 
                     var childToggle = new ToggleSwitch
@@ -286,7 +286,7 @@ namespace FastExplorer.Views.Settings
                 // 2個以上ある場合は入れ子サブグループカードを描画
                 var subBorder = new Border
                 {
-                    Background = (Brush)Application.Current.Resources["LayerFillColorDefaultBrush"],
+                    Background = GetThemeBrush("LayerFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent)),
                     CornerRadius = new CornerRadius(4),
                     Padding = new Thickness(10, 6, 10, 6),
                     Margin = new Thickness(0, 2, 0, 2)
@@ -317,7 +317,7 @@ namespace FastExplorer.Views.Settings
                 {
                     Glyph = "\uE70D",
                     FontSize = 11,
-                    Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
+                    Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray)),
                     VerticalAlignment = VerticalAlignment.Center
                 };
                 subTitleStack.Children.Add(subHeaderText);
@@ -369,7 +369,7 @@ namespace FastExplorer.Views.Settings
                         Text = leafName,
                         VerticalAlignment = VerticalAlignment.Center,
                         FontSize = 12,
-                        Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                        Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray))
                     };
 
                     var nestedToggle = new ToggleSwitch

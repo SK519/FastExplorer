@@ -3,6 +3,7 @@ using FastExplorer.Models;
 using FastExplorer.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
 namespace FastExplorer.Views.MainWindow.Toolbar
 {
@@ -107,15 +108,15 @@ namespace FastExplorer.Views.MainWindow.Toolbar
             if (button == null) return;
             if (isActive)
             {
-                button.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
-                button.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextOnAccentFillColorPrimaryBrush"];
-                button.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["AccentFillColorSecondaryBrush"];
+                button.Background = Views.Settings.SettingsControl.GetThemeBrush("AccentFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue));
+                button.Foreground = Views.Settings.SettingsControl.GetThemeBrush("TextOnAccentFillColorPrimaryBrush", new SolidColorBrush(Microsoft.UI.Colors.White));
+                button.BorderBrush = Views.Settings.SettingsControl.GetThemeBrush("AccentFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue));
             }
             else
             {
-                button.Background = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ControlFillColorDefaultBrush"];
-                button.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
-                button.BorderBrush = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["ControlElevationBorderBrush"];
+                button.Background = Views.Settings.SettingsControl.GetThemeBrush("ControlFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Transparent));
+                button.Foreground = Views.Settings.SettingsControl.GetThemeBrush("TextFillColorPrimaryBrush", new SolidColorBrush(Microsoft.UI.Colors.White));
+                button.BorderBrush = Views.Settings.SettingsControl.GetThemeBrush("ControlElevationBorderBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray));
             }
         }
 

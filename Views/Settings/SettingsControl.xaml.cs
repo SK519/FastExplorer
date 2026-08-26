@@ -106,18 +106,63 @@ namespace FastExplorer.Views.Settings
             UpdateDefaultExplorerStatusBadge(isDef);
         }
 
+        public static Brush GetThemeBrush(string key, Brush? fallback = null)
+        {
+            try
+            {
+                if (Application.Current?.Resources != null)
+                {
+                    if (Application.Current.Resources.TryGetValue(key, out var res) && res is Brush b)
+                        return b;
+
+                    var themeDicts = Application.Current.Resources.ThemeDictionaries;
+                    if (themeDicts != null)
+                    {
+                        string themeKey = Application.Current.RequestedTheme == ApplicationTheme.Dark ? "Dark" : "Light";
+                        if (themeDicts.TryGetValue(themeKey, out var tDictObj) && tDictObj is ResourceDictionary tDict)
+                        {
+                            if (tDict.TryGetValue(key, out var tb) && tb is Brush b2)
+                                return b2;
+                        }
+                        if (themeDicts.TryGetValue("Default", out var dDictObj) && dDictObj is ResourceDictionary dDict)
+                        {
+                            if (dDict.TryGetValue(key, out var tb) && tb is Brush b3)
+                                return b3;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            return fallback ?? new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        }
+
+        public static Style? GetThemeStyle(string key)
+        {
+            try
+            {
+                if (Application.Current?.Resources != null &&
+                    Application.Current.Resources.TryGetValue(key, out var res) && res is Style s)
+                {
+                    return s;
+                }
+            }
+            catch { }
+            return null;
+        }
+
         private void UpdateDefaultExplorerStatusBadge(bool isDefault)
         {
             if (DefaultExplorerStatusBadge != null && DefaultExplorerStatusText != null)
             {
                 if (isDefault)
                 {
-                    DefaultExplorerStatusBadge.Background = (Brush)Application.Current.Resources["AccentFillColorDefaultBrush"];
+                    DefaultExplorerStatusBadge.Background = GetThemeBrush("AccentFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue));
                     DefaultExplorerStatusText.Text = "既定に設定中";
                 }
                 else
                 {
-                    DefaultExplorerStatusBadge.Background = (Brush)Application.Current.Resources["CardStrokeColorDefaultBrush"];
+                    DefaultExplorerStatusBadge.Background = GetThemeBrush("CardStrokeColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray));
                     DefaultExplorerStatusText.Text = "未設定 (Windows 標準)";
                 }
             }
@@ -172,7 +217,7 @@ namespace FastExplorer.Views.Settings
             if (btn == null) return;
             if (isActive)
             {
-                btn.Background = (Brush)Application.Current.Resources["SubtleFillColorSecondaryBrush"];
+                btn.Background = GetThemeBrush("SubtleFillColorSecondaryBrush", new SolidColorBrush(Windows.UI.Color.FromArgb(30, 128, 128, 128)));
                 btn.FontWeight = Microsoft.UI.Text.FontWeights.SemiBold;
             }
             else

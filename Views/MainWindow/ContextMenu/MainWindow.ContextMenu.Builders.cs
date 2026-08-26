@@ -4,8 +4,10 @@ using System.IO;
 using System.Linq;
 using FastExplorer.Models;
 using FastExplorer.Services;
+using FastExplorer.Views.Settings;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace FastExplorer
@@ -22,8 +24,8 @@ namespace FastExplorer
             var style = new Style(typeof(MenuFlyoutPresenter));
             style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(4)));
             style.Setters.Add(new Setter(Control.CornerRadiusProperty, new CornerRadius(8)));
-            style.Setters.Add(new Setter(Control.BackgroundProperty, (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SolidBackgroundFillColorBaseBrush"]));
-            style.Setters.Add(new Setter(Control.BorderBrushProperty, (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["SurfaceStrokeColorDefaultBrush"]));
+            style.Setters.Add(new Setter(Control.BackgroundProperty, SettingsControl.GetThemeBrush("SolidBackgroundFillColorBaseBrush", new SolidColorBrush(Microsoft.UI.Colors.Black))));
+            style.Setters.Add(new Setter(Control.BorderBrushProperty, SettingsControl.GetThemeBrush("SurfaceStrokeColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray))));
             style.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
             _submenuPresenterStyle = style;
             return style;

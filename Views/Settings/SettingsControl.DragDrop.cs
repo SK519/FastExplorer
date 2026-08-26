@@ -99,7 +99,7 @@ namespace FastExplorer.Views.Settings
             {
                 Glyph = "\uE700", // ≡ (GlobalNavigation / Hamburger / Drag Handle)
                 FontSize = 14,
-                Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"]
+                Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray))
             };
 
             handle.Child = icon;
@@ -107,14 +107,14 @@ namespace FastExplorer.Views.Settings
 
             handle.PointerEntered += (s, e) =>
             {
-                icon.Foreground = (Brush)Application.Current.Resources["AccentTextFillColorPrimaryBrush"];
+                icon.Foreground = GetThemeBrush("AccentTextFillColorPrimaryBrush", new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue));
             };
 
             handle.PointerExited += (s, e) =>
             {
                 if (!_isDragging || _draggingCard != card)
                 {
-                    icon.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+                    icon.Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray));
                 }
             };
 
@@ -209,7 +209,7 @@ namespace FastExplorer.Views.Settings
 
                     card.Opacity = 1.0;
                     Canvas.SetZIndex(card, 0);
-                    icon.Foreground = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+                    icon.Foreground = GetThemeBrush("TextFillColorSecondaryBrush", new SolidColorBrush(Microsoft.UI.Colors.Gray));
                     handle.ReleasePointerCapture(e.Pointer);
 
                     int fromIndex = _draggedIndex;
