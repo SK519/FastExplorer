@@ -584,20 +584,27 @@ namespace FastExplorer
 
             newWindow.Activate();
 
-            // 新規分離ウィンドウの DWM フレーム再計算をトリガーして上部の白い枠線を即座に消去
-            try
+            // 新規分離ウィンドウの DWM フレーム再計算および微小位置更新（Windows OS の白線描画バグを完全に消去）
+            newWindow.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
             {
-                nint newHwnd = newWindow.WindowHandle;
-                if (newHwnd != nint.Zero)
+                try
                 {
-                    Win32Interop.SetWindowPos(
-                        newHwnd,
-                        nint.Zero,
-                        0, 0, 0, 0,
-                        Win32Interop.SWP_NOMOVE | Win32Interop.SWP_NOSIZE | Win32Interop.SWP_NOZORDER | Win32Interop.SWP_FRAMECHANGED);
+                    nint newHwnd = newWindow.WindowHandle;
+                    if (newHwnd != nint.Zero)
+                    {
+                        Win32Interop.SetWindowPos(
+                            newHwnd,
+                            nint.Zero,
+                            0, 0, 0, 0,
+                            Win32Interop.SWP_NOMOVE | Win32Interop.SWP_NOSIZE | Win32Interop.SWP_NOZORDER | Win32Interop.SWP_FRAMECHANGED);
+
+                        var pt = newWindow.AppWindow.Position;
+                        newWindow.AppWindow.Move(new Windows.Graphics.PointInt32(pt.X, pt.Y + 1));
+                        newWindow.AppWindow.Move(new Windows.Graphics.PointInt32(pt.X, pt.Y));
+                    }
                 }
-            }
-            catch { }
+                catch { }
+            });
 
             TabDragDropService.Clear();
         }

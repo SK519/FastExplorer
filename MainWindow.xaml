@@ -146,6 +146,9 @@
         <Grid x:Name="AppTitleBar" Grid.Row="0" Height="42" VerticalAlignment="Top">
             <TabView x:Name="MainTabView" VerticalAlignment="Stretch"
                      Background="Transparent"
+                     BorderThickness="0"
+                     Padding="0"
+                     Margin="0"
                      CanReorderTabs="False"
                      CanDragTabs="True"
                      AllowDrop="True"
@@ -295,8 +298,7 @@
                     <!-- ファイル一覧 & ホーム画面 -->
                     <Grid Grid.Row="2">
                         <!-- 通常フォルダー一覧 (ListView / GridView / Marquee) -->
-                        <Grid x:Name="FileListContainer" PointerWheelChanged="FileListContainer_PointerWheelChanged"
-                              AllowDrop="True" DragOver="FileList_DragOver" Drop="FileList_Drop" DragLeave="FileList_DragLeave">
+                        <Grid x:Name="FileListContainer" PointerWheelChanged="FileListContainer_PointerWheelChanged">
                             <ListView x:Name="FileListView" SelectionMode="Extended" IsMultiSelectCheckBoxEnabled="False" ItemTemplate="{StaticResource DetailsItemTemplate}" DoubleTapped="FileListView_DoubleTapped" RightTapped="FileListView_RightTapped" KeyDown="FileListView_KeyDown" SelectionChanged="FileListView_SelectionChanged" ContextRequested="FileListView_ContextRequested" Padding="4,2"
                                       ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollMode="Enabled"
                                       CanDragItems="True" AllowDrop="True" DragItemsStarting="FileList_DragItemsStarting" DragItemsCompleted="FileList_DragItemsCompleted" DragOver="FileList_DragOver" Drop="FileList_Drop" DragLeave="FileList_DragLeave">
