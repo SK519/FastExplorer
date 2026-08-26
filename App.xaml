@@ -20,6 +20,8 @@
                     <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
@@ -40,6 +42,8 @@
                     <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
@@ -60,6 +64,8 @@
                     <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>

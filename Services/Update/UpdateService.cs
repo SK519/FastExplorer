@@ -163,7 +163,8 @@ namespace FastExplorer.Services.Update
 
                 Process.Start(psi);
 
-                Microsoft.UI.Xaml.Application.Current.Exit();
+                // インストーラーがファイルを上書きできるよう自プロセスを速やかに完全終了
+                Environment.Exit(0);
                 return true;
             }
             catch

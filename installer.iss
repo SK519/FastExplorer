@@ -66,9 +66,10 @@ var
   ResultCode: Integer;
 begin
   Exec('schtasks.exe', '/end /tn "FastExplorer_Background"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Exec('cmd.exe', '/c taskkill.exe /f /t /im FastExplorer.exe /im FastExplorerWatcher.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Exec('powershell.exe', '-NoProfile -NonInteractive -Command "(Get-Process -Name FastExplorer,FastExplorerWatcher -ErrorAction SilentlyContinue).Kill()"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Sleep(200);
+  // 注意: /t フラグを付けると、FastExplorer から起動されたインストーラー自身まで子プロセスとして強制終了されてしまうため /t は使用しない
+  Exec('cmd.exe', '/c taskkill.exe /f /im FastExplorer.exe /im FastExplorerWatcher.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec('powershell.exe', '-NoProfile -NonInteractive -Command "Get-Process -Name FastExplorer,FastExplorerWatcher -ErrorAction SilentlyContinue | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(300);
 end;
 
 procedure CleanStartupShortcuts();

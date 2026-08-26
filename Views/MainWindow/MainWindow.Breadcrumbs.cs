@@ -107,7 +107,12 @@ namespace FastExplorer
 
             string target = rawInput.Trim();
 
-            if (target.Equals("FastExplorer://Settings", StringComparison.OrdinalIgnoreCase))
+            if (target.Equals("FastExplorer://Settings", StringComparison.OrdinalIgnoreCase) ||
+                target.Equals("FastExplorer:Settings", StringComparison.OrdinalIgnoreCase) ||
+                target.Equals("Settings", StringComparison.OrdinalIgnoreCase) ||
+                target.Equals("設定", StringComparison.OrdinalIgnoreCase) ||
+                target.Equals("about:settings", StringComparison.OrdinalIgnoreCase) ||
+                target.Equals("about:config", StringComparison.OrdinalIgnoreCase))
             {
                 OpenSettingsTab();
                 return;

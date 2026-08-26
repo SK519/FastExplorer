@@ -77,7 +77,12 @@
                             SuggestionChosen="AddressSuggestBox_SuggestionChosen"
                             KeyDown="AddressSuggestBox_KeyDown"
                             GotFocus="AddressSuggestBox_GotFocus"
-                            LostFocus="AddressSuggestBox_LostFocus" />
+                            LostFocus="AddressSuggestBox_LostFocus">
+                <AutoSuggestBox.Resources>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                </AutoSuggestBox.Resources>
+            </AutoSuggestBox>
             <Button x:Name="HistoryDropDownButton" HorizontalAlignment="Right" VerticalAlignment="Center" Width="26" Height="28" Margin="0,0,3,0" Padding="0" Background="Transparent" BorderBrush="Transparent" Style="{StaticResource BreadcrumbArrowButtonStyle}" Click="HistoryDropDownButton_Click" ToolTipService.ToolTip="入力履歴 (Alt+Down)">
                 <FontIcon Glyph="&#xE70D;" FontSize="9" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
             </Button>
