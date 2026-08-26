@@ -180,6 +180,3 @@ if ($Release) {
         Write-Error "Failed to create or upload GitHub release. Make sure you are authenticated with gh auth login."
     }
 }
-
-
-

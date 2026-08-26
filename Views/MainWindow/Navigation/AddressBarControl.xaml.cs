@@ -20,6 +20,7 @@ namespace FastExplorer.Views.MainWindow.Navigation
         public event RoutedEventHandler? UpRequested;
         public event RoutedEventHandler? RefreshRequested;
         public event RoutedEventHandler? SettingsRequested;
+        public event RoutedEventHandler? UpdateRequested;
         public event Action<string>? SearchFilterChanged;
         public event Action? SearchFilterEscaped;
         public event Action? AddressInputRequested;
@@ -33,6 +34,45 @@ namespace FastExplorer.Views.MainWindow.Navigation
         {
             this.InitializeComponent();
             AddressSuggestBox.ItemsSource = _suggestions;
+
+            this.Loaded += (s, e) =>
+            {
+                ApplyUpdateInfo(FastExplorer.Services.Update.UpdateService.LastUpdateInfo);
+                FastExplorer.Services.Update.UpdateService.UpdateStatusChanged += OnUpdateStatusChanged;
+            };
+
+            this.Unloaded += (s, e) =>
+            {
+                FastExplorer.Services.Update.UpdateService.UpdateStatusChanged -= OnUpdateStatusChanged;
+            };
+        }
+
+        private void OnUpdateStatusChanged(FastExplorer.Services.Update.UpdateInfo info)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                ApplyUpdateInfo(info);
+            });
+        }
+
+        public void ApplyUpdateInfo(FastExplorer.Services.Update.UpdateInfo? info)
+        {
+            if (UpdateAvailableButton == null) return;
+
+            if (info != null && info.IsUpdateAvailable)
+            {
+                UpdateAvailableButton.Visibility = Visibility.Visible;
+                string label = string.IsNullOrWhiteSpace(info.LatestVersion) ? "更新" : $"更新 (v{info.LatestVersion})";
+                if (UpdateAvailableText != null)
+                {
+                    UpdateAvailableText.Text = label;
+                }
+                ToolTipService.SetToolTip(UpdateAvailableButton, $"FastExplorer v{info.LatestVersion} にアップデート可能です (クリックして設定を開く)");
+            }
+            else
+            {
+                UpdateAvailableButton.Visibility = Visibility.Collapsed;
+            }
         }
 
         public void UpdateNavigationButtons(bool canGoBack, bool canGoForward, bool canGoUp)
@@ -89,6 +129,7 @@ namespace FastExplorer.Views.MainWindow.Navigation
         private void UpButton_Click(object sender, RoutedEventArgs e) => UpRequested?.Invoke(sender, e);
         private void RefreshButton_Click(object sender, RoutedEventArgs e) => RefreshRequested?.Invoke(sender, e);
         private void SettingsButton_Click(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke(sender, e);
+        private void UpdateAvailableButton_Click(object sender, RoutedEventArgs e) => UpdateRequested?.Invoke(sender, e);
 
         private void SearchFilterBox_TextChanged(object sender, TextChangedEventArgs e)
         {

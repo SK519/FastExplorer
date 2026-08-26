@@ -88,6 +88,16 @@
             </Button>
         </Grid>
         <TextBox x:Name="SearchFilterBox" Grid.Column="5" Height="34" VerticalAlignment="Center" TextChanged="SearchFilterBox_TextChanged" KeyDown="SearchFilterBox_KeyDown" PlaceholderText="フィルター検索 (Ctrl+F)..."/>
-        <Button x:Name="SettingsButton" Grid.Column="6" Click="SettingsButton_Click" ToolTipService.ToolTip="設定"><FontIcon Glyph="&#xE713;" FontSize="13"/></Button>
+        <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="6">
+            <Button x:Name="UpdateAvailableButton" Click="UpdateAvailableButton_Click"
+                    Style="{StaticResource AccentButtonStyle}" Height="34" Padding="10,0"
+                    Visibility="Collapsed" ToolTipService.ToolTip="新しいアップデートが利用可能です">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE895;" FontSize="13"/>
+                    <TextBlock x:Name="UpdateAvailableText" Text="更新" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Button>
+            <Button x:Name="SettingsButton" Click="SettingsButton_Click" ToolTipService.ToolTip="設定"><FontIcon Glyph="&#xE713;" FontSize="13"/></Button>
+        </StackPanel>
     </Grid>
 </UserControl>

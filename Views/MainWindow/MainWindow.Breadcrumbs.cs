@@ -26,6 +26,7 @@ namespace FastExplorer
             AddressBar.UpRequested += (s, e) => UpButton_Click(s, e);
             AddressBar.RefreshRequested += (s, e) => RefreshButton_Click(s, e);
             AddressBar.SettingsRequested += (s, e) => SettingsButton_Click(s, e);
+            AddressBar.UpdateRequested += (s, e) => OpenSettingsTab("About");
             AddressBar.SearchFilterChanged += text => { if (CurrentTab != null) CurrentTab.FilterText = text; };
             AddressBar.SearchFilterEscaped += () => { ActiveListControl?.Focus(FocusState.Programmatic); };
             AddressBar.AddressInputRequested += () => SwitchToAddressInput();
