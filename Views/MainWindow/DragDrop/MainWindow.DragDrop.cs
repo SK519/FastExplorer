@@ -41,8 +41,8 @@ namespace FastExplorer
 
             if (validPaths.Count == 0) return;
 
-            // コピーと移動の両方を許可
-            e.Data.RequestedOperation = DataPackageOperation.Copy | DataPackageOperation.Move;
+            // コピー、移動、リンクのすべてを許可
+            e.Data.RequestedOperation = DataPackageOperation.Copy | DataPackageOperation.Move | DataPackageOperation.Link;
 
             // 1. StorageItems の遅延・非同期設定 (Windows Explorer / 外部アプリ / WinUI 連携用)
             e.Data.SetDataProvider(StandardDataFormats.StorageItems, async request =>
@@ -117,7 +117,14 @@ namespace FastExplorer
 
             if (isExecutable)
             {
-                e.AcceptedOperation = DataPackageOperation.Link;
+                // ドロップ実行: ソース側が許可する操作（Copy / Move / Link）に合わせて互換性のある AcceptedOperation を設定
+                var execOp = (e.AllowedOperations.HasFlag(DataPackageOperation.Copy))
+                    ? DataPackageOperation.Copy
+                    : ((e.AllowedOperations.HasFlag(DataPackageOperation.Link))
+                        ? DataPackageOperation.Link
+                        : DataPackageOperation.Move);
+
+                e.AcceptedOperation = execOp;
                 e.DragUIOverride.IsCaptionVisible = true;
                 e.DragUIOverride.IsGlyphVisible = true;
                 e.DragUIOverride.IsContentVisible = true;
