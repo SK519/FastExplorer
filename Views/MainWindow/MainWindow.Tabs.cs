@@ -221,6 +221,14 @@ namespace FastExplorer
             }
             catch (Exception ex)
             {
+                try
+                {
+                    string localFolder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FastExplorer");
+                    System.IO.Directory.CreateDirectory(localFolder);
+                    string crashLog = System.IO.Path.Combine(localFolder, "crash.log");
+                    System.IO.File.AppendAllText(crashLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] OpenSettingsTab Exception: {ex}\r\n\r\n");
+                }
+                catch { }
                 System.Diagnostics.Debug.WriteLine($"[OpenSettingsTab] Exception: {ex}");
             }
         }

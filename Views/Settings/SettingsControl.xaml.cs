@@ -16,94 +16,139 @@ namespace FastExplorer.Views.Settings
 
         public SettingsControl()
         {
-            this.InitializeComponent();
-            InitAutoScrollTimer();
-            LoadSettingsToUI();
-            _isInitializing = false;
-            UpdateTabVisuals("Theme");
+            try
+            {
+                this.InitializeComponent();
+                InitAutoScrollTimer();
+                LoadSettingsToUI();
+                _isInitializing = false;
+                UpdateTabVisuals("Theme");
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    string localFolder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FastExplorer");
+                    System.IO.Directory.CreateDirectory(localFolder);
+                    string crashLog = System.IO.Path.Combine(localFolder, "crash.log");
+                    System.IO.File.AppendAllText(crashLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SettingsControl constructor Exception: {ex}\r\n\r\n");
+                }
+                catch { }
+            }
         }
 
         public void ReloadSettings()
         {
-            _isInitializing = true;
-            ConfigService.Load(); // Re-read from disk in case it was modified externally
-            LoadSettingsToUI();
-            _isInitializing = false;
+            try
+            {
+                _isInitializing = true;
+                ConfigService.Load(); // Re-read from disk in case it was modified externally
+                LoadSettingsToUI();
+                _isInitializing = false;
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    string localFolder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FastExplorer");
+                    System.IO.Directory.CreateDirectory(localFolder);
+                    string crashLog = System.IO.Path.Combine(localFolder, "crash.log");
+                    System.IO.File.AppendAllText(crashLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ReloadSettings Exception: {ex}\r\n\r\n");
+                }
+                catch { }
+            }
         }
 
         private void LoadSettingsToUI()
         {
-            var config = ConfigService.Current;
-
-            // テーマ ComboBox
-            string theme = config.Ui.Theme.ToLowerInvariant();
-            int selectedIndex = theme switch
+            try
             {
-                "dark" => 1,
-                "light" => 2,
-                _ => 0
-            };
-            ThemeComboBox.SelectedIndex = selectedIndex;
+                var config = ConfigService.Current;
 
-            // 表示・削除 Toggle
-            ShowItemCheckBoxesToggle.IsOn = config.Ui.ShowItemCheckBoxes;
-            ShowHiddenFilesToggle.IsOn = config.Ui.ShowHiddenFiles;
-            ConfirmDeleteToggle.IsOn = config.Ui.ConfirmDelete;
+                // テーマ ComboBox
+                string theme = config.Ui.Theme?.ToLowerInvariant() ?? "system";
+                int selectedIndex = theme switch
+                {
+                    "dark" => 1,
+                    "light" => 2,
+                    _ => 0
+                };
+                if (ThemeComboBox != null) ThemeComboBox.SelectedIndex = selectedIndex;
 
-            // 壁紙
-            WallpaperPathTextBox.Text = config.Ui.BackgroundImagePath ?? "";
-            WallpaperOpacitySlider.Value = (int)Math.Round(config.Ui.BackgroundOpacity * 100);
-            WallpaperOpacityValueText.Text = $"{(int)WallpaperOpacitySlider.Value}%";
-            WallpaperTintSlider.Value = (int)Math.Round(config.Ui.BackgroundTintOpacity * 100);
-            WallpaperTintValueText.Text = $"{(int)WallpaperTintSlider.Value}%";
-            WallpaperFitComboBox.SelectedIndex = config.Ui.BackgroundFit switch
+                // 表示・削除 Toggle
+                if (ShowItemCheckBoxesToggle != null) ShowItemCheckBoxesToggle.IsOn = config.Ui.ShowItemCheckBoxes;
+                if (ShowHiddenFilesToggle != null) ShowHiddenFilesToggle.IsOn = config.Ui.ShowHiddenFiles;
+                if (ConfirmDeleteToggle != null) ConfirmDeleteToggle.IsOn = config.Ui.ConfirmDelete;
+
+                // 壁紙
+                if (WallpaperPathTextBox != null) WallpaperPathTextBox.Text = config.Ui.BackgroundImagePath ?? "";
+                if (WallpaperOpacitySlider != null) WallpaperOpacitySlider.Value = (int)Math.Round(config.Ui.BackgroundOpacity * 100);
+                if (WallpaperOpacityValueText != null) WallpaperOpacityValueText.Text = $"{(int)(WallpaperOpacitySlider?.Value ?? 35)}%";
+                if (WallpaperTintSlider != null) WallpaperTintSlider.Value = (int)Math.Round(config.Ui.BackgroundTintOpacity * 100);
+                if (WallpaperTintValueText != null) WallpaperTintValueText.Text = $"{(int)(WallpaperTintSlider?.Value ?? 30)}%";
+                if (WallpaperFitComboBox != null)
+                {
+                    WallpaperFitComboBox.SelectedIndex = (config.Ui.BackgroundFit ?? "UniformToFill") switch
+                    {
+                        "Uniform" => 1,
+                        "Fill" => 2,
+                        "None" => 3,
+                        _ => 0
+                    };
+                }
+                if (WallpaperOptionsPanel != null) WallpaperOptionsPanel.Opacity = string.IsNullOrWhiteSpace(config.Ui.BackgroundImagePath) ? 0.6 : 1.0;
+
+                // ショートカット一覧初期化
+                InitShortcutsSection();
+
+                // コンテキストメニュー項目 Toggle (標準)
+                if (ToggleOpenWith != null) ToggleOpenWith.IsOn = config.ShellMenu.ShowOpenWith;
+                if (ToggleEditWithEditor != null) ToggleEditWithEditor.IsOn = config.ShellMenu.ShowEditWithEditor;
+                if (ToggleOpenInTerminal != null) ToggleOpenInTerminal.IsOn = config.ShellMenu.ShowOpenInTerminal;
+                if (ToggleCopyPath != null) ToggleCopyPath.IsOn = config.ShellMenu.ShowCopyPath;
+                if (ToggleZipOptions != null) ToggleZipOptions.IsOn = config.ShellMenu.ShowZipOptions;
+                if (ZipLevelSettingsPanel != null) ZipLevelSettingsPanel.Visibility = config.ShellMenu.ShowZipOptions ? Visibility.Visible : Visibility.Collapsed;
+                if (ZipDefaultLevelComboBox != null) ZipDefaultLevelComboBox.SelectedIndex = CompressionLevelToIndex(config.ShellMenu.DefaultZipLevel);
+                if (SevenZipDefaultLevelComboBox != null) SevenZipDefaultLevelComboBox.SelectedIndex = CompressionLevelToIndex(config.ShellMenu.DefaultSevenZipLevel);
+                if (ToggleProperties != null) ToggleProperties.IsOn = config.ShellMenu.ShowProperties;
+                if (ToggleOsStandardOption != null) ToggleOsStandardOption.IsOn = config.ShellMenu.ShowOsStandardOption;
+
+                // コンテキストメニュー項目 Toggle (OSメニュー抽出拡張)
+                if (ToggleShowAllShellItems != null) ToggleShowAllShellItems.IsOn = config.ShellMenu.ShowAllShellItems;
+
+                // 検出済み項目の動的トグルコントロールの生成
+                EnsureMenuOrderInitialized();
+                RenderDetectedItemsList();
+
+                // エディタ・ターミナル
+                if (EditorPathBox != null) EditorPathBox.Text = config.Editor.Path ?? "";
+                if (TerminalPathBox != null) TerminalPathBox.Text = config.Terminal.Path ?? "";
+
+                // キャッシュ
+                if (MaxCacheMemoryBox != null) MaxCacheMemoryBox.Value = config.Cache.MaxMemoryMB;
+
+                // アップデート情報
+                if (GitHubOwnerBox != null) GitHubOwnerBox.Text = config.Update.GitHubOwner ?? "SK519";
+                if (GitHubRepoBox != null) GitHubRepoBox.Text = config.Update.GitHubRepo ?? "FastExplorer";
+                if (CurrentVersionTextBlock != null) CurrentVersionTextBlock.Text = $"現在のバージョン: v{FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()}";
+                if (AppAboutVersionText != null) AppAboutVersionText.Text = $"バージョン {FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()} (WinUI 3 / Windows App SDK)";
+
+                // システム連携
+                bool isDef = SystemIntegrationService.IsDefaultExplorerEnabled();
+                if (ToggleDefaultExplorer != null) ToggleDefaultExplorer.IsOn = isDef;
+                UpdateDefaultExplorerStatusBadge(isDef);
+            }
+            catch (Exception ex)
             {
-                "Uniform" => 1,
-                "Fill" => 2,
-                "None" => 3,
-                _ => 0
-            };
-            WallpaperOptionsPanel.Opacity = string.IsNullOrWhiteSpace(config.Ui.BackgroundImagePath) ? 0.6 : 1.0;
-
-            // ショートカット一覧初期化
-            InitShortcutsSection();
-
-            // コンテキストメニュー項目 Toggle (標準)
-            ToggleOpenWith.IsOn = config.ShellMenu.ShowOpenWith;
-            ToggleEditWithEditor.IsOn = config.ShellMenu.ShowEditWithEditor;
-            ToggleOpenInTerminal.IsOn = config.ShellMenu.ShowOpenInTerminal;
-            ToggleCopyPath.IsOn = config.ShellMenu.ShowCopyPath;
-            ToggleZipOptions.IsOn = config.ShellMenu.ShowZipOptions;
-            ZipLevelSettingsPanel.Visibility = config.ShellMenu.ShowZipOptions ? Visibility.Visible : Visibility.Collapsed;
-            ZipDefaultLevelComboBox.SelectedIndex = CompressionLevelToIndex(config.ShellMenu.DefaultZipLevel);
-            SevenZipDefaultLevelComboBox.SelectedIndex = CompressionLevelToIndex(config.ShellMenu.DefaultSevenZipLevel);
-            ToggleProperties.IsOn = config.ShellMenu.ShowProperties;
-            ToggleOsStandardOption.IsOn = config.ShellMenu.ShowOsStandardOption;
-
-            // コンテキストメニュー項目 Toggle (OSメニュー抽出拡張)
-            ToggleShowAllShellItems.IsOn = config.ShellMenu.ShowAllShellItems;
-
-            // 検出済み項目の動的トグルコントロールの生成
-            EnsureMenuOrderInitialized();
-            RenderDetectedItemsList();
-
-            // エディタ・ターミナル
-            EditorPathBox.Text = config.Editor.Path;
-            TerminalPathBox.Text = config.Terminal.Path;
-
-            // キャッシュ
-            MaxCacheMemoryBox.Value = config.Cache.MaxMemoryMB;
-
-            // アップデート情報
-            GitHubOwnerBox.Text = config.Update.GitHubOwner;
-            GitHubRepoBox.Text = config.Update.GitHubRepo;
-            CurrentVersionTextBlock.Text = $"現在のバージョン: v{FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()}";
-            AppAboutVersionText.Text = $"バージョン {FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()} (WinUI 3 / Windows App SDK)";
-
-            // システム連携
-            bool isDef = SystemIntegrationService.IsDefaultExplorerEnabled();
-            ToggleDefaultExplorer.IsOn = isDef;
-            UpdateDefaultExplorerStatusBadge(isDef);
+                try
+                {
+                    string localFolder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FastExplorer");
+                    System.IO.Directory.CreateDirectory(localFolder);
+                    string crashLog = System.IO.Path.Combine(localFolder, "crash.log");
+                    System.IO.File.AppendAllText(crashLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] LoadSettingsToUI Exception: {ex}\r\n\r\n");
+                }
+                catch { }
+            }
         }
 
         public static Brush GetThemeBrush(string key, Brush? fallback = null)

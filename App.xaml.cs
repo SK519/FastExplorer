@@ -30,7 +30,9 @@ namespace FastExplorer
             {
                 try
                 {
-                    string crashLog = Path.Combine(AppContext.BaseDirectory, "crash.log");
+                    string localFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FastExplorer");
+                    Directory.CreateDirectory(localFolder);
+                    string crashLog = Path.Combine(localFolder, "crash.log");
                     File.AppendAllText(crashLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] UnhandledException: {e.Message}\r\n{e.Exception}\r\n\r\n");
                 }
                 catch { }
@@ -41,7 +43,9 @@ namespace FastExplorer
             {
                 try
                 {
-                    string crashLog = Path.Combine(AppContext.BaseDirectory, "crash.log");
+                    string localFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FastExplorer");
+                    Directory.CreateDirectory(localFolder);
+                    string crashLog = Path.Combine(localFolder, "crash.log");
                     File.AppendAllText(crashLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] AppDomain Exception: {e.ExceptionObject}\r\n\r\n");
                 }
                 catch { }

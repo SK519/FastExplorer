@@ -24,6 +24,7 @@ namespace FastExplorer
             this.ExtendsContentIntoTitleBar = true;
 
             InitializeComponent();
+            InitializeComponentEvents();
 
             this.SetTitleBar(CustomDragRegion);
 
