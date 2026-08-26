@@ -1,7 +1,12 @@
 # FastExplorer Installer Build Script
 param(
-    [string]$Arch = "x64",        # "x64" or "arm64"
-    [string]$Version = "1.0.0"    # e.g. "1.0.1", "v1.1.0"
+    [string]$Arch = "x64",          # "x64" or "arm64"
+    [string]$Version = "1.0.0",      # e.g. "1.0.1", "v1.1.0"
+    [switch]$Release,               # GitHub Releases に自動アップロード
+    [string]$Notes = "",            # リリースノート (説明文)
+    [string]$Title = "",            # リリースタイトル (省略時は "FastExplorer vX.X.X")
+    [switch]$Draft,                 # 下書き (Draft) として作成
+    [switch]$Prerelease             # プレリリースとして作成
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +19,15 @@ if ([string]::IsNullOrWhiteSpace($CleanVersion)) {
 
 $ProjectDir = $PSScriptRoot
 Set-Location $ProjectDir
+
+# Clean dist folder (delete previous installer artifacts)
+$distDir = "$ProjectDir\dist"
+if (Test-Path $distDir) {
+    Write-Host "0. Cleaning previous installer artifacts in dist/..." -ForegroundColor DarkGray
+    Get-ChildItem -Path $distDir -Filter "*.exe" -File | Remove-Item -Force -ErrorAction SilentlyContinue
+} else {
+    New-Item -ItemType Directory -Path $distDir -Force | Out-Null
+}
 
 Write-Host "1. Publishing Release build for win-$Arch (Version: $CleanVersion)..." -ForegroundColor Cyan
 
@@ -109,4 +123,63 @@ if (Test-Path "$ProjectDir\dist\$outputBaseFilename.exe") {
 Write-Host "`nSUCCESS! Installer created at:" -ForegroundColor Green
 Write-Host "  - $ProjectDir\dist\$outputBaseFilename.exe" -ForegroundColor Green
 Write-Host "  - $ProjectDir\dist\FastExplorer_Setup.exe" -ForegroundColor Green
+
+# 3. GitHub Releases 自動アップロード (オプション: -Release 指定時)
+if ($Release) {
+    Write-Host "`n3. Uploading Release to GitHub..." -ForegroundColor Cyan
+
+    $ghCmd = (Get-Command "gh.exe" -ErrorAction SilentlyContinue).Source
+    if (-not $ghCmd) {
+        $ghPaths = @(
+            "${env:ProgramFiles}\GitHub CLI\gh.exe",
+            "${env:ProgramFiles(x86)}\GitHub CLI\gh.exe",
+            "${env:LocalAppData}\Programs\GitHub CLI\gh.exe"
+        )
+        foreach ($p in $ghPaths) {
+            if (Test-Path $p) {
+                $ghCmd = $p
+                break
+            }
+        }
+    }
+
+    if (-not $ghCmd) {
+        Write-Warning "GitHub CLI (gh) was not found."
+        Write-Host "Please install GitHub CLI with: winget install --id GitHub.cli" -ForegroundColor Yellow
+        Write-Host "Then run: gh auth login" -ForegroundColor Yellow
+        exit 1
+    }
+
+    $tag = "v$CleanVersion"
+    $relTitle = if (-not [string]::IsNullOrWhiteSpace($Title)) { $Title } else { "FastExplorer $tag" }
+    $relNotes = if (-not [string]::IsNullOrWhiteSpace($Notes)) { $Notes } else { "Release $tag" }
+    $installerPath = "$ProjectDir\dist\$outputBaseFilename.exe"
+
+    $ghArgs = @(
+        "release", "create", $tag,
+        $installerPath,
+        "--title", $relTitle,
+        "--notes", $relNotes
+    )
+
+    if ($Draft) { $ghArgs += "--draft" }
+    if ($Prerelease) { $ghArgs += "--prerelease" }
+
+    Write-Host "Executing: gh $($ghArgs -join ' ')" -ForegroundColor DarkGray
+    & $ghCmd @ghArgs
+
+    if ($LASTEXITCODE -ne 0) {
+        # リリースが既に存在する場合はアセットの上書きアップロードを試行
+        Write-Host "Release $tag already exists or create failed. Attempting upload with --clobber..." -ForegroundColor Yellow
+        & $ghCmd release upload $tag $installerPath --clobber
+    }
+
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "`nSUCCESS: Created and published release $tag to GitHub!" -ForegroundColor Green
+    } else {
+        Write-Error "Failed to create or upload GitHub release. Make sure you are authenticated with gh auth login."
+    }
+}
+
+
 

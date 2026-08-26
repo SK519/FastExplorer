@@ -67,7 +67,7 @@ if (-not $vcvars) {
 
 Write-Host "Compiling FastExplorerWatcher with MSVC ($vcvars)..." -ForegroundColor Cyan
 
-$cmd = "`"$vcvars`" && cl.exe /O2 /MT /utf-8 /DUNICODE /D_UNICODE /Fe`"$OutputDir\FastExplorerWatcher.exe`" `"$SourceFile`" /link user32.lib shell32.lib advapi32.lib ole32.lib oleaut32.lib shlwapi.lib /SUBSYSTEM:WINDOWS"
+$cmd = "`"$vcvars`" && cl.exe /O2 /MT /utf-8 /DUNICODE /D_UNICODE /Fo`"$OutputDir\FastExplorerWatcher.obj`" /Fe`"$OutputDir\FastExplorerWatcher.exe`" `"$SourceFile`" /link user32.lib shell32.lib advapi32.lib ole32.lib oleaut32.lib shlwapi.lib /SUBSYSTEM:WINDOWS"
 cmd.exe /c $cmd
 
 if (Test-Path "$OutputDir\FastExplorerWatcher.exe") {
