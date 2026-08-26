@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using FastExplorer.Models;
 using FastExplorer.Services;
 using Microsoft.UI.Xaml;
@@ -22,14 +23,14 @@ namespace FastExplorer.Views.Settings
                 InitAutoScrollTimer();
                 LoadSettingsToUI();
                 _isInitializing = false;
-                UpdateTabVisuals("Theme");
+                SwitchTab("Theme");
             }
             catch (Exception ex)
             {
                 try
                 {
                     string localFolder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FastExplorer");
-                    System.IO.Directory.CreateDirectory(localFolder);
+                    Directory.CreateDirectory(localFolder);
                     string crashLog = System.IO.Path.Combine(localFolder, "crash.log");
                     System.IO.File.AppendAllText(crashLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] SettingsControl constructor Exception: {ex}\r\n\r\n");
                 }
@@ -45,13 +46,14 @@ namespace FastExplorer.Views.Settings
                 ConfigService.Load(); // Re-read from disk in case it was modified externally
                 LoadSettingsToUI();
                 _isInitializing = false;
+                SwitchTab(_activeTabTag);
             }
             catch (Exception ex)
             {
                 try
                 {
                     string localFolder = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FastExplorer");
-                    System.IO.Directory.CreateDirectory(localFolder);
+                    Directory.CreateDirectory(localFolder);
                     string crashLog = System.IO.Path.Combine(localFolder, "crash.log");
                     System.IO.File.AppendAllText(crashLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ReloadSettings Exception: {ex}\r\n\r\n");
                 }

@@ -605,7 +605,7 @@
                             <ProgressRing x:Name="UpdateCheckProgressRing" IsActive="False" Visibility="Collapsed" HorizontalAlignment="Left" Width="20" Height="20"/>
 
                             <!-- 新バージョン検出時の通知カード -->
-                            <Border x:Name="UpdateAvailableCard" Visibility="Collapsed" Background="{ThemeResource LayerFillColorSecondaryBrush}" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="1" CornerRadius="6" Padding="14">
+                            <Border x:Name="UpdateAvailableCard" Visibility="Collapsed" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="1" CornerRadius="6" Padding="14">
                                 <Grid ColumnSpacing="12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
