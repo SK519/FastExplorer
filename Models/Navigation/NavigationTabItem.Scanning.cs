@@ -18,33 +18,7 @@ namespace FastExplorer
         {
             try
             {
-                var newScanned = new List<FileItem>(1024);
-
-                if (CurrentPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
-                {
-                    newScanned.AddRange(QuickAccessService.GetHomeItems());
-                }
-                else if (CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
-                {
-                    newScanned.AddRange(NativeFileScanner.GetDrives());
-                }
-                else if (RecycleBinService.IsRecycleBinPath(CurrentPath))
-                {
-                    newScanned.AddRange(RecycleBinService.GetRecycleBinItems());
-                }
-                else if (CurrentPath.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || CurrentPath.Equals("Network", StringComparison.OrdinalIgnoreCase))
-                {
-                    newScanned.AddRange(NativeFileScanner.GetNetworkPlaces());
-                }
-                else if (ArchiveService.IsArchiveOrSubPath(CurrentPath, out string archiveFile, out string internalSubPath))
-                {
-                    newScanned.AddRange(ArchiveService.GetArchiveFolderItems(archiveFile, internalSubPath));
-                }
-                else
-                {
-                    bool showHidden = ConfigService.Current.Ui.ShowHiddenFiles;
-                    newScanned.AddRange(NativeFileScanner.ScanDirectory(CurrentPath, showHidden));
-                }
+                var newScanned = ScanCurrentPath();
 
                 // 1. _allItems のインプレース差分同期
                 var newLookup = new Dictionary<string, FileItem>(newScanned.Count, StringComparer.OrdinalIgnoreCase);
@@ -99,7 +73,8 @@ namespace FastExplorer
                     }
                 }
 
-                // 2. Items コレクションの差分同期 (スクロール位置・選択状態を完全維持)
+                // 2. 合計ファイルサイズの再計算 & Items コレクションの差分同期 (スクロール位置・選択状態を完全維持)
+                RecalculateTotalBytes();
                 SyncFilteredItems();
             }
             catch
@@ -108,7 +83,87 @@ namespace FastExplorer
             }
         }
 
+        private List<FileItem> ScanCurrentPath()
+        {
+            var scanned = new List<FileItem>(1024);
+
+            try
+            {
+                if (CurrentPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
+                {
+                    scanned.AddRange(QuickAccessService.GetHomeItems());
+                }
+                else if (CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
+                {
+                    scanned.AddRange(NativeFileScanner.GetDrives());
+                }
+                else if (RecycleBinService.IsRecycleBinPath(CurrentPath))
+                {
+                    scanned.AddRange(RecycleBinService.GetRecycleBinItems());
+                }
+                else if (CurrentPath.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || CurrentPath.Equals("Network", StringComparison.OrdinalIgnoreCase))
+                {
+                    scanned.AddRange(NativeFileScanner.GetNetworkPlaces());
+                }
+                else if (ArchiveService.IsArchiveOrSubPath(CurrentPath, out string archiveFile, out string internalSubPath))
+                {
+                    scanned.AddRange(ArchiveService.GetArchiveFolderItems(archiveFile, internalSubPath));
+                }
+                else
+                {
+                    bool showHidden = ConfigService.Current.Ui.ShowHiddenFiles;
+                    scanned.AddRange(NativeFileScanner.ScanDirectory(CurrentPath, showHidden));
+
+                    // WSL ルート走査時のフォールバック (レジストリからディストリビューション取得)
+                    if (scanned.Count == 0 && (CurrentPath.Equals(@"\\wsl.localhost", StringComparison.OrdinalIgnoreCase) || CurrentPath.Equals(@"\\wsl$", StringComparison.OrdinalIgnoreCase) || CurrentPath.Equals("Linux", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        try
+                        {
+                            using var lxssKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Lxss");
+                            if (lxssKey != null)
+                            {
+                                foreach (var subKeyName in lxssKey.GetSubKeyNames())
+                                {
+                                    using var distroKey = lxssKey.OpenSubKey(subKeyName);
+                                    if (distroKey != null)
+                                    {
+                                        string? distroName = distroKey.GetValue("DistributionName") as string;
+                                        if (!string.IsNullOrWhiteSpace(distroName))
+                                        {
+                                            scanned.Add(new FileItem
+                                            {
+                                                Name = distroName,
+                                                FullPath = $@"\\wsl.localhost\{distroName}",
+                                                GlyphIcon = "\uE74C",
+                                                FileType = "Linux ディストリビューション",
+                                                IsDirectory = true
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+
+            return scanned;
+        }
+
         private void SyncFilteredItems()
+        {
+            var targetList = GetFilteredAndSortedItems();
+            ApplySizesToItems(targetList);
+            SynchronizeItemsCollection(targetList);
+            UpdateStatusText();
+        }
+
+        private List<FileItem> GetFilteredAndSortedItems()
         {
             List<FileItem> targetList;
 
@@ -168,13 +223,21 @@ namespace FastExplorer
                 return cmp;
             });
 
+            return targetList;
+        }
+
+        private void ApplySizesToItems(List<FileItem> targetList)
+        {
             bool isGrid = ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons;
             foreach (var item in targetList)
             {
                 ApplySizeToItem(item, CustomSize, isGrid, ViewMode);
                 item.ApplyDetailsScale(_viewScale);
             }
+        }
 
+        private void SynchronizeItemsCollection(List<FileItem> targetList)
+        {
             // Items コレクションの同期 (初回読み込み時は一括、差分時は最小の変更でスクロール位置・選択状態を維持)
             if (Items.Count == 0)
             {
@@ -199,6 +262,13 @@ namespace FastExplorer
                     }
                 }
 
+                // アイテムの現在インデックスを高速検索するための辞書 (O(n) 化)
+                var currentIndices = new Dictionary<string, int>(Items.Count, StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < Items.Count; i++)
+                {
+                    currentIndices[Items[i].FullPath] = i;
+                }
+
                 for (int targetIndex = 0; targetIndex < targetList.Count; targetIndex++)
                 {
                     var targetItem = targetList[targetIndex];
@@ -209,140 +279,113 @@ namespace FastExplorer
                             continue;
                         }
 
-                        int existingIndex = -1;
-                        for (int j = targetIndex + 1; j < Items.Count; j++)
-                        {
-                            if (string.Equals(Items[j].FullPath, targetItem.FullPath, StringComparison.OrdinalIgnoreCase))
-                            {
-                                existingIndex = j;
-                                break;
-                            }
-                        }
-
-                        if (existingIndex >= 0)
+                        if (currentIndices.TryGetValue(targetItem.FullPath, out int existingIndex) && existingIndex > targetIndex)
                         {
                             Items.Move(existingIndex, targetIndex);
+                            for (int k = targetIndex; k <= existingIndex; k++)
+                            {
+                                currentIndices[Items[k].FullPath] = k;
+                            }
                         }
                         else
                         {
                             Items.Insert(targetIndex, targetItem);
+                            for (int k = targetIndex; k < Items.Count; k++)
+                            {
+                                currentIndices[Items[k].FullPath] = k;
+                            }
                         }
                     }
                     else
                     {
                         Items.Add(targetItem);
+                        currentIndices[targetItem.FullPath] = Items.Count - 1;
                     }
                 }
             }
-
-            UpdateStatusText();
         }
+
+        private int _loadGeneration;
 
         private void LoadItems()
         {
+            int currentGen = System.Threading.Interlocked.Increment(ref _loadGeneration);
             IsLoading = true;
             _allItems.Clear();
             Items.Clear();
 
-            try
+            string targetPath = CurrentPath;
+            string? selectTargetName = PendingSelectedItemName;
+            PendingSelectedItemName = null;
+
+            System.Threading.Tasks.Task.Run(() =>
             {
-                if (CurrentPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
+                var scanned = new List<FileItem>(1024);
+                try
                 {
-                    var homeItems = QuickAccessService.GetHomeItems();
-                    _allItems.AddRange(homeItems);
+                    scanned = ScanCurrentPath();
                 }
-                else if (CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
+                catch
                 {
-                    var drives = NativeFileScanner.GetDrives();
-                    _allItems.AddRange(drives);
+                    // ignored
                 }
-                else if (RecycleBinService.IsRecycleBinPath(CurrentPath))
+
+                if (currentGen != _loadGeneration) return;
+
+                // ユーザーによる個別保存設定がない場合、フォルダー内のコンテンツ構成から最適な表示モードを自動検出
+                string normPath = FastExplorer.Helpers.PathHelper.NormalizeFolderPath(targetPath);
+                FolderViewMode? detectedMode = null;
+                if (!ConfigService.Current.FolderViewSettings.ContainsKey(normPath) &&
+                    !ConfigService.Current.FolderViewSettings.ContainsKey(targetPath))
                 {
-                    var recycleItems = RecycleBinService.GetRecycleBinItems();
-                    _allItems.AddRange(recycleItems);
+                    detectedMode = FastExplorer.Helpers.FolderTypeHelper.DetectViewModeFromContent(scanned);
                 }
-                else if (CurrentPath.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || CurrentPath.Equals("Network", StringComparison.OrdinalIgnoreCase))
+
+                // アイコンの事前設定
+                bool allowThumb = IconThumbnailService.IsImageOrientedMode(_viewMode);
+                foreach (var item in scanned)
                 {
-                    var netItems = NativeFileScanner.GetNetworkPlaces();
-                    _allItems.AddRange(netItems);
+                    item.IsCut = FileOperationService.IsPathCut(item.FullPath);
+                    item.AllowThumbnail = allowThumb;
+                    IconThumbnailService.Instance.ApplyImmediateDefaultIcon(item);
                 }
-                else if (ArchiveService.IsArchiveOrSubPath(CurrentPath, out string archiveFile, out string internalSubPath))
+
+                DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
                 {
-                    var archiveItems = ArchiveService.GetArchiveFolderItems(archiveFile, internalSubPath);
-                    _allItems.AddRange(archiveItems);
-                }
-                else
-                {
-                    bool showHidden = ConfigService.Current.Ui.ShowHiddenFiles;
-                    var scanned = NativeFileScanner.ScanDirectory(CurrentPath, showHidden);
+                    if (currentGen != _loadGeneration) return;
+
                     _allItems.AddRange(scanned);
 
-                    // WSL ルート走査時のフォールバック (レジストリからディストリビューション取得)
-                    if (_allItems.Count == 0 && (CurrentPath.Equals(@"\\wsl.localhost", StringComparison.OrdinalIgnoreCase) || CurrentPath.Equals(@"\\wsl$", StringComparison.OrdinalIgnoreCase) || CurrentPath.Equals("Linux", StringComparison.OrdinalIgnoreCase)))
+                    if (detectedMode.HasValue)
                     {
-                        try
+                        _viewMode = detectedMode.Value;
+                        if (_viewMode == FolderViewMode.LargeIcons)
                         {
-                            using var lxssKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Lxss");
-                            if (lxssKey != null)
-                            {
-                                foreach (var subKeyName in lxssKey.GetSubKeyNames())
-                                {
-                                    using var distroKey = lxssKey.OpenSubKey(subKeyName);
-                                    if (distroKey != null)
-                                    {
-                                        string? distroName = distroKey.GetValue("DistributionName") as string;
-                                        if (!string.IsNullOrWhiteSpace(distroName))
-                                        {
-                                            _allItems.Add(new FileItem
-                                            {
-                                                Name = distroName,
-                                                FullPath = $@"\\wsl.localhost\{distroName}",
-                                                GlyphIcon = "\uE74C",
-                                                FileType = "Linux ディストリビューション",
-                                                IsDirectory = true
-                                            });
-                                        }
-                                    }
-                                }
-                            }
+                            _customSize = 80;
                         }
-                        catch { }
                     }
-                }
-            }
-            catch
-            {
-                // エラー時は何もしない
-            }
 
-            // ユーザーによる個別保存設定がない場合、フォルダー内のコンテンツ構成（画像ファイル割合など）から最適な表示モードを自動検出
-            string normPath = FastExplorer.Helpers.PathHelper.NormalizeFolderPath(CurrentPath);
-            if (!ConfigService.Current.FolderViewSettings.ContainsKey(normPath) &&
-                !ConfigService.Current.FolderViewSettings.ContainsKey(CurrentPath))
-            {
-                var detectedMode = FastExplorer.Helpers.FolderTypeHelper.DetectViewModeFromContent(_allItems);
-                if (detectedMode.HasValue)
-                {
-                    _viewMode = detectedMode.Value;
-                    if (_viewMode == FolderViewMode.LargeIcons)
+                    RecalculateTotalBytes();
+                    ApplyFilter();
+                    IsLoading = false;
+
+                    // キューへの投入はUI描画後に非同期実行
+                    foreach (var item in _allItems)
                     {
-                        _customSize = 80;
+                        IconThumbnailService.Instance.Enqueue(item);
                     }
-                }
-            }
 
-            // 非同期アイコン取得キューに投入 & 初期アイコンの事前即時適用 (青いフォントアイコンのチラつき防止)
-            bool allowThumb = IconThumbnailService.IsImageOrientedMode(_viewMode);
-            foreach (var item in _allItems)
-            {
-                item.IsCut = FileOperationService.IsPathCut(item.FullPath);
-                item.AllowThumbnail = allowThumb;
-                IconThumbnailService.Instance.ApplyImmediateDefaultIcon(item);
-                IconThumbnailService.Instance.Enqueue(item);
-            }
-
-            ApplyFilter();
-            IsLoading = false;
+                    if (!string.IsNullOrEmpty(selectTargetName))
+                    {
+                        var targetItem = Items.FirstOrDefault(i => i.Name.Equals(selectTargetName, StringComparison.OrdinalIgnoreCase));
+                        if (targetItem != null)
+                        {
+                            targetItem.IsSelected = true;
+                            ItemSelectionRequested?.Invoke(this, selectTargetName);
+                        }
+                    }
+                });
+            });
         }
     }
 }

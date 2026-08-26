@@ -17,17 +17,17 @@ namespace FastExplorer.Services
     public static partial class FileOperationService
     {
         private static bool _isCutOperation = false;
-        private static readonly List<string> _inAppClipboardPaths = [];
+        private static readonly HashSet<string> _inAppClipboardPaths = new(StringComparer.OrdinalIgnoreCase);
 
         public static event Action? ClipboardStateChanged;
 
         public static bool IsCutOperation => _isCutOperation;
-        public static IReadOnlyList<string> InAppClipboardPaths => _inAppClipboardPaths;
+        public static IReadOnlyCollection<string> InAppClipboardPaths => _inAppClipboardPaths;
 
         public static bool IsPathCut(string path)
         {
             if (!_isCutOperation || string.IsNullOrEmpty(path)) return false;
-            return _inAppClipboardPaths.Contains(path, StringComparer.OrdinalIgnoreCase);
+            return _inAppClipboardPaths.Contains(path);
         }
 
         public static void CancelCut()
@@ -61,53 +61,53 @@ namespace FastExplorer.Services
 
             _isCutOperation = isCut;
             _inAppClipboardPaths.Clear();
-            _inAppClipboardPaths.AddRange(pathList);
+            _inAppClipboardPaths.UnionWith(pathList);
+            ClipboardStateChanged?.Invoke();
 
-            try
+            _ = Task.Run(async () =>
             {
-                var package = new DataPackage();
-                package.RequestedOperation = isCut ? DataPackageOperation.Move : DataPackageOperation.Copy;
-                package.SetText(string.Join(Environment.NewLine, pathList));
-
-                // WinUI 3 DataPackage に StorageItems を設定 (OS 標準クリップボード CF_HDROP を正しく構築)
-                var storageItems = new List<IStorageItem>();
-                foreach (var path in pathList)
+                try
                 {
-                    try
+                    var package = new DataPackage();
+                    package.RequestedOperation = isCut ? DataPackageOperation.Move : DataPackageOperation.Copy;
+                    package.SetText(string.Join(Environment.NewLine, pathList));
+
+                    // WinUI 3 DataPackage に StorageItems を非同期設定
+                    var storageItems = new List<IStorageItem>(pathList.Count);
+                    foreach (var path in pathList)
                     {
-                        if (File.Exists(path))
+                        try
                         {
-                            var f = StorageFile.GetFileFromPathAsync(path).AsTask().GetAwaiter().GetResult();
-                            storageItems.Add(f);
+                            if (File.Exists(path))
+                            {
+                                var f = await StorageFile.GetFileFromPathAsync(path);
+                                storageItems.Add(f);
+                            }
+                            else if (Directory.Exists(path))
+                            {
+                                var f = await StorageFolder.GetFolderFromPathAsync(path);
+                                storageItems.Add(f);
+                            }
                         }
-                        else if (Directory.Exists(path))
+                        catch (Exception ex)
                         {
-                            var f = StorageFolder.GetFolderFromPathAsync(path).AsTask().GetAwaiter().GetResult();
-                            storageItems.Add(f);
+                            Debug.WriteLine($"[Clipboard] StorageItem resolve error for {path}: {ex.Message}");
                         }
                     }
-                    catch (Exception ex)
+
+                    if (storageItems.Count > 0)
                     {
-                        Debug.WriteLine($"[Clipboard] StorageItem resolve error for {path}: {ex.Message}");
+                        package.SetStorageItems(storageItems);
                     }
-                }
 
-                if (storageItems.Count > 0)
+                    Clipboard.SetContent(package);
+                    Clipboard.Flush();
+                }
+                catch (Exception ex)
                 {
-                    package.SetStorageItems(storageItems);
+                    Debug.WriteLine($"[Clipboard] SetClipboardFiles async error: {ex.Message}");
                 }
-
-                Clipboard.SetContent(package);
-                Clipboard.Flush();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Clipboard] SetClipboardFiles error: {ex.Message}");
-            }
-            finally
-            {
-                ClipboardStateChanged?.Invoke();
-            }
+            });
         }
 
         public static bool CanPaste()

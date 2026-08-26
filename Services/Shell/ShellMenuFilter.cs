@@ -297,32 +297,58 @@ namespace FastExplorer.Services
             if (lower.Contains("peazip"))
                 return FindExe("peazip.exe",
                     @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\peazip.exe",
-                    @"C:\Program Files\PeaZip\peazip.exe",
-                    @"C:\Program Files (x86)\PeaZip\peazip.exe");
+                    GetProgramFilesPaths(@"PeaZip\peazip.exe"));
 
             if (lower.Contains("7-zip") || lower.Contains("7zip"))
                 return FindExe("7zFM.exe",
                     @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\7zFM.exe",
-                    @"C:\Program Files\7-Zip\7zFM.exe",
-                    @"C:\Program Files (x86)\7-Zip\7zFM.exe");
+                    GetProgramFilesPaths(@"7-Zip\7zFM.exe"));
 
             if (lower.Contains("winrar"))
                 return FindExe("WinRAR.exe",
                     @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\WinRAR.exe",
-                    @"C:\Program Files\WinRAR\WinRAR.exe",
-                    @"C:\Program Files (x86)\WinRAR\WinRAR.exe");
+                    GetProgramFilesPaths(@"WinRAR\WinRAR.exe"));
 
             if (lower.Contains("bandizip"))
                 return FindExe("Bandizip.exe",
                     @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Bandizip.exe",
-                    @"C:\Program Files\Bandizip\Bandizip.exe",
-                    @"C:\Program Files (x86)\Bandizip\Bandizip.exe");
+                    GetProgramFilesPaths(@"Bandizip\Bandizip.exe"));
 
             return null;
         }
 
+        private static string[] GetProgramFilesPaths(string subPath)
+        {
+            var list = new List<string>();
+
+            string pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            if (!string.IsNullOrEmpty(pf)) list.Add(Path.Combine(pf, subPath));
+
+            string pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            if (!string.IsNullOrEmpty(pf86)) list.Add(Path.Combine(pf86, subPath));
+
+            string? pfw64 = Environment.GetEnvironmentVariable("ProgramW6432");
+            if (!string.IsNullOrEmpty(pfw64)) list.Add(Path.Combine(pfw64, subPath));
+
+            string sysDrive = Path.GetPathRoot(Environment.SystemDirectory) ?? @"C:\";
+            list.Add(Path.Combine(sysDrive, "Program Files", subPath));
+            list.Add(Path.Combine(sysDrive, "Program Files (x86)", subPath));
+
+            return list.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+
         private static string? FindExe(string exeName, string regPath, params string[] fallbackPaths)
         {
+            // 1. HKCU App Paths
+            try
+            {
+                using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(regPath);
+                var val = key?.GetValue(null) as string;
+                if (!string.IsNullOrEmpty(val) && File.Exists(val)) return val;
+            }
+            catch { }
+
+            // 2. HKLM App Paths
             try
             {
                 using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(regPath);
@@ -331,15 +357,19 @@ namespace FastExplorer.Services
             }
             catch { }
 
+            // 3. Fallback paths (Program Files etc.)
             foreach (var p in fallbackPaths)
                 if (File.Exists(p)) return p;
 
+            // 4. PATH environment variable
             try
             {
                 var envPath = Environment.GetEnvironmentVariable("PATH") ?? "";
                 foreach (var dir in envPath.Split(';'))
                 {
-                    var full = Path.Combine(dir.Trim(), exeName);
+                    var trimmed = dir.Trim();
+                    if (string.IsNullOrEmpty(trimmed)) continue;
+                    var full = Path.Combine(trimmed, exeName);
                     if (File.Exists(full)) return full;
                 }
             }

@@ -131,9 +131,21 @@
             <RowDefinition Height="Auto"/> <!-- [Row 3] ステータスバー -->
         </Grid.RowDefinitions>
 
+        <!-- カスタム壁紙・背景レイヤー (最背面) -->
+        <Grid x:Name="BackgroundHostGrid" Grid.Row="0" Grid.RowSpan="4" IsHitTestVisible="False" Visibility="Collapsed">
+            <Image x:Name="BackgroundImageHost"
+                   Stretch="UniformToFill"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"/>
+            <!-- 視認性向上のためのテーマ連動ティントオーバーレイ -->
+            <Border x:Name="BackgroundTintOverlay"
+                    Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"/>
+        </Grid>
+
         <!-- [Row 0] タイトルバー・タブ -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Height="42" VerticalAlignment="Top">
             <TabView x:Name="MainTabView" VerticalAlignment="Stretch"
+                     Background="Transparent"
                      CanReorderTabs="True"
                      CanDragTabs="True"
                      AllowDrop="True"
@@ -147,6 +159,75 @@
                      Drop="MainTabView_TabStripDrop"
                      TabDroppedOutside="MainTabView_TabDroppedOutside"
                      TabDragCompleted="MainTabView_TabDragCompleted">
+                <TabView.Resources>
+                    <ResourceDictionary>
+                        <ResourceDictionary.ThemeDictionaries>
+                            <ResourceDictionary x:Key="Default">
+                                <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewStripBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewBorderBrush" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#30FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundSelected" Color="#30FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelectedPointerOver" Color="#40FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundSelectedPointerOver" Color="#40FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="#18FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundPointerOver" Color="#18FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPressed" Color="#25FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundPressed" Color="#25FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBorderBrush" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemBorderBrushSelected" Color="#30FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBorderBrushPointerOver" Color="#20FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewButtonBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewButtonBackgroundPointerOver" Color="#18FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#25FFFFFF"/>
+                            </ResourceDictionary>
+                            <ResourceDictionary x:Key="Light">
+                                <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewStripBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewBorderBrush" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#CCFFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundSelected" Color="#CCFFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelectedPointerOver" Color="#E6FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundSelectedPointerOver" Color="#E6FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="#33000000"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundPointerOver" Color="#33000000"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPressed" Color="#44000000"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundPressed" Color="#44000000"/>
+                                <SolidColorBrush x:Key="TabViewItemBorderBrush" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemBorderBrushSelected" Color="#20000000"/>
+                                <SolidColorBrush x:Key="TabViewItemBorderBrushPointerOver" Color="#15000000"/>
+                                <SolidColorBrush x:Key="TabViewButtonBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewButtonBackgroundPointerOver" Color="#20000000"/>
+                                <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#30000000"/>
+                            </ResourceDictionary>
+                            <ResourceDictionary x:Key="Dark">
+                                <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewStripBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewBorderBrush" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#38383838"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundSelected" Color="#38383838"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelectedPointerOver" Color="#48484848"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundSelectedPointerOver" Color="#48484848"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="#18FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundPointerOver" Color="#18FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPressed" Color="#25FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBackgroundPressed" Color="#25FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBorderBrush" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewItemBorderBrushSelected" Color="#33FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewItemBorderBrushPointerOver" Color="#20FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewButtonBackground" Color="Transparent"/>
+                                <SolidColorBrush x:Key="TabViewButtonBackgroundPointerOver" Color="#18FFFFFF"/>
+                                <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#25FFFFFF"/>
+                            </ResourceDictionary>
+                        </ResourceDictionary.ThemeDictionaries>
+                    </ResourceDictionary>
+                </TabView.Resources>
                 <TabView.TabStripHeader>
                     <Grid x:Name="TabStripHeaderRegion" Width="10" Background="Transparent"/>
                 </TabView.TabStripHeader>

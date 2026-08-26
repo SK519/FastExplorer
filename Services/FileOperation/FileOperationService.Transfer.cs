@@ -170,7 +170,7 @@ namespace FastExplorer.Services
                 await using (var destStream = new FileStream(destPath, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize, useAsync: true))
                 {
                     int bytesRead;
-                    while ((bytesRead = await srcStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    while ((bytesRead = await srcStream.ReadAsync(buffer.AsMemory())) > 0)
                     {
                         controller?.WaitIfPaused();
                         if (controller?.IsCancelled == true)

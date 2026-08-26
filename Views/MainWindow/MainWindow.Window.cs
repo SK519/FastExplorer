@@ -337,9 +337,21 @@ namespace FastExplorer
         {
             this.DispatcherQueue.TryEnqueue(() =>
             {
-                Win32Interop.SetForegroundWindow(WindowHandle);
+                this.AppWindow.Show();
+                if (this.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
+                {
+                    if (presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Minimized)
+                    {
+                        presenter.Restore();
+                    }
+                }
                 this.Activate();
-                CreateNewTab(ConfigService.Current.Startup.DefaultPath);
+                Win32Interop.ForceForegroundWindow(WindowHandle);
+
+                if (TabCount == 0)
+                {
+                    CreateNewTab(ConfigService.Current.Startup.DefaultPath);
+                }
             });
         }
 
@@ -405,6 +417,59 @@ namespace FastExplorer
             }
 
             return Win32Interop.DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        }
+
+        #endregion
+
+        #region Wallpaper & Background
+
+        private string? _currentLoadedWallpaperPath;
+
+        public void ApplyWallpaper()
+        {
+            try
+            {
+                var ui = ConfigService.Current.Ui;
+                string path = ui.BackgroundImagePath;
+
+                if (string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path))
+                {
+                    BackgroundHostGrid.Visibility = Visibility.Collapsed;
+                    BackgroundImageHost.Source = null;
+                    _currentLoadedWallpaperPath = null;
+                    return;
+                }
+
+                // 画像の読み込み (パスが変わった場合のみ再ロード)
+                if (_currentLoadedWallpaperPath != path || BackgroundImageHost.Source == null)
+                {
+                    var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(path));
+                    BackgroundImageHost.Source = bitmap;
+                    _currentLoadedWallpaperPath = path;
+                }
+
+                // 不透明度 (Opacity)
+                BackgroundImageHost.Opacity = Math.Clamp(ui.BackgroundOpacity, 0.0, 1.0);
+
+                // フィット方式 (Stretch)
+                BackgroundImageHost.Stretch = ui.BackgroundFit switch
+                {
+                    "Uniform" => Microsoft.UI.Xaml.Media.Stretch.Uniform,
+                    "Fill" => Microsoft.UI.Xaml.Media.Stretch.Fill,
+                    "None" => Microsoft.UI.Xaml.Media.Stretch.None,
+                    _ => Microsoft.UI.Xaml.Media.Stretch.UniformToFill
+                };
+
+                // 背景ティントオーバーレイ
+                BackgroundTintOverlay.Opacity = Math.Clamp(ui.BackgroundTintOpacity, 0.0, 1.0);
+
+                BackgroundHostGrid.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Wallpaper] Error applying wallpaper: {ex.Message}");
+                BackgroundHostGrid.Visibility = Visibility.Collapsed;
+            }
         }
 
         #endregion

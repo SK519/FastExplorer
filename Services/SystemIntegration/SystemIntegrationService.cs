@@ -40,21 +40,28 @@ namespace FastExplorer.Services
         {
             try
             {
-                using var key = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Folder\shell\open\command");
-                if (key != null)
-                {
-                    string? val = key.GetValue(null) as string;
-                    if (!string.IsNullOrWhiteSpace(val) && val.Contains("FastExplorer", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
-                }
+                return ConfigService.Current.SystemIntegration.ReplaceDefaultExplorer;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[SystemIntegration] IsDefaultExplorerEnabled error: {ex.Message}");
             }
             return false;
+        }
+
+        public static void EnsureDefaultExplorerIntegration()
+        {
+            try
+            {
+                if (ConfigService.Current.SystemIntegration.ReplaceDefaultExplorer)
+                {
+                    SetAsDefaultExplorer(true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SystemIntegration] EnsureDefaultExplorerIntegration error: {ex.Message}");
+            }
         }
 
         public static bool SetAsDefaultExplorer(bool enable)
@@ -64,75 +71,68 @@ namespace FastExplorer.Services
                 string exePath = GetCurrentExecutablePath();
                 string commandValue = $"\"{exePath}\" \"%1\"";
 
-                string[] baseShells = [
-                    @"Software\Classes\Directory\shell",
-                    @"Software\Classes\Folder\shell",
-                    @"Software\Classes\Drive\shell",
-                    @"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell"
-                ];
-
-                string[] commandKeys = [
-                    @"Software\Classes\Directory\shell\open\command",
-                    @"Software\Classes\Folder\shell\open\command",
-                    @"Software\Classes\Drive\shell\open\command",
-                    @"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\open\command"
-                ];
-
                 if (enable)
                 {
-                    // 1. 各 shell の既定動作を open に設定
-                    foreach (var shellPath in baseShells)
+                    // 1. Directory (フォルダーのダブルクリック / 開く)
+                    using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\shell\open\command"))
                     {
-                        using var shellKey = Registry.CurrentUser.CreateSubKey(shellPath);
-                        shellKey?.SetValue(null, "open");
+                        key?.SetValue(null, commandValue);
                     }
 
-                    // 2. 各 command に FastExplorer を設定し、Explorer の DelegateExecute を空文字列で無効化
-                    foreach (var cmdPath in commandKeys)
+                    // 2. Folder の open/explore は設定しない
+                    // (※ HKCU の Folder\shell\open に DelegateExecute="" を設定すると、Windows Shell の COM 処理が失敗し
+                    // スタートメニュー「ファイルの場所を開く」や特殊システムフォルダーが開けなくなるため。
+                    // 過去の設定が残っている場合はクリーンアップする)
+                    Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\Folder\shell\open", throwOnMissingSubKey: false);
+                    Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\Folder\shell\explore", throwOnMissingSubKey: false);
+
+                    // 3. Drive (ドライブのダブルクリック / 開く)
+                    using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Drive\shell\open\command"))
                     {
-                        using var cmdKey = Registry.CurrentUser.CreateSubKey(cmdPath);
-                        cmdKey?.SetValue(null, commandValue);
-                        cmdKey?.SetValue("DelegateExecute", string.Empty);
+                        key?.SetValue(null, commandValue);
+                    }
+
+                    // 4. ごみ箱 (CLSID)
+                    using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\open\command"))
+                    {
+                        key?.SetValue(null, $"\"{exePath}\" \"shell:RecycleBinFolder\"");
+                    }
+
+                    // 5. コンテキストメニュー「FastExplorer で開く」
+                    SetContextMenuIntegration(true);
+
+                    // 6. スタートアップ & タスクスケジューラ登録（FastExplorerWatcher.exe）
+                    SetStartupRunKey(true);
+
+                    // 7. アプリケーションインストール先パスの記録
+                    using (var appKey = Registry.CurrentUser.CreateSubKey(@"Software\FastExplorer"))
+                    {
+                        appKey?.SetValue("InstallPath", exePath);
+                    }
+                    using (var appPathKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\App Paths\FastExplorer.exe"))
+                    {
+                        appPathKey?.SetValue(null, exePath);
+                        appPathKey?.SetValue("Path", AppDomain.CurrentDomain.BaseDirectory);
                     }
                 }
                 else
                 {
-                    // 1. 各 command を削除
-                    foreach (var cmdPath in commandKeys)
-                    {
-                        Registry.CurrentUser.DeleteSubKeyTree(cmdPath, throwOnMissingSubKey: false);
-                    }
-
-                    // 2. shell の既定値をクリア
-                    foreach (var shellPath in baseShells)
-                    {
-                        try
-                        {
-                            using var shellKey = Registry.CurrentUser.OpenSubKey(shellPath, true);
-                            shellKey?.DeleteValue(string.Empty, false);
-                        }
-                        catch { }
-                    }
-
-                    // 3. 空の open サブキーをクリーンアップ
-                    string[] parentKeys = [
+                    // 1. 各 open サブキーを完全削除して Windows 標準 (HKLM) に戻す
+                    string[] openKeys = [
                         @"Software\Classes\Directory\shell\open",
                         @"Software\Classes\Folder\shell\open",
+                        @"Software\Classes\Folder\shell\explore",
                         @"Software\Classes\Drive\shell\open",
                         @"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\open"
                     ];
-                    foreach (var parent in parentKeys)
+                    foreach (var openKey in openKeys)
                     {
-                        try
-                        {
-                            using var pk = Registry.CurrentUser.OpenSubKey(parent);
-                            if (pk != null && pk.SubKeyCount == 0 && pk.ValueCount == 0)
-                            {
-                                Registry.CurrentUser.DeleteSubKey(parent, throwOnMissingSubKey: false);
-                            }
-                        }
-                        catch { }
+                        Registry.CurrentUser.DeleteSubKeyTree(openKey, throwOnMissingSubKey: false);
                     }
+
+                    // 2. スタートアップ & タスクスケジューラ登録解除
+                    SetStartupRunKey(false);
+                    SetTaskSchedulerTask(false);
                 }
 
                 ConfigService.Current.SystemIntegration.ReplaceDefaultExplorer = enable;
@@ -144,6 +144,207 @@ namespace FastExplorer.Services
                 Debug.WriteLine($"[SystemIntegration] SetAsDefaultExplorer error: {ex.Message}");
                 return false;
             }
+        }
+
+        private static string GetWatcherExecutablePath()
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string path = Path.Combine(baseDir, "FastExplorerWatcher.exe");
+            if (File.Exists(path)) return path;
+
+            string devPath = Path.Combine(baseDir, "..", "..", "..", "Watcher", "bin", "FastExplorerWatcher.exe");
+            if (File.Exists(devPath)) return Path.GetFullPath(devPath);
+
+            return path;
+        }
+
+        public static bool SetTaskSchedulerTask(bool enable)
+        {
+            try
+            {
+                string taskName = "FastExplorer_Background";
+                if (enable)
+                {
+                    string watcherExe = GetWatcherExecutablePath();
+                    string tempXml = Path.Combine(Path.GetTempPath(), "FastExplorer_Task.xml");
+
+                    string xmlContent = $@"<?xml version=""1.0"" encoding=""UTF-16""?>
+<Task version=""1.2"" xmlns=""http://schemas.microsoft.com/windows/2004/02/mit/task"">
+  <RegistrationInfo>
+    <Description>FastExplorer Background Resident for Instant Launch</Description>
+  </RegistrationInfo>
+  <Triggers>
+    <LogonTrigger>
+      <Enabled>true</Enabled>
+    </LogonTrigger>
+  </Triggers>
+  <Principals>
+    <Principal id=""Author"">
+      <LogonType>InteractiveToken</LogonType>
+      <RunLevel>LeastPrivilege</RunLevel>
+    </Principal>
+  </Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <AllowHardTerminate>true</AllowHardTerminate>
+    <StartWhenAvailable>false</StartWhenAvailable>
+    <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+    <IdleSettings>
+      <StopOnIdleEnd>false</StopOnIdleEnd>
+      <RestartOnIdle>false</RestartOnIdle>
+    </IdleSettings>
+    <AllowStartOnDemand>true</AllowStartOnDemand>
+    <Enabled>true</Enabled>
+    <Hidden>false</Hidden>
+    <RunOnlyIfIdle>false</RunOnlyIfIdle>
+    <WakeToRun>false</WakeToRun>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Priority>7</Priority>
+  </Settings>
+  <Actions Context=""Author"">
+    <Exec>
+      <Command>{watcherExe}</Command>
+    </Exec>
+  </Actions>
+</Task>";
+
+                    File.WriteAllText(tempXml, xmlContent, System.Text.Encoding.Unicode);
+
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "schtasks.exe",
+                        Arguments = $"/create /tn \"{taskName}\" /xml \"{tempXml}\" /f",
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    };
+                    using var proc = Process.Start(psi);
+                    proc?.WaitForExit(3000);
+
+                    try { File.Delete(tempXml); } catch { }
+
+                    // Watcher プロセスを今すぐ起動
+                    if (File.Exists(watcherExe))
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = watcherExe,
+                            UseShellExecute = true,
+                            CreateNoWindow = true
+                        });
+                    }
+
+                    return proc?.ExitCode == 0;
+                }
+                else
+                {
+                    // Watcher プロセスをキル
+                    try
+                    {
+                        foreach (var p in Process.GetProcessesByName("FastExplorerWatcher"))
+                        {
+                            p.Kill();
+                        }
+                    }
+                    catch { }
+
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "schtasks.exe",
+                        Arguments = $"/delete /tn \"{taskName}\" /f",
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    };
+                    using var proc = Process.Start(psi);
+                    proc?.WaitForExit(3000);
+                    return proc?.ExitCode == 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SystemIntegration] SetTaskSchedulerTask error: {ex.Message}");
+                return false;
+            }
+        }
+
+        public static bool SetStartupFolderShortcut(bool enable)
+        {
+            try
+            {
+                string startupFolder = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                string shortcutPath = Path.Combine(startupFolder, "FastExplorerWatcher.lnk");
+                string legacyShortcut = Path.Combine(startupFolder, "FastExplorer.lnk");
+
+                // 常に古い FastExplorer.lnk をクリーンアップ
+                if (File.Exists(legacyShortcut))
+                {
+                    try { File.Delete(legacyShortcut); } catch { }
+                }
+
+                if (enable)
+                {
+                    string watcherExe = GetWatcherExecutablePath();
+                    string psCommand = $"$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('{shortcutPath}'); $s.TargetPath = '{watcherExe}'; $s.IconLocation = '{watcherExe},0'; $s.Save()";
+                    var psi = new ProcessStartInfo
+                    {
+                        FileName = "powershell.exe",
+                        Arguments = $"-NoProfile -NonInteractive -Command \"{psCommand}\"",
+                        CreateNoWindow = true,
+                        UseShellExecute = false
+                    };
+                    using var proc = Process.Start(psi);
+                    proc?.WaitForExit(3000);
+                    return File.Exists(shortcutPath);
+                }
+                else
+                {
+                    if (File.Exists(shortcutPath))
+                    {
+                        File.Delete(shortcutPath);
+                    }
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SystemIntegration] SetStartupFolderShortcut error: {ex.Message}");
+                return false;
+            }
+        }
+
+        public static bool SetStartupRunKey(bool enable)
+        {
+            try
+            {
+                // 1. スタートアップフォルダー
+                SetStartupFolderShortcut(enable);
+
+                // 2. タスクスケジューラ
+                SetTaskSchedulerTask(enable);
+
+                // 3. レジストリ Run キー
+                using var runKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
+                if (runKey != null)
+                {
+                    if (enable)
+                    {
+                        string watcherExe = GetWatcherExecutablePath();
+                        runKey.SetValue("FastExplorerWatcher", $"\"{watcherExe}\"");
+                    }
+                    else
+                    {
+                        runKey.DeleteValue("FastExplorerWatcher", false);
+                        runKey.DeleteValue("FastExplorer", false);
+                    }
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SystemIntegration] SetStartupRunKey error: {ex.Message}");
+            }
+            return false;
         }
 
         #endregion
@@ -292,7 +493,30 @@ namespace FastExplorer.Services
 
         public static bool UnregisterWinEHotKey(nint hWnd)
         {
-            // 1. UnregisterHotKey
+            // 1. レジストリの DisabledHotkeys から "E" を削除して Windows Explorer の標準動作に戻す
+            try
+            {
+                using var advKey = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", true);
+                if (advKey != null)
+                {
+                    string existing = (advKey.GetValue("DisabledHotkeys") as string) ?? string.Empty;
+                    if (existing.Contains("E", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string updated = existing.Replace("E", "", StringComparison.OrdinalIgnoreCase).Replace("e", "", StringComparison.OrdinalIgnoreCase);
+                        if (string.IsNullOrEmpty(updated))
+                        {
+                            advKey.DeleteValue("DisabledHotkeys", false);
+                        }
+                        else
+                        {
+                            advKey.SetValue("DisabledHotkeys", updated);
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // 2. UnregisterHotKey
             if (hWnd != nint.Zero)
             {
                 try
@@ -302,7 +526,7 @@ namespace FastExplorer.Services
                 catch { }
             }
 
-            // 2. フック解除
+            // 3. フック解除
             if (_hookHandle != nint.Zero)
             {
                 try
@@ -317,23 +541,51 @@ namespace FastExplorer.Services
             return true;
         }
 
+        private static bool _isLWinDown = false;
+        private static bool _isRWinDown = false;
+
         private static nint HookCallback(int nCode, nuint wParam, nint lParam)
         {
-            if (nCode >= 0 && (wParam == Win32Interop.WM_KEYDOWN || wParam == Win32Interop.WM_SYSKEYDOWN))
+            if (nCode >= 0)
             {
                 try
                 {
                     var hookStruct = Marshal.PtrToStructure<Win32Interop.KBDLLHOOKSTRUCT>(lParam);
-                    if (hookStruct.vkCode == Win32Interop.VK_E)
+                    if (hookStruct.vkCode == Win32Interop.VK_LWIN)
                     {
-                        bool isLWinDown = (Win32Interop.GetAsyncKeyState(Win32Interop.VK_LWIN) & 0x8000) != 0;
-                        bool isRWinDown = (Win32Interop.GetAsyncKeyState(Win32Interop.VK_RWIN) & 0x8000) != 0;
-
-                        if (isLWinDown || isRWinDown)
+                        if (wParam == Win32Interop.WM_KEYDOWN || wParam == Win32Interop.WM_SYSKEYDOWN)
+                            _isLWinDown = true;
+                        else if (wParam == Win32Interop.WM_KEYUP || wParam == Win32Interop.WM_SYSKEYUP)
+                            _isLWinDown = false;
+                    }
+                    else if (hookStruct.vkCode == Win32Interop.VK_RWIN)
+                    {
+                        if (wParam == Win32Interop.WM_KEYDOWN || wParam == Win32Interop.WM_SYSKEYDOWN)
+                            _isRWinDown = true;
+                        else if (wParam == Win32Interop.WM_KEYUP || wParam == Win32Interop.WM_SYSKEYUP)
+                            _isRWinDown = false;
+                    }
+                    else if (hookStruct.vkCode == Win32Interop.VK_E)
+                    {
+                        if (wParam == Win32Interop.WM_KEYDOWN || wParam == Win32Interop.WM_SYSKEYDOWN)
                         {
-                            Debug.WriteLine("[SystemIntegration] Intercepted Win + E globally via Hook!");
-                            WinEHotKeyPressed?.Invoke();
-                            return (nint)1; // イベントをここで消費し、Windows 標準 Explorer の起動を完全に阻止
+                            bool isLWinPhys = (Win32Interop.GetAsyncKeyState(Win32Interop.VK_LWIN) & 0x8000) != 0;
+                            bool isRWinPhys = (Win32Interop.GetAsyncKeyState(Win32Interop.VK_RWIN) & 0x8000) != 0;
+                            bool isLWinSync = (Win32Interop.GetKeyState(Win32Interop.VK_LWIN) & 0x8000) != 0;
+                            bool isRWinSync = (Win32Interop.GetKeyState(Win32Interop.VK_RWIN) & 0x8000) != 0;
+
+                            bool isWinDown = _isLWinDown || _isRWinDown || (isLWinPhys && isLWinSync) || (isRWinPhys && isRWinSync);
+
+                            bool isCtrlDown = (Win32Interop.GetAsyncKeyState(0x11) & 0x8000) != 0;
+                            bool isAltDown = (Win32Interop.GetAsyncKeyState(0x12) & 0x8000) != 0;
+                            bool isShiftDown = (Win32Interop.GetAsyncKeyState(0x10) & 0x8000) != 0;
+
+                            if (isWinDown && !isCtrlDown && !isAltDown && !isShiftDown)
+                            {
+                                Debug.WriteLine("[SystemIntegration] Intercepted Win + E globally via Hook!");
+                                WinEHotKeyPressed?.Invoke();
+                                return (nint)1; // イベントをここで消費し、Windows 標準 Explorer の起動を完全に阻止
+                            }
                         }
                     }
                 }

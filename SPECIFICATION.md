@@ -206,6 +206,7 @@ WinUI 3 ネイティブのダイアログウィンドウとして実装され、
 * **モダン 6 カテゴリ ナビゲーション:**
   1. 🎨 **外観と表示:**
      * テーマ選択（システム標準 / ダーク / ライト）。
+     * **カスタム壁紙設定 (透過度・フィット・ティント調整):** お好みの画像（PNG/JPG/WebP/BMP）を背景に設定可能。不透明度（5%〜100%）、背景ティント（0%〜80%）、配置方法（アスペクト比維持全体 / 全体収める / 引き伸ばし / 等倍）をリアルタイム調整。
      * 項目チェックボックス表示トグル。
      * 隠しファイルの表示 / 非表示トグル。
      * ファイル削除時の確認ダイアログ表示トグル。
@@ -313,7 +314,13 @@ WinUI 3 ネイティブのダイアログウィンドウとして実装され、
   "ui": {
     "theme": "system",
     "showHiddenFiles": false,
-    "confirmDelete": true
+    "showItemCheckBoxes": true,
+    "confirmDelete": true,
+    "defaultViewMode": "Details",
+    "backgroundImagePath": "C:\\path\\to\\wallpaper.png",
+    "backgroundOpacity": 0.35,
+    "backgroundFit": "UniformToFill",
+    "backgroundTintOpacity": 0.3
   },
   "shellMenu": {
     "showOpenWith": true,

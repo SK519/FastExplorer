@@ -23,35 +23,18 @@ namespace FastExplorer
 
             var tab = new NavigationTabItem
             {
-                DispatcherQueue = this.DispatcherQueue
+                DispatcherQueue = this.DispatcherQueue,
+                PendingSelectedItemName = selectItemName
             };
 
             var tabViewItem = new TabViewItem
             {
                 Header = tab.Header,
-                IconSource = new FontIconSource { Glyph = "\uE8B7" }
+                IconSource = IconThumbnailService.GetIconSourceForNavigationPath(path)
             };
 
             AttachTab(tabViewItem, tab);
             tab.NavigateTo(path);
-
-            if (!string.IsNullOrEmpty(selectItemName))
-            {
-                this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-                {
-                    var targetItem = tab.Items.FirstOrDefault(i => i.Name.Equals(selectItemName, StringComparison.OrdinalIgnoreCase));
-                    if (targetItem != null)
-                    {
-                        FileListView?.SelectedItems.Clear();
-                        FileListView?.SelectedItems.Add(targetItem);
-                        FileListView?.ScrollIntoView(targetItem);
-
-                        FileGridView?.SelectedItems.Clear();
-                        FileGridView?.SelectedItems.Add(targetItem);
-                        FileGridView?.ScrollIntoView(targetItem);
-                    }
-                });
-            }
         }
 
         public void AttachTab(TabViewItem tabViewItem, NavigationTabItem? navTab = null, int insertIndex = -1)
@@ -126,18 +109,7 @@ namespace FastExplorer
 
             tab.Navigated += (navTab) =>
             {
-                if (navTab.CurrentPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
-                {
-                    tabViewItem.IconSource = new FontIconSource { Glyph = "\uE80F" };
-                }
-                else if (RecycleBinService.IsRecycleBinPath(navTab.CurrentPath))
-                {
-                    tabViewItem.IconSource = new FontIconSource { Glyph = "\uE74D" };
-                }
-                else
-                {
-                    tabViewItem.IconSource = new FontIconSource { Glyph = "\uE8B7" };
-                }
+                tabViewItem.IconSource = IconThumbnailService.GetIconSourceForNavigationPath(navTab.CurrentPath);
 
                 if (CurrentTab == navTab)
                 {
@@ -149,6 +121,30 @@ namespace FastExplorer
                     UpdateToolbarState();
                     UpdateSelectionVisuals();
                     UpdatePreviewPane();
+                }
+            };
+
+            tab.ItemSelectionRequested += (navTab, selectName) =>
+            {
+                if (CurrentTab == navTab && !string.IsNullOrEmpty(selectName))
+                {
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        var targetItem = navTab.Items.FirstOrDefault(i => i.Name.Equals(selectName, StringComparison.OrdinalIgnoreCase));
+                        if (targetItem != null)
+                        {
+                            FileListView?.SelectedItems.Clear();
+                            FileListView?.SelectedItems.Add(targetItem);
+                            FileListView?.ScrollIntoView(targetItem);
+
+                            FileGridView?.SelectedItems.Clear();
+                            FileGridView?.SelectedItems.Add(targetItem);
+                            FileGridView?.ScrollIntoView(targetItem);
+
+                            UpdateSelectionVisuals();
+                            UpdatePreviewPane();
+                        }
+                    });
                 }
             };
         }

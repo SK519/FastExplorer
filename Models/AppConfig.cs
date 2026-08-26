@@ -35,6 +35,12 @@ namespace FastExplorer.Models
         public bool ShowItemCheckBoxes { get; set; } = true;
         public bool ConfirmDelete { get; set; } = true;
         public string DefaultViewMode { get; set; } = "Details";
+
+        // 壁紙・カスタム背景設定
+        public string BackgroundImagePath { get; set; } = "";
+        public double BackgroundOpacity { get; set; } = 0.35;
+        public string BackgroundFit { get; set; } = "UniformToFill";
+        public double BackgroundTintOpacity { get; set; } = 0.3;
     }
 
     public enum ArchiveCompressionLevel
@@ -119,6 +125,13 @@ namespace FastExplorer.Models
         public bool InterceptWinE { get; set; } = false;
     }
 
+    public class UpdateConfig
+    {
+        public string GitHubOwner { get; set; } = "SK519";
+        public string GitHubRepo { get; set; } = "FastExplorer";
+        public bool AutoCheckOnStartup { get; set; } = true;
+    }
+
     public class AppConfig
     {
         public EditorConfig Editor { get; set; } = new();
@@ -130,6 +143,7 @@ namespace FastExplorer.Models
         public ShortcutConfig Shortcuts { get; set; } = new();
         public WindowStateConfig WindowState { get; set; } = new();
         public SystemIntegrationConfig SystemIntegration { get; set; } = new();
+        public UpdateConfig Update { get; set; } = new();
         public List<string> CustomPinnedFolders { get; set; } = new();
         public List<string> TypedPaths { get; set; } = new();
         public Dictionary<string, FolderViewSetting> FolderViewSettings { get; set; } = new(StringComparer.OrdinalIgnoreCase);
@@ -146,6 +160,7 @@ namespace FastExplorer.Models
     [JsonSerializable(typeof(ShortcutConfig))]
     [JsonSerializable(typeof(WindowStateConfig))]
     [JsonSerializable(typeof(SystemIntegrationConfig))]
+    [JsonSerializable(typeof(UpdateConfig))]
     [JsonSerializable(typeof(ArchiveCompressionLevel))]
     [JsonSerializable(typeof(FolderViewSetting))]
     [JsonSerializable(typeof(List<string>))]
@@ -155,3 +170,4 @@ namespace FastExplorer.Models
     {
     }
 }
+

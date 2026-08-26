@@ -14,6 +14,70 @@
                 <ResourceDictionary Source="ms-appx:///Resources/FileItemGridScaledTemplates.xaml"/>
                 <ResourceDictionary Source="ms-appx:///Resources/LayoutTemplates.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Default">
+                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+
+                    <!-- TabView 透過 & すりガラス調スタイル -->
+                    <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewStripBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewBorderBrush" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#30FFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="#18FFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPressed" Color="#28FFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewItemBorderBrush" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewItemBorderBrushSelected" Color="#26FFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewItemBorderBrushPointerOver" Color="#1AFFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewButtonBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewButtonBackgroundPointerOver" Color="#18FFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#28FFFFFF"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+
+                    <!-- TabView 透過 & すりガラス調スタイル -->
+                    <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewStripBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewBorderBrush" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#CCFFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="#44FFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPressed" Color="#66FFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewItemBorderBrush" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewItemBorderBrushSelected" Color="#1A000000"/>
+                    <SolidColorBrush x:Key="TabViewItemBorderBrushPointerOver" Color="#0D000000"/>
+                    <SolidColorBrush x:Key="TabViewButtonBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewButtonBackgroundPointerOver" Color="#22000000"/>
+                    <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#33000000"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+
+                    <!-- TabView 透過 & すりガラス調スタイル -->
+                    <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewStripBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewBorderBrush" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#38383838"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="#22FFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPressed" Color="#30FFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewItemBorderBrush" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewItemBorderBrushSelected" Color="#33FFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewItemBorderBrushPointerOver" Color="#1FFFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewButtonBackground" Color="Transparent"/>
+                    <SolidColorBrush x:Key="TabViewButtonBackgroundPointerOver" Color="#22FFFFFF"/>
+                    <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#30FFFFFF"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
             <Style x:Key="ContextMenuItemButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="BorderThickness" Value="0"/>

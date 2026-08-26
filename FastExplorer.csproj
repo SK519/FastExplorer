@@ -17,6 +17,7 @@
     <Nullable>enable</Nullable>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
 
     <!-- 高速化・軽量化設定 (デフォルトは ReadyToRun + Trimming、明示指定時のみ Native AOT) -->
     <PublishAot Condition="'$(PublishAot)' == 'true'">true</PublishAot>
@@ -29,10 +30,30 @@
     <ServerGarbageCollection>false</ServerGarbageCollection>
     <GarbageCollectionAdaptationMode>1</GarbageCollectionAdaptationMode>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EventSourceSupport>false</EventSourceSupport>
+    <StartupHookSupport>false</StartupHookSupport>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <NoWarn>$(NoWarn);IL2026;IL2104</NoWarn>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationIcon>icon.ico</ApplicationIcon>
+    <SatelliteResourceLanguages>ja-JP;en-US;ja;en</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <!-- 非対応言語のサテライトリソース・MUIフォルダーを自動除外 -->
+  <Target Name="FilterUnsupportedLanguageResources" BeforeTargets="PrepareForPublish;ComputeFilesToPublish" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+        Condition="$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').Contains('\')) and
+                   !$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').StartsWith('ja-JP\')) and
+                   !$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').StartsWith('ja\')) and
+                   !$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').StartsWith('en-US\')) and
+                   !$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').StartsWith('en-us\')) and
+                   !$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').StartsWith('en\')) and
+                   !$([System.String]::Copy('%(ResolvedFileToPublish.RelativePath)').StartsWith('Assets\'))" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <Content Include="Assets\SplashScreen.scale-200.png" />

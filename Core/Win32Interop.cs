@@ -111,6 +111,82 @@ namespace FastExplorer.Core
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool SetForegroundWindow(nint hWnd);
 
+        [DllImport("user32.dll")]
+        public static extern nint GetForegroundWindow();
+
+        [DllImport("kernel32.dll")]
+        public static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, [MarshalAs(UnmanagedType.Bool)] bool fAttach);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool BringWindowToTop(nint hWnd);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool ShowWindow(nint hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool IsIconic(nint hWnd);
+
+        [DllImport("user32.dll")]
+        public static extern nint SetFocus(nint hWnd);
+
+        public const int SW_RESTORE = 9;
+        public const int SW_SHOW = 5;
+        public const int SW_SHOWDEFAULT = 10;
+        public static readonly nint HWND_TOP = nint.Zero;
+        public static readonly nint HWND_TOPMOST = (nint)(-1);
+        public static readonly nint HWND_NOTOPMOST = (nint)(-2);
+        public const uint SWP_SHOWWINDOW = 0x0040;
+
+        /// <summary>
+        /// Windows 10/11 のフォアグラウンド制限を突破し、確実にウィンドウを最前面にアクティブ化する
+        /// </summary>
+        public static void ForceForegroundWindow(nint hWnd)
+        {
+            if (hWnd == nint.Zero) return;
+
+            try
+            {
+                nint fgWnd = GetForegroundWindow();
+                uint fgThread = fgWnd != nint.Zero ? GetWindowThreadProcessId(fgWnd, out _) : 0;
+                uint curThread = GetCurrentThreadId();
+
+                if (fgThread != 0 && fgThread != curThread)
+                {
+                    AttachThreadInput(curThread, fgThread, true);
+                }
+
+                if (IsIconic(hWnd))
+                {
+                    ShowWindow(hWnd, SW_RESTORE);
+                }
+                else
+                {
+                    ShowWindow(hWnd, SW_SHOW);
+                }
+
+                // TOPMOST トグル技法 (Windows OS による最前面化ブロックを確実に回避)
+                SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+                SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+
+                SetForegroundWindow(hWnd);
+                BringWindowToTop(hWnd);
+                SetFocus(hWnd);
+
+                if (fgThread != 0 && fgThread != curThread)
+                {
+                    AttachThreadInput(curThread, fgThread, false);
+                }
+            }
+            catch { }
+        }
+
         [DllImport("dwmapi.dll", PreserveSig = true)]
         public static extern int DwmSetWindowAttribute(nint hwnd, int attr, ref int attrValue, int attrSize);
 

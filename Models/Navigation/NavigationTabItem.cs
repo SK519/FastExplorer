@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -41,6 +42,10 @@ namespace FastExplorer
         public ObservableCollection<FileItem> Items { get; } = [];
         public ObservableCollection<BreadcrumbItem> Breadcrumbs { get; } = [];
         private readonly List<FileItem> _allItems = [];
+        private long _allItemsTotalBytes;
+
+        public string? PendingSelectedItemName { get; set; }
+        public event Action<NavigationTabItem, string>? ItemSelectionRequested;
 
         public string Header
         {
@@ -530,6 +535,19 @@ namespace FastExplorer
             SyncFilteredItems();
         }
 
+        public void RecalculateTotalBytes()
+        {
+            long total = 0;
+            foreach (var item in _allItems)
+            {
+                if (!item.IsDirectory)
+                {
+                    total += item.SizeInBytes;
+                }
+            }
+            _allItemsTotalBytes = total;
+        }
+
         public void UpdateStatusText(int selectedCount = 0, long selectedBytes = 0)
         {
             if (selectedCount > 0)
@@ -538,18 +556,28 @@ namespace FastExplorer
             }
             else
             {
-                long totalBytes = _allItems.Where(i => !i.IsDirectory).Sum(i => i.SizeInBytes);
-                StatusText = $"{_allItems.Count} 個の項目 ({FileItem.FormatFileSize(totalBytes)})";
+                StatusText = $"{_allItems.Count} 個の項目 ({FileItem.FormatFileSize(_allItemsTotalBytes)})";
             }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
+        private static readonly ConcurrentDictionary<string, PropertyChangedEventArgs> _eventArgsCache = new();
+
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            if (PropertyChanged != null && propertyName != null)
+            {
+                var args = _eventArgsCache.GetOrAdd(propertyName, static name => new PropertyChangedEventArgs(name));
+                PropertyChanged(this, args);
+            }
+        }
+
         protected bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
         {
             if (EqualityComparer<T>.Default.Equals(field, value)) return false;
             field = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            OnPropertyChanged(propertyName);
             return true;
         }
     }

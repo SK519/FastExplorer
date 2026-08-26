@@ -6,7 +6,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Grid Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+    <Grid Background="Transparent">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="240"/>
             <ColumnDefinition Width="*"/>
@@ -14,7 +14,7 @@
 
         <!-- 1. 左側: ナビゲーションサイドバー -->
         <Border Grid.Column="0"
-                Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                Background="{ThemeResource LayerFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="0,0,1,0"
                 Padding="12,16">
@@ -187,6 +187,97 @@
                             <ToggleSwitch x:Name="ConfirmDeleteToggle"
                                           Header="ファイル削除時に確認ダイアログを表示する"
                                           Toggled="ConfirmDeleteToggle_Toggled"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- カスタム壁紙グループカード -->
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
+                        <StackPanel Spacing="16">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="カスタム壁紙 (背景画像)" FontWeight="SemiBold" FontSize="15"/>
+                                <TextBlock Text="お好みの画像（PNG, JPG, WebP, BMP 等）を背景に設定し、透明度やフィット方法、ティントを調整できます" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+
+                            <!-- 画像選択エリア -->
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="WallpaperPathTextBox" PlaceholderText="背景画像が設定されていません (未選択時はMica背景)" IsReadOnly="True" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1" Click="BrowseWallpaper_Click" Style="{StaticResource AccentButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xEB9F;" FontSize="13"/>
+                                        <TextBlock Text="画像を選択..."/>
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="ClearWallpaperButton" Grid.Column="2" Click="ClearWallpaper_Click" ToolTipService.ToolTip="壁紙を解除してMica背景に戻す">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE74D;" FontSize="13"/>
+                                        <TextBlock Text="クリア"/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <!-- 壁紙設定オプション -->
+                            <StackPanel x:Name="WallpaperOptionsPanel" Spacing="14">
+                                <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                                <!-- 不透明度 (透過度) スライダー -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="壁紙の不透明度 (透明度)" FontWeight="Medium"/>
+                                        <TextBlock Text="背景画像自体の濃さを調整します (低いほど透明になります)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <Slider x:Name="WallpaperOpacitySlider" Width="180" Minimum="5" Maximum="100" StepFrequency="1" ValueChanged="WallpaperOpacitySlider_ValueChanged"/>
+                                        <TextBlock x:Name="WallpaperOpacityValueText" Text="35%" Width="42" TextAlignment="Right" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                                <!-- 背景ティント (視認性オーバーレイ) スライダー -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="背景ティント (文字の読みやすさ)" FontWeight="Medium"/>
+                                        <TextBlock Text="壁紙の上にテーマ色を薄く重ねて、ファイル名やアイコンの視認性を高めます" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                                        <Slider x:Name="WallpaperTintSlider" Width="180" Minimum="0" Maximum="80" StepFrequency="1" ValueChanged="WallpaperTintSlider_ValueChanged"/>
+                                        <TextBlock x:Name="WallpaperTintValueText" Text="30%" Width="42" TextAlignment="Right" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                                <!-- 配置方法 (Fit) -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="画像の配置方法" FontWeight="Medium"/>
+                                        <TextBlock Text="ウィンドウサイズに対する画像の引き伸ばし・トリミング方法を指定します" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ComboBox x:Name="WallpaperFitComboBox" Grid.Column="1" Width="200" SelectionChanged="WallpaperFitComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="縦横比を維持して全体を覆う (推奨)" Tag="UniformToFill"/>
+                                        <ComboBoxItem Content="縦横比を維持して全体を収める" Tag="Uniform"/>
+                                        <ComboBoxItem Content="画面全体に引き伸ばす" Tag="Fill"/>
+                                        <ComboBoxItem Content="元の画像サイズ (等倍)" Tag="None"/>
+                                    </ComboBox>
+                                </Grid>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -474,13 +565,84 @@
                                 </Border>
                                 <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                     <TextBlock Text="FastExplorer" FontSize="16" FontWeight="SemiBold"/>
-                                    <TextBlock Text="バージョン 1.0 (WinUI 3 / Windows App SDK)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    <TextBlock x:Name="AppAboutVersionText" Text="バージョン 1.0 (WinUI 3 / Windows App SDK)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                     <TextBlock Text="極限の応答速度と高機能を追求した次世代ファイルエクスプローラー" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
                                 </StackPanel>
                             </Grid>
+                        </StackPanel>
+                    </Border>
 
+                    <!-- アプリケーションの更新 (アップデート) -->
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="アプリケーションの更新 (アップデート)" FontWeight="SemiBold" FontSize="15"/>
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="CurrentVersionTextBlock" Text="現在のバージョン: v1.0.0" FontWeight="Medium"/>
+                                    <TextBlock x:Name="UpdateStatusTextBlock" Text="最終確認: 未確認" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <Button x:Name="CheckForUpdatesButton" Grid.Column="1" Click="CheckForUpdates_Click" Style="{StaticResource AccentButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon Glyph="&#xE895;" FontSize="13"/>
+                                        <TextBlock Text="更新を確認..."/>
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+
+                            <!-- プログレスリング -->
+                            <ProgressRing x:Name="UpdateCheckProgressRing" IsActive="False" Visibility="Collapsed" HorizontalAlignment="Left" Width="20" Height="20"/>
+
+                            <!-- 新バージョン検出時の通知カード -->
+                            <Border x:Name="UpdateAvailableCard" Visibility="Collapsed" Background="{ThemeResource LayerFillColorSecondaryBrush}" BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="1" CornerRadius="6" Padding="14">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="4">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <FontIcon Glyph="&#xE73E;" Foreground="{ThemeResource SystemFillColorSuccessBrush}" FontSize="16"/>
+                                            <TextBlock x:Name="NewVersionTitleTextBlock" Text="新しいバージョンが利用可能です！" FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                        <TextBlock x:Name="ReleaseNotesTextBlock" TextWrapping="Wrap" MaxLines="3" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                        <ProgressBar x:Name="UpdateDownloadProgressBar" Value="0" Maximum="100" Visibility="Collapsed" Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                    <Button x:Name="InstallUpdateButton" Grid.Column="1" VerticalAlignment="Center" Click="InstallUpdate_Click" Style="{StaticResource AccentButtonStyle}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon Glyph="&#xE896;" FontSize="13"/>
+                                            <TextBlock Text="更新して再起動"/>
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <!-- リポジトリ設定 -->
                             <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="140"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="GitHub リポジトリ設定" FontWeight="Medium"/>
+                                    <TextBlock Text="更新チェック対象の GitHub 所有者名・リポジトリ名" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <TextBox x:Name="GitHubOwnerBox" Grid.Column="1" PlaceholderText="所有者名" LostFocus="UpdateRepoConfig_LostFocus"/>
+                                <TextBox x:Name="GitHubRepoBox" Grid.Column="2" PlaceholderText="リポジトリ名" LostFocus="UpdateRepoConfig_LostFocus"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
 
+                    <!-- システムメンテナンス -->
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="18">
+                        <StackPanel Spacing="14">
+                            <TextBlock Text="システムメンテナンス" FontWeight="SemiBold" FontSize="15"/>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>

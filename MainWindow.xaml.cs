@@ -1,7 +1,9 @@
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using FastExplorer.Core;
 using FastExplorer.Models;
 using FastExplorer.Services;
 using Microsoft.UI.Xaml;
@@ -13,6 +15,7 @@ namespace FastExplorer
     {
         private readonly ObservableCollection<NavigationTabItem> _tabs = [];
         public ObservableCollection<FileItem> SidebarItems { get; } = [];
+        public int TabCount => MainTabView?.TabItems?.Count ?? _tabs.Count;
         private bool _isInitialized;
 
         public MainWindow(bool createInitialTab = true, string? initialPath = null, string? selectItemName = null)
@@ -26,6 +29,23 @@ namespace FastExplorer
 
             // アイコンサービス初期化 (Sidebar構築前にDispatcherQueueを確実に登録)
             IconThumbnailService.Instance.Initialize(this.DispatcherQueue);
+            IconThumbnailService.Instance.DefaultIconsInitialized += () =>
+            {
+                if (MainTabView?.TabItems != null)
+                {
+                    foreach (var tabItem in MainTabView.TabItems.OfType<TabViewItem>())
+                    {
+                        if (tabItem.DataContext is NavigationTabItem navTab)
+                        {
+                            tabItem.IconSource = IconThumbnailService.GetIconSourceForNavigationPath(navTab.CurrentPath);
+                        }
+                    }
+                }
+                foreach (var sItem in SidebarItems)
+                {
+                    IconThumbnailService.Instance.ApplyImmediateDefaultIcon(sItem);
+                }
+            };
 
             // タイトルバーテーマ設定
             SetupTitleBarTheme();
@@ -70,6 +90,7 @@ namespace FastExplorer
 
             // 項目チェックボックス表示の初期化
             ApplyItemCheckBoxesState();
+            ApplyWallpaper();
             InitializeComponentEvents();
             InitializeFileListEvents();
             InitializeColumnResize();
@@ -82,6 +103,9 @@ namespace FastExplorer
             RootGrid.AddHandler(UIElement.PointerReleasedEvent, new Microsoft.UI.Xaml.Input.PointerEventHandler(OnGlobalPointerReleased), true);
 
             _isInitialized = true;
+
+            // 起動時に最前面・最上面化を強制実行
+            Win32Interop.ForceForegroundWindow(this.WindowHandle);
 
             // 初回描画完了後のアイドル時間にバックグラウンドで事前ロード（ウォームアップ）を実行
             TriggerBackgroundWarmup();
@@ -302,6 +326,7 @@ namespace FastExplorer
                     _ => ElementTheme.Default
                 };
             }
+            ApplyWallpaper();
         }
 
         private void InitializeComponentEvents()

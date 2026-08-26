@@ -50,6 +50,21 @@ namespace FastExplorer.Views.Settings
             ShowHiddenFilesToggle.IsOn = config.Ui.ShowHiddenFiles;
             ConfirmDeleteToggle.IsOn = config.Ui.ConfirmDelete;
 
+            // 壁紙
+            WallpaperPathTextBox.Text = config.Ui.BackgroundImagePath ?? "";
+            WallpaperOpacitySlider.Value = (int)Math.Round(config.Ui.BackgroundOpacity * 100);
+            WallpaperOpacityValueText.Text = $"{(int)WallpaperOpacitySlider.Value}%";
+            WallpaperTintSlider.Value = (int)Math.Round(config.Ui.BackgroundTintOpacity * 100);
+            WallpaperTintValueText.Text = $"{(int)WallpaperTintSlider.Value}%";
+            WallpaperFitComboBox.SelectedIndex = config.Ui.BackgroundFit switch
+            {
+                "Uniform" => 1,
+                "Fill" => 2,
+                "None" => 3,
+                _ => 0
+            };
+            WallpaperOptionsPanel.Opacity = string.IsNullOrWhiteSpace(config.Ui.BackgroundImagePath) ? 0.6 : 1.0;
+
             // ショートカット一覧初期化
             InitShortcutsSection();
 
@@ -78,6 +93,12 @@ namespace FastExplorer.Views.Settings
 
             // キャッシュ
             MaxCacheMemoryBox.Value = config.Cache.MaxMemoryMB;
+
+            // アップデート情報
+            GitHubOwnerBox.Text = config.Update.GitHubOwner;
+            GitHubRepoBox.Text = config.Update.GitHubRepo;
+            CurrentVersionTextBlock.Text = $"現在のバージョン: v{FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()}";
+            AppAboutVersionText.Text = $"バージョン {FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()} (WinUI 3 / Windows App SDK)";
 
             // システム連携
             bool isDef = SystemIntegrationService.IsDefaultExplorerEnabled();
@@ -205,6 +226,112 @@ namespace FastExplorer.Views.Settings
             ConfigService.Current.Ui.ConfirmDelete = ConfirmDeleteToggle.IsOn;
             ConfigService.Save();
         }
+
+        #region 壁紙・背景設定
+
+        private async void BrowseWallpaper_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var picker = new Windows.Storage.Pickers.FileOpenPicker();
+                picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary;
+                picker.FileTypeFilter.Add(".png");
+                picker.FileTypeFilter.Add(".jpg");
+                picker.FileTypeFilter.Add(".jpeg");
+                picker.FileTypeFilter.Add(".bmp");
+                picker.FileTypeFilter.Add(".webp");
+                picker.FileTypeFilter.Add(".gif");
+
+                if (App.CurrentWindow is global::FastExplorer.MainWindow window)
+                {
+                    WinRT.Interop.InitializeWithWindow.Initialize(picker, window.WindowHandle);
+                }
+
+                var file = await picker.PickSingleFileAsync();
+                if (file != null)
+                {
+                    WallpaperPathTextBox.Text = file.Path;
+                    ConfigService.Current.Ui.BackgroundImagePath = file.Path;
+                    ConfigService.Save();
+
+                    WallpaperOptionsPanel.Opacity = 1.0;
+
+                    if (App.CurrentWindow is global::FastExplorer.MainWindow mainWin)
+                    {
+                        mainWin.ApplyWallpaper();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Wallpaper] Error browsing file: {ex.Message}");
+            }
+        }
+
+        private void ClearWallpaper_Click(object sender, RoutedEventArgs e)
+        {
+            WallpaperPathTextBox.Text = "";
+            ConfigService.Current.Ui.BackgroundImagePath = "";
+            ConfigService.Save();
+
+            WallpaperOptionsPanel.Opacity = 0.6;
+
+            if (App.CurrentWindow is global::FastExplorer.MainWindow window)
+            {
+                window.ApplyWallpaper();
+            }
+        }
+
+        private void WallpaperOpacitySlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+        {
+            if (WallpaperOpacityValueText != null)
+            {
+                WallpaperOpacityValueText.Text = $"{(int)e.NewValue}%";
+            }
+            if (_isInitializing) return;
+
+            ConfigService.Current.Ui.BackgroundOpacity = e.NewValue / 100.0;
+            ConfigService.Save();
+
+            if (App.CurrentWindow is global::FastExplorer.MainWindow window)
+            {
+                window.ApplyWallpaper();
+            }
+        }
+
+        private void WallpaperTintSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+        {
+            if (WallpaperTintValueText != null)
+            {
+                WallpaperTintValueText.Text = $"{(int)e.NewValue}%";
+            }
+            if (_isInitializing) return;
+
+            ConfigService.Current.Ui.BackgroundTintOpacity = e.NewValue / 100.0;
+            ConfigService.Save();
+
+            if (App.CurrentWindow is global::FastExplorer.MainWindow window)
+            {
+                window.ApplyWallpaper();
+            }
+        }
+
+        private void WallpaperFitComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isInitializing) return;
+            if (WallpaperFitComboBox.SelectedItem is ComboBoxItem item && item.Tag is string tag)
+            {
+                ConfigService.Current.Ui.BackgroundFit = tag;
+                ConfigService.Save();
+
+                if (App.CurrentWindow is global::FastExplorer.MainWindow window)
+                {
+                    window.ApplyWallpaper();
+                }
+            }
+        }
+
+        #endregion
 
         private void ToggleMenu_Toggled(object sender, RoutedEventArgs e)
         {
@@ -409,9 +536,107 @@ namespace FastExplorer.Views.Settings
                 {
                     window.ApplyTheme(ConfigService.Current.Ui.Theme);
                     window.ApplyItemCheckBoxesState();
+                    window.ApplyWallpaper();
                 }
             }
         }
+
+        #region アップデート機能ハンドラー
+
+        private void UpdateRepoConfig_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (_isInitializing) return;
+            ConfigService.Current.Update.GitHubOwner = GitHubOwnerBox.Text.Trim();
+            ConfigService.Current.Update.GitHubRepo = GitHubRepoBox.Text.Trim();
+            ConfigService.Save();
+        }
+
+        private async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
+        {
+            var config = ConfigService.Current.Update;
+            string owner = config.GitHubOwner;
+            string repo = config.GitHubRepo;
+
+            if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
+            {
+                UpdateStatusTextBlock.Text = "リポジトリの所有者名・リポジトリ名を入力してください。";
+                return;
+            }
+
+            CheckForUpdatesButton.IsEnabled = false;
+            UpdateCheckProgressRing.IsActive = true;
+            UpdateCheckProgressRing.Visibility = Visibility.Visible;
+            UpdateStatusTextBlock.Text = "最新情報を確認中...";
+            UpdateAvailableCard.Visibility = Visibility.Collapsed;
+
+            try
+            {
+                var updateService = new FastExplorer.Services.Update.UpdateService();
+                var info = await updateService.CheckForUpdatesAsync(owner, repo);
+
+                UpdateStatusTextBlock.Text = $"最終確認: {DateTime.Now:HH:mm:ss}";
+
+                if (!string.IsNullOrEmpty(info.ErrorMessage))
+                {
+                    UpdateStatusTextBlock.Text = info.ErrorMessage;
+                }
+                else if (info.IsUpdateAvailable)
+                {
+                    NewVersionTitleTextBlock.Text = $"新しいバージョン (v{info.LatestVersion}) が利用可能です！";
+                    ReleaseNotesTextBlock.Text = string.IsNullOrWhiteSpace(info.ReleaseNotes) ? "最新のインストーラーがリリースされています。" : info.ReleaseNotes;
+                    InstallUpdateButton.Tag = info.DownloadUrl;
+                    UpdateAvailableCard.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    UpdateStatusTextBlock.Text = $"お使いのバージョン (v{info.CurrentVersion}) は最新です。";
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatusTextBlock.Text = $"確認エラー: {ex.Message}";
+            }
+            finally
+            {
+                UpdateCheckProgressRing.IsActive = false;
+                UpdateCheckProgressRing.Visibility = Visibility.Collapsed;
+                CheckForUpdatesButton.IsEnabled = true;
+            }
+        }
+
+        private async void InstallUpdate_Click(object sender, RoutedEventArgs e)
+        {
+            if (InstallUpdateButton.Tag is string downloadUrl && !string.IsNullOrEmpty(downloadUrl))
+            {
+                InstallUpdateButton.IsEnabled = false;
+                UpdateDownloadProgressBar.Visibility = Visibility.Visible;
+                UpdateDownloadProgressBar.Value = 0;
+
+                var updateService = new FastExplorer.Services.Update.UpdateService();
+                bool success = await updateService.DownloadAndInstallUpdateAsync(downloadUrl, progress =>
+                {
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        UpdateDownloadProgressBar.Value = progress;
+                    });
+                });
+
+                if (!success)
+                {
+                    InstallUpdateButton.IsEnabled = true;
+                    UpdateDownloadProgressBar.Visibility = Visibility.Collapsed;
+                    UpdateStatusTextBlock.Text = "ダウンロードまたはインストーラー起動に失敗しました。";
+                }
+            }
+            else
+            {
+                UpdateStatusTextBlock.Text = "ダウンロード URL が無効です。";
+            }
+        }
+
+        #endregion
+
+        #region キー入力補助方法
 
         public static bool IsCtrlPressed()
         {
@@ -430,6 +655,8 @@ namespace FastExplorer.Views.Settings
             var state = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Menu);
             return (state & Windows.UI.Core.CoreVirtualKeyStates.Down) == Windows.UI.Core.CoreVirtualKeyStates.Down;
         }
+
+        #endregion
 
         #endregion
     }

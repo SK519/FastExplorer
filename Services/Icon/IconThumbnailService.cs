@@ -15,6 +15,7 @@ namespace FastExplorer.Services
         public static IconThumbnailService Instance => _instance.Value;
 
         private readonly ConcurrentDictionary<string, SoftwareBitmap> _lruCache = new();
+        private readonly ConcurrentDictionary<string, Microsoft.UI.Xaml.Media.ImageSource> _imageSourceCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly LinkedList<string> _lruKeys = new();
         private readonly object _lruLock = new();
         private const int MaxCacheEntries = 2000;
@@ -30,35 +31,65 @@ namespace FastExplorer.Services
         private static SoftwareBitmap? _defaultPcBitmap;
         private static SoftwareBitmap? _defaultHomeBitmap;
         private static SoftwareBitmap? _defaultRecycleBinBitmap;
+        private static SoftwareBitmap? _defaultNetworkBitmap;
+        private static SoftwareBitmap? _defaultWslBitmap;
 
         private static Microsoft.UI.Xaml.Media.ImageSource? _defaultFolderSource;
         private static Microsoft.UI.Xaml.Media.ImageSource? _defaultFileSource;
         private static Microsoft.UI.Xaml.Media.ImageSource? _defaultPcSource;
         private static Microsoft.UI.Xaml.Media.ImageSource? _defaultHomeSource;
         private static Microsoft.UI.Xaml.Media.ImageSource? _defaultRecycleBinSource;
+        private static Microsoft.UI.Xaml.Media.ImageSource? _defaultNetworkSource;
+        private static Microsoft.UI.Xaml.Media.ImageSource? _defaultWslSource;
         private static readonly ConcurrentDictionary<string, Microsoft.UI.Xaml.Media.ImageSource> _extensionSourceCache = new(StringComparer.OrdinalIgnoreCase);
 
         public static SoftwareBitmap? DefaultFolderBitmap => _defaultFolderBitmap ??= GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_FOLDER);
         public static SoftwareBitmap? DefaultFileBitmap => _defaultFileBitmap ??= GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_DOCNOTASSOC);
-        public static SoftwareBitmap? DefaultPcBitmap => _defaultPcBitmap ??= GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_DESKTOPPC);
+        public static SoftwareBitmap? DefaultPcBitmap => _defaultPcBitmap ??= GetPcSoftwareBitmap(true);
         public static SoftwareBitmap? DefaultHomeBitmap => _defaultHomeBitmap ??= GetHomeSoftwareBitmap(32);
         public static SoftwareBitmap? DefaultRecycleBinBitmap => _defaultRecycleBinBitmap ??= GetRecycleBinSoftwareBitmap(true);
+        public static SoftwareBitmap? DefaultNetworkBitmap => _defaultNetworkBitmap ??= GetNetworkSoftwareBitmap(true);
+        public static SoftwareBitmap? DefaultWslBitmap => _defaultWslBitmap ??= GetWslSoftwareBitmap(32);
+
+        public static Microsoft.UI.Xaml.Media.ImageSource? DefaultFolderSource => _defaultFolderSource;
+        public static Microsoft.UI.Xaml.Media.ImageSource? DefaultFileSource => _defaultFileSource;
+        public static Microsoft.UI.Xaml.Media.ImageSource? DefaultPcSource => _defaultPcSource;
+        public static Microsoft.UI.Xaml.Media.ImageSource? DefaultHomeSource => _defaultHomeSource;
+        public static Microsoft.UI.Xaml.Media.ImageSource? DefaultRecycleBinSource => _defaultRecycleBinSource;
+        public static Microsoft.UI.Xaml.Media.ImageSource? DefaultNetworkSource => _defaultNetworkSource;
+        public static Microsoft.UI.Xaml.Media.ImageSource? DefaultWslSource => _defaultWslSource;
+
+        private bool _workersStarted = false;
+        private readonly object _workerLock = new();
+
+        public event Action? DefaultIconsInitialized;
 
         private IconThumbnailService()
         {
-            int workerCount = Math.Clamp(Environment.ProcessorCount, 2, 8);
-            for (int i = 0; i < workerCount; i++)
+            // コンストラクタではスレッドを作らず、最初のEnqueue時にオンデマンドで起動して起動時CPU競合を防止
+        }
+
+        private void EnsureWorkersStarted()
+        {
+            if (_workersStarted) return;
+            lock (_workerLock)
             {
-                int workerIndex = i;
-                var workerThread = new Thread(ProcessWorkQueue)
+                if (_workersStarted) return;
+                int workerCount = Math.Clamp(Environment.ProcessorCount / 2, 2, 4);
+                for (int i = 0; i < workerCount; i++)
                 {
-                    IsBackground = true,
-                    Name = $"IconThumbnailWorker_{workerIndex}",
-                    Priority = ThreadPriority.BelowNormal
-                };
-                workerThread.SetApartmentState(ApartmentState.STA);
-                workerThread.Start();
-                _workerThreads.Add(workerThread);
+                    int workerIndex = i;
+                    var workerThread = new Thread(ProcessWorkQueue)
+                    {
+                        IsBackground = true,
+                        Name = $"IconThumbnailWorker_{workerIndex}",
+                        Priority = ThreadPriority.BelowNormal
+                    };
+                    workerThread.SetApartmentState(ApartmentState.STA);
+                    workerThread.Start();
+                    _workerThreads.Add(workerThread);
+                }
+                _workersStarted = true;
             }
         }
 
@@ -67,27 +98,11 @@ namespace FastExplorer.Services
             _dispatcherQueue = dispatcherQueue;
             _initEvent.Set();
 
-            // デフォルトアイコンの事前ロードおよび主要拡張子のウォームアップ
-            _dispatcherQueue.TryEnqueue(async () =>
+            // 基本デフォルトアイコンを最優先で即座に初期化
+            _dispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, async () =>
             {
                 try
                 {
-                    _defaultHomeBitmap = GetHomeSoftwareBitmap(32);
-                    if (_defaultHomeBitmap != null)
-                    {
-                        var src = new SoftwareBitmapSource();
-                        await src.SetBitmapAsync(_defaultHomeBitmap);
-                        _defaultHomeSource = src;
-                    }
-
-                    _defaultRecycleBinBitmap = GetRecycleBinSoftwareBitmap(true);
-                    if (_defaultRecycleBinBitmap != null)
-                    {
-                        var src = new SoftwareBitmapSource();
-                        await src.SetBitmapAsync(_defaultRecycleBinBitmap);
-                        _defaultRecycleBinSource = src;
-                    }
-
                     _defaultFolderBitmap = GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_FOLDER);
                     if (_defaultFolderBitmap != null)
                     {
@@ -104,7 +119,23 @@ namespace FastExplorer.Services
                         _defaultFileSource = src;
                     }
 
-                    _defaultPcBitmap = GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_DESKTOPPC);
+                    _defaultHomeBitmap = GetHomeSoftwareBitmap(32);
+                    if (_defaultHomeBitmap != null)
+                    {
+                        var src = new SoftwareBitmapSource();
+                        await src.SetBitmapAsync(_defaultHomeBitmap);
+                        _defaultHomeSource = src;
+                    }
+
+                    _defaultRecycleBinBitmap = GetRecycleBinSoftwareBitmap(true);
+                    if (_defaultRecycleBinBitmap != null)
+                    {
+                        var src = new SoftwareBitmapSource();
+                        await src.SetBitmapAsync(_defaultRecycleBinBitmap);
+                        _defaultRecycleBinSource = src;
+                    }
+
+                    _defaultPcBitmap = GetPcSoftwareBitmap(true);
                     if (_defaultPcBitmap != null)
                     {
                         var src = new SoftwareBitmapSource();
@@ -112,11 +143,29 @@ namespace FastExplorer.Services
                         _defaultPcSource = src;
                     }
 
+                    _defaultNetworkBitmap = GetNetworkSoftwareBitmap(true);
+                    if (_defaultNetworkBitmap != null)
+                    {
+                        var src = new SoftwareBitmapSource();
+                        await src.SetBitmapAsync(_defaultNetworkBitmap);
+                        _defaultNetworkSource = src;
+                    }
+
+                    _defaultWslBitmap = GetWslSoftwareBitmap(32);
+                    if (_defaultWslBitmap != null)
+                    {
+                        var src = new SoftwareBitmapSource();
+                        await src.SetBitmapAsync(_defaultWslBitmap);
+                        _defaultWslSource = src;
+                    }
+
+                    DefaultIconsInitialized?.Invoke();
+
+                    // 主要拡張子の非同期ウォームアップ
                     string[] commonExtensions =
                     {
-                        ".txt", ".pdf", ".zip", ".png", ".jpg", ".jpeg", ".bmp", ".gif",
-                        ".mp4", ".mp3", ".wav", ".docx", ".xlsx", ".pptx", ".exe", ".dll",
-                        ".json", ".xml", ".cs", ".html", ".css", ".js", ".ts", ".md"
+                        ".txt", ".pdf", ".zip", ".png", ".jpg", ".jpeg",
+                        ".mp4", ".docx", ".xlsx", ".pptx", ".exe"
                     };
                     foreach (var ext in commonExtensions)
                     {
@@ -131,6 +180,71 @@ namespace FastExplorer.Services
                 }
                 catch { }
             });
+        }
+
+        public static bool IsWslRootPath(string path, string name = "")
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            if (name.Equals("WSL", StringComparison.OrdinalIgnoreCase) || path.Equals("WSL", StringComparison.OrdinalIgnoreCase)) return true;
+            if (name.Equals("Linux", StringComparison.OrdinalIgnoreCase) || path.Equals("Linux", StringComparison.OrdinalIgnoreCase)) return true;
+
+            string trimmed = path.TrimEnd('\\');
+            if (trimmed.Equals(@"\\wsl.localhost", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals(@"\\wsl$", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals(@"\\wsl", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        public static Microsoft.UI.Xaml.Controls.IconSource GetIconSourceForNavigationPath(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return _defaultFolderSource != null
+                    ? new Microsoft.UI.Xaml.Controls.ImageIconSource { ImageSource = _defaultFolderSource }
+                    : new Microsoft.UI.Xaml.Controls.FontIconSource { Glyph = "\uE8B7" };
+            }
+
+            if (path.Equals("Home", StringComparison.OrdinalIgnoreCase))
+            {
+                if (_defaultHomeSource != null)
+                    return new Microsoft.UI.Xaml.Controls.ImageIconSource { ImageSource = _defaultHomeSource };
+                return new Microsoft.UI.Xaml.Controls.FontIconSource { Glyph = "\uE80F" };
+            }
+            if (RecycleBinService.IsRecycleBinPath(path))
+            {
+                if (_defaultRecycleBinSource != null)
+                    return new Microsoft.UI.Xaml.Controls.ImageIconSource { ImageSource = _defaultRecycleBinSource };
+                return new Microsoft.UI.Xaml.Controls.FontIconSource { Glyph = "\uE74D" };
+            }
+            if (path.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
+            {
+                if (_defaultPcSource != null)
+                    return new Microsoft.UI.Xaml.Controls.ImageIconSource { ImageSource = _defaultPcSource };
+                return new Microsoft.UI.Xaml.Controls.FontIconSource { Glyph = "\uE770" };
+            }
+            if (path.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || path.Equals("Network", StringComparison.OrdinalIgnoreCase))
+            {
+                if (_defaultNetworkSource != null)
+                    return new Microsoft.UI.Xaml.Controls.ImageIconSource { ImageSource = _defaultNetworkSource };
+                return new Microsoft.UI.Xaml.Controls.FontIconSource { Glyph = "\uE968" };
+            }
+            if (IsWslRootPath(path))
+            {
+                if (_defaultWslSource != null)
+                    return new Microsoft.UI.Xaml.Controls.ImageIconSource { ImageSource = _defaultWslSource };
+                return new Microsoft.UI.Xaml.Controls.FontIconSource { Glyph = "\uE74C" };
+            }
+
+            if (_defaultFolderSource != null)
+            {
+                return new Microsoft.UI.Xaml.Controls.ImageIconSource { ImageSource = _defaultFolderSource };
+            }
+
+            return new Microsoft.UI.Xaml.Controls.FontIconSource { Glyph = "\uE8B7" };
         }
 
         public void ApplyImmediateDefaultIcon(FileItem item)
@@ -151,7 +265,11 @@ namespace FastExplorer.Services
             }
             else if (item.FullPath.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || item.FullPath.Equals("Network", StringComparison.OrdinalIgnoreCase))
             {
-                if (_defaultPcSource != null) item.Icon = _defaultPcSource;
+                if (_defaultNetworkSource != null) item.Icon = _defaultNetworkSource;
+            }
+            else if (IsWslRootPath(item.FullPath, item.Name))
+            {
+                if (_defaultWslSource != null) item.Icon = _defaultWslSource;
             }
             else if (item.IsDirectory)
             {
@@ -173,10 +291,17 @@ namespace FastExplorer.Services
 
         public void Enqueue(FileItem item, bool force = false)
         {
+            EnsureWorkersStarted();
+
             string key = GetCacheKey(item);
+            if (_imageSourceCache.TryGetValue(key, out var cachedSource))
+            {
+                item.Icon = cachedSource;
+                return;
+            }
             if (_lruCache.TryGetValue(key, out var cachedBitmap))
             {
-                SetIconToItem(item, cachedBitmap);
+                SetIconToItem(item, cachedBitmap, key);
                 return;
             }
 
@@ -211,15 +336,32 @@ namespace FastExplorer.Services
                     try { kvp.Value.Dispose(); } catch { }
                 }
                 _lruCache.Clear();
+                _imageSourceCache.Clear();
                 _lruKeys.Clear();
             }
         }
 
         private static string GetCacheKey(FileItem item)
         {
+            if (item.FullPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
+            {
+                return "special::home";
+            }
+            if (RecycleBinService.IsRecycleBinPath(item.FullPath))
+            {
+                return "special::recyclebin";
+            }
             if (item.FullPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
             {
                 return "special::thispc";
+            }
+            if (item.FullPath.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || item.FullPath.Equals("Network", StringComparison.OrdinalIgnoreCase))
+            {
+                return "special::network";
+            }
+            if (IsWslRootPath(item.FullPath, item.Name))
+            {
+                return "special::wsl::" + item.FullPath.ToLowerInvariant();
             }
 
             // ドライブ
@@ -266,7 +408,7 @@ namespace FastExplorer.Services
                     string key = GetCacheKey(item);
                     if (_lruCache.TryGetValue(key, out var cachedBitmap))
                     {
-                        SetIconToItem(item, cachedBitmap);
+                        SetIconToItem(item, cachedBitmap, key);
                         continue;
                     }
 
@@ -274,7 +416,7 @@ namespace FastExplorer.Services
                     if (bitmap != null)
                     {
                         AddToCache(key, bitmap);
-                        SetIconToItem(item, bitmap);
+                        SetIconToItem(item, bitmap, key);
                     }
                 }
                 catch
@@ -310,6 +452,7 @@ namespace FastExplorer.Services
                         {
                             try { oldBmp.Dispose(); } catch { }
                         }
+                        _imageSourceCache.TryRemove(oldestKey, out _);
                     }
                 }
                 _lruCache[key] = bitmap;
@@ -317,7 +460,7 @@ namespace FastExplorer.Services
             }
         }
 
-        private void SetIconToItem(FileItem item, SoftwareBitmap softwareBitmap)
+        private void SetIconToItem(FileItem item, SoftwareBitmap softwareBitmap, string cacheKey)
         {
             if (_dispatcherQueue == null)
             {
@@ -328,8 +471,15 @@ namespace FastExplorer.Services
             {
                 try
                 {
+                    if (_imageSourceCache.TryGetValue(cacheKey, out var cachedSource))
+                    {
+                        item.Icon = cachedSource;
+                        return;
+                    }
+
                     var source = new SoftwareBitmapSource();
                     await source.SetBitmapAsync(softwareBitmap);
+                    _imageSourceCache[cacheKey] = source;
                     item.Icon = source;
                 }
                 catch (Exception ex)

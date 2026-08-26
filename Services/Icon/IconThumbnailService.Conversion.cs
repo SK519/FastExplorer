@@ -84,12 +84,76 @@ namespace FastExplorer.Services
                             }
                         }
 
-                        // アルファが全て0（24bit GDIビットマップ）の場合は完全不透明(255)に補正
+                        // アルファが全て0（24bit GDIビットマップ）の場合、hbmMask があればマスクからアルファを復元
                         if (!hasAlpha)
                         {
-                            for (int i = 3; i < requiredBytes; i += 4)
+                            bool appliedMask = false;
+                            if (iconInfo.hbmMask != nint.Zero && iconInfo.hbmColor != nint.Zero)
                             {
-                                pixelData[i] = 255;
+                                var maskBmi = new Win32Interop.BITMAPINFO
+                                {
+                                    bmiHeader = new Win32Interop.BITMAPINFOHEADER
+                                    {
+                                        biSize = (uint)BitmapHeaderSize,
+                                        biWidth = width,
+                                        biHeight = -height,
+                                        biPlanes = 1,
+                                        biBitCount = 1,
+                                        biCompression = Win32Interop.BI_RGB
+                                    }
+                                };
+                                int maskRowBytes = ((width + 31) / 32) * 4;
+                                int maskTotalBytes = maskRowBytes * height;
+                                byte[] maskBytes = ArrayPool<byte>.Shared.Rent(maskTotalBytes);
+                                try
+                                {
+                                    nint maskHdc = Win32Interop.GetDC(nint.Zero);
+                                    try
+                                    {
+                                        int maskLines = Win32Interop.GetDIBits(
+                                            maskHdc,
+                                            iconInfo.hbmMask,
+                                            0,
+                                            (uint)height,
+                                            maskBytes,
+                                            ref maskBmi,
+                                            Win32Interop.DIB_RGB_COLORS);
+
+                                        if (maskLines > 0)
+                                        {
+                                            for (int y = 0; y < height; y++)
+                                            {
+                                                int rowOffset = y * maskRowBytes;
+                                                for (int x = 0; x < width; x++)
+                                                {
+                                                    int byteIdx = rowOffset + (x / 8);
+                                                    int bitIdx = 7 - (x % 8);
+                                                    bool isTransparent = ((maskBytes[byteIdx] >> bitIdx) & 1) != 0;
+                                                    int pixelIdx = (y * width + x) * 4;
+                                                    pixelData[pixelIdx + 3] = isTransparent ? (byte)0 : (byte)255;
+                                                }
+                                            }
+                                            hasAlpha = true;
+                                            appliedMask = true;
+                                        }
+                                    }
+                                    finally
+                                    {
+                                        Win32Interop.ReleaseDC(nint.Zero, maskHdc);
+                                    }
+                                }
+                                finally
+                                {
+                                    ArrayPool<byte>.Shared.Return(maskBytes);
+                                }
+                            }
+
+                            if (!appliedMask)
+                            {
+                                for (int i = 3; i < requiredBytes; i += 4)
+                                {
+                                    pixelData[i] = 255;
+                                }
                             }
                         }
 

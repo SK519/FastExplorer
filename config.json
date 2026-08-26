@@ -24,5 +24,10 @@
     "theme": "system",
     "showHiddenFiles": false,
     "confirmDelete": true
+  },
+  "update": {
+    "gitHubOwner": "SK519",
+    "gitHubRepo": "FastExplorer",
+    "autoCheckOnStartup": true
   }
 }

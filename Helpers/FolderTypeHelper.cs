@@ -55,12 +55,11 @@ namespace FastExplorer.Helpers
                 }
             }
 
-            // パス全体（親フォルダー含む）に "Pictures", "ピクチャ", "Photos" などが含まれているかチェック
-            string lowerPath = path.ToLowerInvariant();
-            if (lowerPath.Contains(@"\pictures\") || lowerPath.EndsWith(@"\pictures") ||
-                lowerPath.Contains(@"\ピクチャ\") || lowerPath.EndsWith(@"\ピクチャ") ||
-                lowerPath.Contains(@"\photos\") || lowerPath.EndsWith(@"\photos") ||
-                lowerPath.Contains(@"\dcim\") || lowerPath.EndsWith(@"\dcim"))
+            // パス全体（親フォルダー含む）に "Pictures", "ピクチャ", "Photos" などが含まれているかチェック (ヒープアロケーション排除)
+            if (path.Contains(@"\pictures\", StringComparison.OrdinalIgnoreCase) || path.EndsWith(@"\pictures", StringComparison.OrdinalIgnoreCase) ||
+                path.Contains(@"\ピクチャ\", StringComparison.OrdinalIgnoreCase) || path.EndsWith(@"\ピクチャ", StringComparison.OrdinalIgnoreCase) ||
+                path.Contains(@"\photos\", StringComparison.OrdinalIgnoreCase) || path.EndsWith(@"\photos", StringComparison.OrdinalIgnoreCase) ||
+                path.Contains(@"\dcim\", StringComparison.OrdinalIgnoreCase) || path.EndsWith(@"\dcim", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
