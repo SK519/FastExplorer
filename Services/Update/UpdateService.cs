@@ -50,6 +50,10 @@ namespace FastExplorer.Services.Update
     {
         private static readonly HttpClient _httpClient = new HttpClient();
 
+        public static DateTime? LastCheckedTime { get; set; }
+        public static UpdateInfo? LastUpdateInfo { get; set; }
+        public static event Action<UpdateInfo>? UpdateStatusChanged;
+
         public static string GetCurrentVersionString()
         {
             var version = Assembly.GetExecutingAssembly().GetName().Version;
@@ -116,6 +120,14 @@ namespace FastExplorer.Services.Update
             {
                 info.ErrorMessage = $"アップデート確認エラー: {ex.Message}";
             }
+
+            LastCheckedTime = DateTime.Now;
+            LastUpdateInfo = info;
+            try
+            {
+                UpdateStatusChanged?.Invoke(info);
+            }
+            catch { }
 
             return info;
         }

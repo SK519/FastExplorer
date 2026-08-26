@@ -24,6 +24,12 @@ namespace FastExplorer.Views.Settings
                 LoadSettingsToUI();
                 _isInitializing = false;
                 SwitchTab("Theme");
+
+                FastExplorer.Services.Update.UpdateService.UpdateStatusChanged += OnGlobalUpdateStatusChanged;
+                this.Unloaded += (s, e) =>
+                {
+                    FastExplorer.Services.Update.UpdateService.UpdateStatusChanged -= OnGlobalUpdateStatusChanged;
+                };
             }
             catch (Exception ex)
             {
@@ -36,6 +42,14 @@ namespace FastExplorer.Views.Settings
                 }
                 catch { }
             }
+        }
+
+        private void OnGlobalUpdateStatusChanged(FastExplorer.Services.Update.UpdateInfo info)
+        {
+            this.DispatcherQueue?.TryEnqueue(() =>
+            {
+                UpdateUpdateSectionUI();
+            });
         }
 
         public void ReloadSettings()
@@ -130,8 +144,7 @@ namespace FastExplorer.Views.Settings
                 if (MaxCacheMemoryBox != null) MaxCacheMemoryBox.Value = config.Cache.MaxMemoryMB;
 
                 // アップデート情報
-                if (CurrentVersionTextBlock != null) CurrentVersionTextBlock.Text = $"現在のバージョン: v{FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()}";
-                if (AppAboutVersionText != null) AppAboutVersionText.Text = $"バージョン {FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()} (WinUI 3 / Windows App SDK)";
+                UpdateUpdateSectionUI();
 
                 // システム連携
                 bool isDef = SystemIntegrationService.IsDefaultExplorerEnabled();
@@ -241,7 +254,11 @@ namespace FastExplorer.Views.Settings
             SectionIntegration.Visibility = tag == "Integration" ? Visibility.Visible : Visibility.Collapsed;
             SectionAbout.Visibility = tag == "About" ? Visibility.Visible : Visibility.Collapsed;
 
-            if (tag == "Shortcuts")
+            if (tag == "About")
+            {
+                UpdateUpdateSectionUI();
+            }
+            else if (tag == "Shortcuts")
             {
                 RenderShortcutsList();
             }
@@ -637,6 +654,51 @@ namespace FastExplorer.Views.Settings
         }
 
         #region アップデート機能ハンドラー
+
+        private void UpdateUpdateSectionUI()
+        {
+            if (CurrentVersionTextBlock != null)
+                CurrentVersionTextBlock.Text = $"現在のバージョン: v{FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()}";
+            if (AppAboutVersionText != null)
+                AppAboutVersionText.Text = $"バージョン {FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()} (WinUI 3 / Windows App SDK)";
+
+            if (UpdateStatusTextBlock != null)
+            {
+                if (FastExplorer.Services.Update.UpdateService.LastCheckedTime.HasValue)
+                {
+                    var lastTime = FastExplorer.Services.Update.UpdateService.LastCheckedTime.Value;
+                    var lastInfo = FastExplorer.Services.Update.UpdateService.LastUpdateInfo;
+                    if (lastInfo != null && !string.IsNullOrEmpty(lastInfo.ErrorMessage))
+                    {
+                        UpdateStatusTextBlock.Text = $"最終確認: {lastTime:yyyy/MM/dd HH:mm:ss} ({lastInfo.ErrorMessage})";
+                    }
+                    else if (lastInfo != null && lastInfo.IsUpdateAvailable)
+                    {
+                        UpdateStatusTextBlock.Text = $"最終確認: {lastTime:yyyy/MM/dd HH:mm:ss}";
+                        if (NewVersionTitleTextBlock != null)
+                            NewVersionTitleTextBlock.Text = $"新しいバージョン (v{lastInfo.LatestVersion}) が利用可能です！";
+                        if (ReleaseNotesTextBlock != null)
+                            ReleaseNotesTextBlock.Text = string.IsNullOrWhiteSpace(lastInfo.ReleaseNotes) ? "最新のインストーラーがリリースされています。" : lastInfo.ReleaseNotes;
+                        if (InstallUpdateButton != null)
+                            InstallUpdateButton.Tag = lastInfo.DownloadUrl;
+                        if (UpdateAvailableCard != null)
+                            UpdateAvailableCard.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        UpdateStatusTextBlock.Text = $"最終確認: {lastTime:yyyy/MM/dd HH:mm:ss} (お使いのバージョンは最新です)";
+                        if (UpdateAvailableCard != null)
+                            UpdateAvailableCard.Visibility = Visibility.Collapsed;
+                    }
+                }
+                else
+                {
+                    UpdateStatusTextBlock.Text = "最終確認: 未確認";
+                    if (UpdateAvailableCard != null)
+                        UpdateAvailableCard.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
 
         private async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
         {
