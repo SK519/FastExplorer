@@ -237,8 +237,18 @@
             </TabView>
         </Grid>
 
-        <!-- [Row 1] アドレス・ナビゲーションバー (AddressBarControl) -->
-        <nav:AddressBarControl x:Name="AddressBar" Grid.Row="1"/>
+        <!-- [Row 1] アドレス・ナビゲーションバー (AddressBarControl) & アップデート通知 -->
+        <StackPanel Grid.Row="1">
+            <nav:AddressBarControl x:Name="AddressBar"/>
+            <InfoBar x:Name="UpdateNotificationInfoBar" Margin="12,0,12,6"
+                     IsOpen="False" Severity="Informational"
+                     Title="アップデートが利用可能です"
+                     Message="FastExplorer の新しいバージョンが利用可能です。">
+                <InfoBar.ActionButton>
+                    <Button Content="設定で更新" Click="UpdateNotification_Click"/>
+                </InfoBar.ActionButton>
+            </InfoBar>
+        </StackPanel>
 
         <!-- [Row 2] メインコンテンツ (サイドバー + 中央コンテンツ + プレビューペイン) -->
         <Grid Grid.Row="2">

@@ -130,8 +130,6 @@ namespace FastExplorer.Views.Settings
                 if (MaxCacheMemoryBox != null) MaxCacheMemoryBox.Value = config.Cache.MaxMemoryMB;
 
                 // アップデート情報
-                if (GitHubOwnerBox != null) GitHubOwnerBox.Text = config.Update.GitHubOwner ?? "SK519";
-                if (GitHubRepoBox != null) GitHubRepoBox.Text = config.Update.GitHubRepo ?? "FastExplorer";
                 if (CurrentVersionTextBlock != null) CurrentVersionTextBlock.Text = $"現在のバージョン: v{FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()}";
                 if (AppAboutVersionText != null) AppAboutVersionText.Text = $"バージョン {FastExplorer.Services.Update.UpdateService.GetCurrentVersionString()} (WinUI 3 / Windows App SDK)";
 
@@ -223,6 +221,11 @@ namespace FastExplorer.Views.Settings
             {
                 SwitchTab(tag);
             }
+        }
+
+        public void NavigateToSection(string tag)
+        {
+            SwitchTab(tag);
         }
 
         private void SwitchTab(string tag)
@@ -635,19 +638,11 @@ namespace FastExplorer.Views.Settings
 
         #region アップデート機能ハンドラー
 
-        private void UpdateRepoConfig_LostFocus(object sender, RoutedEventArgs e)
-        {
-            if (_isInitializing) return;
-            ConfigService.Current.Update.GitHubOwner = GitHubOwnerBox.Text.Trim();
-            ConfigService.Current.Update.GitHubRepo = GitHubRepoBox.Text.Trim();
-            ConfigService.Save();
-        }
-
         private async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
         {
             var config = ConfigService.Current.Update;
-            string owner = config.GitHubOwner;
-            string repo = config.GitHubRepo;
+            string owner = config.GitHubOwner ?? "SK519";
+            string repo = config.GitHubRepo ?? "FastExplorer";
 
             if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(repo))
             {

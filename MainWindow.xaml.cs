@@ -110,6 +110,55 @@ namespace FastExplorer
 
             // 初回描画完了後のアイドル時間にバックグラウンドで事前ロード（ウォームアップ）を実行
             TriggerBackgroundWarmup();
+
+            // 起動時の更新確認
+            TriggerStartupUpdateCheck();
+        }
+
+        private void TriggerStartupUpdateCheck()
+        {
+            if (!ConfigService.Current.Update.AutoCheckOnStartup) return;
+
+            Task.Run(async () =>
+            {
+                try
+                {
+                    // UIと初期タブの初回レンダリングが落ち着いた後にバックグラウンドで確認
+                    await Task.Delay(1500);
+
+                    var updateService = new FastExplorer.Services.Update.UpdateService();
+                    var config = ConfigService.Current.Update;
+                    var info = await updateService.CheckForUpdatesAsync(config.GitHubOwner ?? "SK519", config.GitHubRepo ?? "FastExplorer");
+
+                    if (info.IsUpdateAvailable)
+                    {
+                        this.DispatcherQueue.TryEnqueue(() =>
+                        {
+                            if (UpdateNotificationInfoBar != null)
+                            {
+                                UpdateNotificationInfoBar.Title = $"FastExplorer v{info.LatestVersion} が利用可能です";
+                                UpdateNotificationInfoBar.Message = string.IsNullOrWhiteSpace(info.ReleaseNotes)
+                                    ? "新しいアップデートが公開されています。"
+                                    : info.ReleaseNotes;
+                                UpdateNotificationInfoBar.IsOpen = true;
+                            }
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[StartupUpdateCheck] Error: {ex.Message}");
+                }
+            });
+        }
+
+        private void UpdateNotification_Click(object sender, RoutedEventArgs e)
+        {
+            if (UpdateNotificationInfoBar != null)
+            {
+                UpdateNotificationInfoBar.IsOpen = false;
+            }
+            OpenSettingsTab("About");
         }
 
         private void TriggerBackgroundWarmup()

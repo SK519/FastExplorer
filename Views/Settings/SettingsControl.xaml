@@ -627,22 +627,6 @@
                                     </Button>
                                 </Grid>
                             </Border>
-
-                            <!-- リポジトリ設定 -->
-                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                            <Grid ColumnSpacing="12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="140"/>
-                                    <ColumnDefinition Width="140"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="GitHub リポジトリ設定" FontWeight="Medium"/>
-                                    <TextBlock Text="更新チェック対象の GitHub 所有者名・リポジトリ名" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
-                                </StackPanel>
-                                <TextBox x:Name="GitHubOwnerBox" Grid.Column="1" PlaceholderText="所有者名" LostFocus="UpdateRepoConfig_LostFocus"/>
-                                <TextBox x:Name="GitHubRepoBox" Grid.Column="2" PlaceholderText="リポジトリ名" LostFocus="UpdateRepoConfig_LostFocus"/>
-                            </Grid>
                         </StackPanel>
                     </Border>
 

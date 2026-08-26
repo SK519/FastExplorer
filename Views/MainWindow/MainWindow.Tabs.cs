@@ -188,7 +188,7 @@ namespace FastExplorer
             BindCurrentTabToUi();
         }
 
-        public void OpenSettingsTab()
+        public void OpenSettingsTab(string? section = null)
         {
             try
             {
@@ -201,12 +201,21 @@ namespace FastExplorer
                         if (item.DataContext is Views.Settings.SettingsControl sc)
                         {
                             sc.ReloadSettings();
+                            if (!string.IsNullOrEmpty(section))
+                            {
+                                sc.NavigateToSection(section);
+                            }
                         }
                         return;
                     }
                 }
 
                 var settingsControl = new Views.Settings.SettingsControl();
+                if (!string.IsNullOrEmpty(section))
+                {
+                    settingsControl.NavigateToSection(section);
+                }
+
                 var settingsTabItem = new TabViewItem
                 {
                     Header = "設定",
