@@ -11,9 +11,18 @@ namespace FastExplorer.Helpers
 
             if (path.Equals("Home", StringComparison.OrdinalIgnoreCase) ||
                 path.Equals("ThisPC", StringComparison.OrdinalIgnoreCase) ||
-                path.Equals("RecycleBin", StringComparison.OrdinalIgnoreCase))
+                path.Equals("RecycleBin", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("Network", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("::", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("urn:", StringComparison.OrdinalIgnoreCase))
             {
                 return path;
+            }
+
+            if (path.StartsWith(@"\\", StringComparison.OrdinalIgnoreCase))
+            {
+                return path.TrimEnd('\\');
             }
 
             try

@@ -384,6 +384,38 @@ namespace FastExplorer
                             ItemSelectionRequested?.Invoke(this, selectTargetName);
                         }
                     }
+
+                    // ネットワーク項目の非同期リアルタイム受信 (タイムアウト待ちを回避して機器検知と同時に即座に画面へ反映)
+                    if (targetPath.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || targetPath.Equals("Network", StringComparison.OrdinalIgnoreCase))
+                    {
+                        System.Threading.Tasks.Task.Run(() =>
+                        {
+                            NativeFileScanner.ScanNetworkPlacesLive(newItem =>
+                            {
+                                if (currentGen != _loadGeneration) return;
+                                DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+                                {
+                                    if (currentGen != _loadGeneration) return;
+                                    newItem.IsCut = FileOperationService.IsPathCut(newItem.FullPath);
+                                    newItem.AllowThumbnail = allowThumb;
+                                    IconThumbnailService.Instance.ApplyImmediateDefaultIcon(newItem);
+
+                                    var existing = _allItems.FirstOrDefault(x => x.Name.Equals(newItem.Name, StringComparison.OrdinalIgnoreCase));
+                                    if (existing != null)
+                                    {
+                                        int idx = _allItems.IndexOf(existing);
+                                        _allItems[idx] = newItem;
+                                    }
+                                    else
+                                    {
+                                        _allItems.Add(newItem);
+                                    }
+                                    SyncFilteredItems();
+                                    IconThumbnailService.Instance.Enqueue(newItem);
+                                });
+                            });
+                        });
+                    }
                 });
             });
         }

@@ -20,15 +20,17 @@ namespace FastExplorer.Views.MainWindow.Navigation
         public event RoutedEventHandler? UpRequested;
         public event RoutedEventHandler? RefreshRequested;
         public event RoutedEventHandler? SettingsRequested;
-        public event RoutedEventHandler? UpdateRequested;
         public event Action<string>? SearchFilterChanged;
         public event Action? SearchFilterEscaped;
         public event Action? AddressInputRequested;
         public event Action<string>? AddressNavigateRequested;
         public event Action<BreadcrumbItem>? BreadcrumbItemClicked;
+        public event Action<BreadcrumbItem>? BreadcrumbItemMiddleClicked;
         public event Action<Button, BreadcrumbItem>? BreadcrumbArrowClicked;
         public event DragEventHandler? BreadcrumbDragOver;
         public event DragEventHandler? BreadcrumbDrop;
+
+        private bool _isDownloadingUpdate;
 
         public AddressBarControl()
         {
@@ -62,12 +64,19 @@ namespace FastExplorer.Views.MainWindow.Navigation
             if (info != null && info.IsUpdateAvailable)
             {
                 UpdateAvailableButton.Visibility = Visibility.Visible;
-                string label = string.IsNullOrWhiteSpace(info.LatestVersion) ? "更新" : $"更新 (v{info.LatestVersion})";
-                if (UpdateAvailableText != null)
+                if (!string.IsNullOrEmpty(FastExplorer.Services.Update.UpdateService.DownloadedInstallerPath) &&
+                    System.IO.File.Exists(FastExplorer.Services.Update.UpdateService.DownloadedInstallerPath))
                 {
-                    UpdateAvailableText.Text = label;
+                    if (UpdateAvailableIcon != null) UpdateAvailableIcon.Glyph = "\uE777";
+                    if (UpdateAvailableText != null) UpdateAvailableText.Text = "今すぐインストール";
+                    ToolTipService.SetToolTip(UpdateAvailableButton, "アップデート準備完了。クリックしてインストールし再起動");
                 }
-                ToolTipService.SetToolTip(UpdateAvailableButton, $"FastExplorer v{info.LatestVersion} にアップデート可能です (クリックして設定を開く)");
+                else if (!_isDownloadingUpdate)
+                {
+                    if (UpdateAvailableIcon != null) UpdateAvailableIcon.Glyph = "\uE895";
+                    if (UpdateAvailableText != null) UpdateAvailableText.Text = $"更新 (v{info.LatestVersion})";
+                    ToolTipService.SetToolTip(UpdateAvailableButton, $"FastExplorer v{info.LatestVersion} (クリックしてダウンロード)");
+                }
             }
             else
             {
@@ -129,7 +138,67 @@ namespace FastExplorer.Views.MainWindow.Navigation
         private void UpButton_Click(object sender, RoutedEventArgs e) => UpRequested?.Invoke(sender, e);
         private void RefreshButton_Click(object sender, RoutedEventArgs e) => RefreshRequested?.Invoke(sender, e);
         private void SettingsButton_Click(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke(sender, e);
-        private void UpdateAvailableButton_Click(object sender, RoutedEventArgs e) => UpdateRequested?.Invoke(sender, e);
+
+        private async void UpdateAvailableButton_Click(object sender, RoutedEventArgs e)
+        {
+            // 1. すでにダウンロード済みの場合は即座にインストール実行
+            if (!string.IsNullOrEmpty(FastExplorer.Services.Update.UpdateService.DownloadedInstallerPath) &&
+                System.IO.File.Exists(FastExplorer.Services.Update.UpdateService.DownloadedInstallerPath))
+            {
+                FastExplorer.Services.Update.UpdateService.LaunchInstallerAndExit();
+                return;
+            }
+
+            var info = FastExplorer.Services.Update.UpdateService.LastUpdateInfo;
+            string? downloadUrl = info?.DownloadUrl;
+            if (string.IsNullOrEmpty(downloadUrl) && info != null && !string.IsNullOrEmpty(info.TagName))
+            {
+                downloadUrl = $"https://github.com/SK519/FastExplorer/releases/download/{info.TagName}/FastExplorer_Setup.exe";
+            }
+
+            if (string.IsNullOrEmpty(downloadUrl))
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/SK519/FastExplorer/releases/latest") { UseShellExecute = true });
+                }
+                catch { }
+                SettingsRequested?.Invoke(sender, e);
+                return;
+            }
+
+            if (_isDownloadingUpdate) return;
+            _isDownloadingUpdate = true;
+            UpdateAvailableButton.IsEnabled = false;
+            if (UpdateAvailableText != null) UpdateAvailableText.Text = "ダウンロード中...";
+            ToolTipService.SetToolTip(UpdateAvailableButton, "ダウンロード中...");
+
+            var service = new FastExplorer.Services.Update.UpdateService();
+            var path = await service.DownloadUpdateAsync(downloadUrl, progress =>
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (UpdateAvailableText != null) UpdateAvailableText.Text = $"ダウンロード中 {(int)progress}%";
+                    ToolTipService.SetToolTip(UpdateAvailableButton, $"ダウンロード中 {(int)progress}%");
+                });
+            });
+
+            _isDownloadingUpdate = false;
+            UpdateAvailableButton.IsEnabled = true;
+
+            if (!string.IsNullOrEmpty(path) && System.IO.File.Exists(path))
+            {
+                if (UpdateAvailableIcon != null) UpdateAvailableIcon.Glyph = "\uE777";
+                if (UpdateAvailableText != null) UpdateAvailableText.Text = "今すぐインストール";
+                ToolTipService.SetToolTip(UpdateAvailableButton, "ダウンロード完了。クリックしてインストールし再起動");
+            }
+            else
+            {
+                if (UpdateAvailableIcon != null) UpdateAvailableIcon.Glyph = "\uE895";
+                if (UpdateAvailableText != null) UpdateAvailableText.Text = info != null ? $"再試行 (v{info.LatestVersion})" : "更新";
+                ToolTipService.SetToolTip(UpdateAvailableButton, "ダウンロードに失敗しました。クリックして再試行");
+            }
+        }
 
         private void SearchFilterBox_TextChanged(object sender, TextChangedEventArgs e)
         {
@@ -386,6 +455,19 @@ namespace FastExplorer.Views.MainWindow.Navigation
             if (sender is HyperlinkButton btn && btn.DataContext is BreadcrumbItem item)
             {
                 BreadcrumbItemClicked?.Invoke(item);
+            }
+        }
+
+        private void BreadcrumbFolder_PointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            var prop = e.GetCurrentPoint(sender as UIElement).Properties;
+            if (prop.IsMiddleButtonPressed)
+            {
+                if (sender is HyperlinkButton btn && btn.DataContext is BreadcrumbItem item)
+                {
+                    BreadcrumbItemMiddleClicked?.Invoke(item);
+                    e.Handled = true;
+                }
             }
         }
 

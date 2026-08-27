@@ -258,29 +258,71 @@ namespace FastExplorer
         {
             if (item == null || CurrentTab == null) return;
 
-            if (item.IsDirectory)
+            // 1. UNC ネットワークパス (\\Server\Share 等)
+            if (item.FullPath.StartsWith(@"\\") && (item.IsDirectory || !item.FullPath.Contains('.')))
             {
                 CurrentTab.NavigateTo(item.FullPath);
-            }
-            else if (ArchiveService.IsSupportedArchive(item.FullPath))
-            {
-                // 圧縮ファイルの場合は外部エクスプローラーを開かず、フォルダーのように FastExplorer 内でプレビュー閲覧
-                CurrentTab.NavigateTo(item.FullPath);
-            }
-            else if (ArchiveService.IsArchiveOrSubPath(item.FullPath, out _, out _))
-            {
-                // プレビュー時 (アーカイブ内部) のファイルは開かない
                 return;
             }
-            else
+
+            // 2. ディレクトリ / 特殊フォルダー
+            if (item.IsDirectory && (Directory.Exists(item.FullPath) || item.FullPath.StartsWith("shell:")))
             {
-                LaunchFile(item.FullPath);
+                CurrentTab.NavigateTo(item.FullPath);
+                return;
             }
+
+            // 3. アーカイブ
+            if (ArchiveService.IsSupportedArchive(item.FullPath))
+            {
+                CurrentTab.NavigateTo(item.FullPath);
+                return;
+            }
+
+            if (ArchiveService.IsArchiveOrSubPath(item.FullPath, out _, out _))
+            {
+                return;
+            }
+
+            // 4. メディア機器・ネットワークデバイス・通常ファイルの起動
+            LaunchFile(item.FullPath);
         }
 
         private static void LaunchFile(string filePath)
         {
             Core.Win32Interop.RecordRecentDocument(filePath);
+
+            // シェル名前空間アイテム (::{...} や urn:uuid など) の PIDL 起動
+            if (filePath.StartsWith("::") || filePath.StartsWith("shell:") || filePath.StartsWith("urn:"))
+            {
+                try
+                {
+                    int hr = Win32Interop.SHParseDisplayName(filePath, nint.Zero, out nint pidl, 0, out _);
+                    if (hr == 0 && pidl != nint.Zero)
+                    {
+                        try
+                        {
+                            var pExecInfo = new Win32Interop.SHELLEXECUTEINFOW
+                            {
+                                cbSize = Marshal.SizeOf<Win32Interop.SHELLEXECUTEINFOW>(),
+                                fMask = Win32Interop.SEE_MASK_INVOKEIDLIST | Win32Interop.SEE_MASK_IDLIST,
+                                lpIDList = pidl,
+                                lpVerb = null,
+                                nShow = Win32Interop.SW_SHOWNORMAL
+                            };
+                            if (Win32Interop.ShellExecuteExW(ref pExecInfo))
+                            {
+                                return;
+                            }
+                        }
+                        finally
+                        {
+                            Win32Interop.ILFree(pidl);
+                        }
+                    }
+                }
+                catch { }
+            }
 
             string? workingDir = null;
             try

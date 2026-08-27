@@ -143,12 +143,12 @@
         </Grid>
 
         <!-- [Row 0] タイトルバー・タブ -->
-        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="42" VerticalAlignment="Top">
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="46" VerticalAlignment="Top">
             <TabView x:Name="MainTabView" VerticalAlignment="Stretch"
                      Background="Transparent"
                      BorderThickness="0"
                      Padding="0"
-                     Margin="0"
+                     Margin="0,5,0,0"
                      CanReorderTabs="False"
                      CanDragTabs="True"
                      AllowDrop="True"
@@ -240,18 +240,8 @@
             </TabView>
         </Grid>
 
-        <!-- [Row 1] アドレス・ナビゲーションバー (AddressBarControl) & アップデート通知 -->
-        <StackPanel Grid.Row="1">
-            <nav:AddressBarControl x:Name="AddressBar"/>
-            <InfoBar x:Name="UpdateNotificationInfoBar" Margin="12,0,12,6"
-                     IsOpen="False" Severity="Informational"
-                     Title="アップデートが利用可能です"
-                     Message="FastExplorer の新しいバージョンが利用可能です。">
-                <InfoBar.ActionButton>
-                    <Button Content="設定で更新" Click="UpdateNotification_Click"/>
-                </InfoBar.ActionButton>
-            </InfoBar>
-        </StackPanel>
+        <!-- [Row 1] アドレス・ナビゲーションバー (AddressBarControl) -->
+        <nav:AddressBarControl x:Name="AddressBar" Grid.Row="1"/>
 
         <!-- [Row 2] メインコンテンツ (サイドバー + 中央コンテンツ + プレビューペイン) -->
         <Grid Grid.Row="2">

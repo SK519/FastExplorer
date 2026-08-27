@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using FastExplorer.Models;
 using Microsoft.UI.Dispatching;
@@ -33,6 +34,7 @@ namespace FastExplorer.Services
         private static SoftwareBitmap? _defaultRecycleBinBitmap;
         private static SoftwareBitmap? _defaultNetworkBitmap;
         private static SoftwareBitmap? _defaultWslBitmap;
+        private static SoftwareBitmap? _defaultDriveBitmap;
 
         private static Microsoft.UI.Xaml.Media.ImageSource? _defaultFolderSource;
         private static Microsoft.UI.Xaml.Media.ImageSource? _defaultFileSource;
@@ -41,6 +43,7 @@ namespace FastExplorer.Services
         private static Microsoft.UI.Xaml.Media.ImageSource? _defaultRecycleBinSource;
         private static Microsoft.UI.Xaml.Media.ImageSource? _defaultNetworkSource;
         private static Microsoft.UI.Xaml.Media.ImageSource? _defaultWslSource;
+        private static Microsoft.UI.Xaml.Media.ImageSource? _defaultDriveSource;
         private static readonly ConcurrentDictionary<string, Microsoft.UI.Xaml.Media.ImageSource> _extensionSourceCache = new(StringComparer.OrdinalIgnoreCase);
 
         public static SoftwareBitmap? DefaultFolderBitmap => _defaultFolderBitmap ??= GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_FOLDER);
@@ -50,6 +53,7 @@ namespace FastExplorer.Services
         public static SoftwareBitmap? DefaultRecycleBinBitmap => _defaultRecycleBinBitmap ??= GetRecycleBinSoftwareBitmap(true);
         public static SoftwareBitmap? DefaultNetworkBitmap => _defaultNetworkBitmap ??= GetNetworkSoftwareBitmap(true);
         public static SoftwareBitmap? DefaultWslBitmap => _defaultWslBitmap ??= GetWslSoftwareBitmap(32);
+        public static SoftwareBitmap? DefaultDriveBitmap => _defaultDriveBitmap ??= GetDriveSoftwareBitmap("C:\\", true);
 
         public static Microsoft.UI.Xaml.Media.ImageSource? DefaultFolderSource => _defaultFolderSource;
         public static Microsoft.UI.Xaml.Media.ImageSource? DefaultFileSource => _defaultFileSource;
@@ -58,6 +62,7 @@ namespace FastExplorer.Services
         public static Microsoft.UI.Xaml.Media.ImageSource? DefaultRecycleBinSource => _defaultRecycleBinSource;
         public static Microsoft.UI.Xaml.Media.ImageSource? DefaultNetworkSource => _defaultNetworkSource;
         public static Microsoft.UI.Xaml.Media.ImageSource? DefaultWslSource => _defaultWslSource;
+        public static Microsoft.UI.Xaml.Media.ImageSource? DefaultDriveSource => _defaultDriveSource;
 
         private bool _workersStarted = false;
         private readonly object _workerLock = new();
@@ -159,6 +164,37 @@ namespace FastExplorer.Services
                         _defaultWslSource = src;
                     }
 
+                    _defaultDriveBitmap = GetDriveSoftwareBitmap("C:\\", false);
+                    if (_defaultDriveBitmap != null)
+                    {
+                        var src = new SoftwareBitmapSource();
+                        await src.SetBitmapAsync(_defaultDriveBitmap);
+                        _defaultDriveSource = src;
+                    }
+
+                    // ドライブ固有のアイコン（Googleドライブ等の専用アイコン）を全ドライブ分事前キャッシュ
+                    try
+                    {
+                        var drives = DriveInfo.GetDrives();
+                        foreach (var drive in drives)
+                        {
+                            try
+                            {
+                                string root = drive.RootDirectory.FullName;
+                                var bmp = GetDriveSoftwareBitmap(root, false);
+                                if (bmp != null)
+                                {
+                                    var src = new SoftwareBitmapSource();
+                                    await src.SetBitmapAsync(bmp);
+                                    _driveSourceCache[root] = src;
+                                    _driveSourceCache[root.TrimEnd('\\')] = src;
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+                    catch { }
+
                     DefaultIconsInitialized?.Invoke();
 
                     // 主要拡張子の非同期ウォームアップ
@@ -180,6 +216,17 @@ namespace FastExplorer.Services
                 }
                 catch { }
             });
+        }
+
+        private static readonly ConcurrentDictionary<string, Microsoft.UI.Xaml.Media.ImageSource> _driveSourceCache = new(StringComparer.OrdinalIgnoreCase);
+
+        public static bool IsDriveRootPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path)) return false;
+            string trimmed = path.TrimEnd('\\', '/');
+            if (trimmed.Length == 2 && trimmed[1] == ':') return true;
+            if (path.Length <= 3 && path.EndsWith(":\\", StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
 
         public static bool IsWslRootPath(string path, string name = "")
@@ -238,6 +285,20 @@ namespace FastExplorer.Services
                     return new Microsoft.UI.Xaml.Controls.ImageIconSource { ImageSource = _defaultWslSource };
                 return new Microsoft.UI.Xaml.Controls.FontIconSource { Glyph = "\uE74C" };
             }
+            if (IsDriveRootPath(path))
+            {
+                string root = path.TrimEnd('\\', '/').ToUpperInvariant() + "\\";
+                if (_driveSourceCache.TryGetValue(root, out var driveSrc) || _driveSourceCache.TryGetValue(path, out driveSrc))
+                {
+                    return new Microsoft.UI.Xaml.Controls.ImageIconSource { ImageSource = driveSrc };
+                }
+
+                if (_defaultDriveSource != null)
+                {
+                    return new Microsoft.UI.Xaml.Controls.ImageIconSource { ImageSource = _defaultDriveSource };
+                }
+                return new Microsoft.UI.Xaml.Controls.FontIconSource { Glyph = "\uEDA2" };
+            }
 
             if (_defaultFolderSource != null)
             {
@@ -270,6 +331,18 @@ namespace FastExplorer.Services
             else if (IsWslRootPath(item.FullPath, item.Name))
             {
                 if (_defaultWslSource != null) item.Icon = _defaultWslSource;
+            }
+            else if (item.FileType == "ドライブ" || IsDriveRootPath(item.FullPath))
+            {
+                string root = item.FullPath.TrimEnd('\\', '/').ToUpperInvariant() + "\\";
+                if (_driveSourceCache.TryGetValue(root, out var driveSrc) || _driveSourceCache.TryGetValue(item.FullPath, out driveSrc))
+                {
+                    item.Icon = driveSrc;
+                }
+                else if (_defaultDriveSource != null)
+                {
+                    item.Icon = _defaultDriveSource;
+                }
             }
             else if (item.IsDirectory)
             {
@@ -362,6 +435,11 @@ namespace FastExplorer.Services
             if (IsWslRootPath(item.FullPath, item.Name))
             {
                 return "special::wsl::" + item.FullPath.ToLowerInvariant();
+            }
+
+            if (item.FullPath.StartsWith("::") || item.FullPath.StartsWith("shell:") || item.FullPath.StartsWith("urn:"))
+            {
+                return "shellitem::" + item.FullPath.ToLowerInvariant();
             }
 
             // ドライブ

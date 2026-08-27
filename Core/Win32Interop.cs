@@ -105,155 +105,6 @@ namespace FastExplorer.Core
 
         #endregion
 
-        #region Window Management & DWM
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool SetForegroundWindow(nint hWnd);
-
-        [DllImport("user32.dll")]
-        public static extern nint GetForegroundWindow();
-
-        [DllImport("kernel32.dll")]
-        public static extern uint GetCurrentThreadId();
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, [MarshalAs(UnmanagedType.Bool)] bool fAttach);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool BringWindowToTop(nint hWnd);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool ShowWindow(nint hWnd, int nCmdShow);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool IsIconic(nint hWnd);
-
-        [DllImport("user32.dll")]
-        public static extern nint SetFocus(nint hWnd);
-
-        public const int SW_RESTORE = 9;
-        public const int SW_SHOW = 5;
-        public const int SW_SHOWDEFAULT = 10;
-        public static readonly nint HWND_TOP = nint.Zero;
-        public static readonly nint HWND_TOPMOST = (nint)(-1);
-        public static readonly nint HWND_NOTOPMOST = (nint)(-2);
-        public const uint SWP_SHOWWINDOW = 0x0040;
-
-        /// <summary>
-        /// Windows 10/11 のフォアグラウンド制限を突破し、確実にウィンドウを最前面にアクティブ化する
-        /// </summary>
-        public static void ForceForegroundWindow(nint hWnd)
-        {
-            if (hWnd == nint.Zero) return;
-
-            try
-            {
-                nint fgWnd = GetForegroundWindow();
-                uint fgThread = fgWnd != nint.Zero ? GetWindowThreadProcessId(fgWnd, out _) : 0;
-                uint curThread = GetCurrentThreadId();
-
-                if (fgThread != 0 && fgThread != curThread)
-                {
-                    AttachThreadInput(curThread, fgThread, true);
-                }
-
-                if (IsIconic(hWnd))
-                {
-                    ShowWindow(hWnd, SW_RESTORE);
-                }
-                else
-                {
-                    ShowWindow(hWnd, SW_SHOW);
-                }
-
-                // TOPMOST トグル技法 (Windows OS による最前面化ブロックを確実に回避)
-                SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-                SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
-
-                SetForegroundWindow(hWnd);
-                BringWindowToTop(hWnd);
-                SetFocus(hWnd);
-
-                if (fgThread != 0 && fgThread != curThread)
-                {
-                    AttachThreadInput(curThread, fgThread, false);
-                }
-            }
-            catch { }
-        }
-
-        [DllImport("dwmapi.dll", PreserveSig = true)]
-        public static extern int DwmSetWindowAttribute(nint hwnd, int attr, ref int attrValue, int attrSize);
-
-        public const int DWMWA_TRANSITION_ONOFF = 3;
-
-        public const int GWL_STYLE = -16;
-        public const uint WS_CAPTION = 0x00C00000;
-        public const uint WS_THICKFRAME = 0x00040000;
-        public const uint WS_MINIMIZEBOX = 0x00020000;
-        public const uint WS_MAXIMIZEBOX = 0x00010000;
-        public const uint WS_SYSMENU = 0x00080000;
-
-        public const uint SWP_NOMOVE = 0x0002;
-        public const uint SWP_NOSIZE = 0x0001;
-        public const uint SWP_NOZORDER = 0x0004;
-        public const uint SWP_FRAMECHANGED = 0x0020;
-
-        public const uint WM_SETICON = 0x0080;
-        public const int ICON_SMALL = 0;
-        public const int ICON_BIG = 1;
-        public const uint IMAGE_ICON = 1;
-        public const uint LR_LOADFROMFILE = 0x0010;
-
-        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        public static extern nint LoadImageW(nint hInst, string name, uint type, int cx, int cy, uint fuLoad);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        public static extern int GetWindowLongW(nint hWnd, int nIndex);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        public static extern int SetWindowLongW(nint hWnd, int nIndex, int dwNewLong);
-
-        [DllImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool SetProcessWorkingSetSize(nint hProcess, nint dwMinimumWorkingSetSize, nint dwMaximumWorkingSetSize);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-        [DllImport("user32.dll")]
-        public static extern uint GetDpiForWindow(nint hwnd);
-
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool ReleaseCapture();
-
-        [DllImport("user32.dll")]
-        public static extern nint SendMessage(nint hWnd, uint msg, nuint wParam, nint lParam);
-
-        [DllImport("user32.dll")]
-        public static extern nint LoadCursorW(nint hInstance, nint lpCursorName);
-
-        [DllImport("user32.dll")]
-        public static extern nint SetCursor(nint hCursor);
-
-        public const int IDC_ARROW = 32512;
-        public const int IDC_SIZEWE = 32644;
-
-        public const uint WM_NCLBUTTONDOWN = 0x00A1;
-        public const nuint HTCAPTION = 2;
-        public const uint WM_SYSCOMMAND = 0x0112;
-        public const nuint SC_MOVE = 0xF010;
-        public const nuint SC_RESTORE = 0xF120;
-
-        #endregion
-
         #region Shell Execution & File Operations
 
         public const string CLSID_RecycleBin = "::{645FF040-5081-101B-9F08-00AA002F954E}";
@@ -298,6 +149,7 @@ namespace FastExplorer.Core
         }
 
         public const int SW_SHOWNORMAL = 1;
+        public const uint SEE_MASK_IDLIST = 0x00000004;
         public const uint SEE_MASK_INVOKEIDLIST = 0x0000000C;
 
         [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -517,6 +369,13 @@ namespace FastExplorer.Core
         public const uint GHND = GMEM_MOVEABLE | GMEM_ZEROINIT;
 
         [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
         public struct DROPFILES
         {
             public uint pFiles;
@@ -526,59 +385,6 @@ namespace FastExplorer.Core
             [MarshalAs(UnmanagedType.Bool)]
             public bool fWide;
         }
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool OpenClipboard(nint hWndNewOwner);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool CloseClipboard();
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool EmptyClipboard();
-
-        [DllImport("user32.dll", SetLastError = true)]
-        public static extern nint GetClipboardData(uint uFormat);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        public static extern nint SetClipboardData(uint uFormat, nint hMem);
-
-        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-        public static extern uint RegisterClipboardFormatW(string lpszFormat);
-
-        [DllImport("user32.dll")]
-        public static extern short GetKeyState(int nVirtKey);
-
-        [DllImport("user32.dll")]
-        public static extern short GetAsyncKeyState(int vKey);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern nint GlobalAlloc(uint uFlags, nuint dwBytes);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern nint GlobalLock(nint hMem);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool GlobalUnlock(nint hMem);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern nint GlobalFree(nint hMem);
-
-        [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        public static extern uint DragQueryFileW(nint hDrop, uint iFile, [Out] System.Text.StringBuilder? lpszFile, uint cch);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool IsClipboardFormatAvailable(uint format);
-
-        [DllImport("ole32.dll")]
-        public static extern int OleInitialize(nint pvReserved);
-
-        [DllImport("ole32.dll")]
-        public static extern void OleUninitialize();
 
         [UnmanagedFunctionPointer(CallingConvention.Winapi)]
         public delegate nint SubclassProc(nint hWnd, uint uMsg, nint wParam, nint lParam, nuint uIdSubclass, nint dwRefData);
@@ -600,126 +406,11 @@ namespace FastExplorer.Core
             [In] in Guid iid,
             out nint factory);
 
-        public enum PreferredAppMode
-        {
-            Default = 0,
-            AllowDark = 1,
-            ForceDark = 2,
-            ForceLight = 3,
-            Max = 4
-        }
-
-        [DllImport("uxtheme.dll", EntryPoint = "#135", SetLastError = true)]
-        public static extern PreferredAppMode SetPreferredAppMode(PreferredAppMode appMode);
-
-        [DllImport("uxtheme.dll", EntryPoint = "#133", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool AllowDarkModeForWindow(nint hWnd, [MarshalAs(UnmanagedType.Bool)] bool allow);
-
-        [DllImport("uxtheme.dll", EntryPoint = "#136", SetLastError = true)]
-        public static extern void FlushMenuThemes();
-
-        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        public static extern int SetWindowTheme(nint hWnd, string pszSubAppName, string? pszSubIdList);
-
         #endregion
-
-        #region Window Subclassing & Windows Hooks
-
-        public const int WH_MOUSE_LL = 14;
-        public const uint WM_MOUSEWHEEL = 0x020A;
-        public const uint WM_XBUTTONDOWN = 0x020B;
-        public const uint WM_XBUTTONUP = 0x020C;
-        public const uint WM_APPCOMMAND = 0x0319;
-        public const int APPCOMMAND_BROWSER_BACKWARD = 1;
-        public const int APPCOMMAND_BROWSER_FORWARD = 2;
-        public const int XBUTTON1 = 0x0001;
-        public const int XBUTTON2 = 0x0002;
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct MSLLHOOKSTRUCT
-        {
-            public POINT pt;
-            public uint mouseData;
-            public uint flags;
-            public uint time;
-            public nuint dwExtraInfo;
-        }
-
-        public delegate nint LowLevelMouseProc(int nCode, nuint wParam, nint lParam);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        public static extern nint SetWindowsHookExW(int idHook, LowLevelMouseProc lpfn, nint hMod, uint dwThreadId);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool UnhookWindowsHookEx(nint hhk);
-
-        [DllImport("user32.dll")]
-        public static extern nint CallNextHookEx(nint hhk, int nCode, nuint wParam, nint lParam);
-
-        public delegate nint SUBCLASSPROC(nint hWnd, uint uMsg, nuint wParam, nint lParam, nuint uIdSubclass, nuint dwRefData);
-
-        [DllImport("comctl32.dll", SetLastError = true)]
-        public static extern bool SetWindowSubclass(nint hWnd, SUBCLASSPROC pfnSubclass, nuint uIdSubclass, nuint dwRefData);
-
-        [DllImport("comctl32.dll", SetLastError = true)]
-        public static extern bool RemoveWindowSubclass(nint hWnd, SUBCLASSPROC pfnSubclass, nuint uIdSubclass);
-
-        [DllImport("comctl32.dll", SetLastError = true)]
-        public static extern nint DefSubclassProc(nint hWnd, uint uMsg, nuint wParam, nint lParam);
 
         [SuppressGCTransition]
         [DllImport("shlwapi.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
         public static extern int StrCmpLogicalW(string psz1, string psz2);
-
-        #region Global HotKeys & Low-Level Keyboard Hook
-
-        public const uint MOD_ALT = 0x0001;
-        public const uint MOD_CONTROL = 0x0002;
-        public const uint MOD_SHIFT = 0x0004;
-        public const uint MOD_WIN = 0x0008;
-        public const uint MOD_NOREPEAT = 0x4000;
-        public const uint WM_HOTKEY = 0x0312;
-        public const uint VK_E = 0x45;
-        public const int VK_LWIN = 0x5B;
-        public const int VK_RWIN = 0x5C;
-
-        public const int WH_KEYBOARD_LL = 13;
-        public const uint WM_KEYDOWN = 0x0100;
-        public const uint WM_KEYUP = 0x0101;
-        public const uint WM_SYSKEYDOWN = 0x0104;
-        public const uint WM_SYSKEYUP = 0x0105;
-
-        public delegate nint LowLevelKeyboardProc(int nCode, nuint wParam, nint lParam);
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct KBDLLHOOKSTRUCT
-        {
-            public uint vkCode;
-            public uint scanCode;
-            public uint flags;
-            public uint time;
-            public nuint dwExtraInfo;
-        }
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool RegisterHotKey(nint hWnd, int id, uint fsModifiers, uint vk);
-
-        [DllImport("user32.dll", SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool UnregisterHotKey(nint hWnd, int id);
-
-        [DllImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
-        public static extern nint SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, nint hMod, uint dwThreadId);
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        public static extern nint GetModuleHandle(string? lpModuleName);
-
-        #endregion
-
-        #endregion
 
         #region Utilities
 

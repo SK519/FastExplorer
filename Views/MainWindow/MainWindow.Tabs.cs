@@ -9,6 +9,7 @@ using FastExplorer.Models;
 using FastExplorer.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer.DragDrop;
 
@@ -40,12 +41,23 @@ namespace FastExplorer
             tab.NavigateTo(path);
         }
 
+        private TabViewItem? _lastPressedTabViewItem;
+
         public void AttachTab(TabViewItem tabViewItem, NavigationTabItem? navTab = null, int insertIndex = -1)
         {
             if (navTab == null && tabViewItem.DataContext is NavigationTabItem dataTab)
             {
                 navTab = dataTab;
             }
+
+            tabViewItem.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((s, e) =>
+            {
+                if (s is TabViewItem tvi)
+                {
+                    _lastPressedTabViewItem = tvi;
+                    TabDragDropService.SetDraggingTab(this, tvi);
+                }
+            }), true);
 
             if (navTab != null)
             {
@@ -334,284 +346,6 @@ namespace FastExplorer
             AddressBar?.UpdateNavigationButtons(CurrentTab.CanGoBack, CurrentTab.CanGoForward, CurrentTab.CanGoUp);
             if (StatusBar != null) StatusBar.StatusText = CurrentTab.StatusText;
             UpdateActionToolbarButtons();
-        }
-
-        #endregion
-
-        #region Tab Drag, Move, Tear-off & Docking
-
-        private void MainTabView_TabDragStarting(TabView sender, TabViewTabDragStartingEventArgs args)
-        {
-            var tabItem = args.Tab ?? (args.Item as TabViewItem);
-            if (tabItem != null)
-            {
-                TabDragDropService.SetDraggingTab(this, tabItem);
-                args.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
-                args.Data.SetData(TabDragDropService.TabDataFormat, "tab");
-            }
-        }
-
-        private void MainTabView_TabStripDragOver(object sender, Microsoft.UI.Xaml.DragEventArgs e)
-        {
-            if (TabDragDropService.IsDragging)
-            {
-                e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
-                e.DragUIOverride.IsCaptionVisible = false;
-                e.DragUIOverride.IsGlyphVisible = false;
-            }
-            else if (IsDataPackageSupported(e.DataView))
-            {
-                e.Handled = true; // WinUI TabView のタブ並び替え・ドッキングアニメーション誤発火を防止
-                var tabItem = GetTabViewItemAtPosition(e.GetPosition(MainTabView), e);
-                if (tabItem?.DataContext is NavigationTabItem navTab && Directory.Exists(navTab.CurrentPath))
-                {
-                    bool isCtrl = e.Modifiers.HasFlag(DragDropModifiers.Control);
-                    var op = isCtrl ? Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy : Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
-                    e.AcceptedOperation = op;
-                    e.DragUIOverride.IsCaptionVisible = true;
-                    e.DragUIOverride.IsGlyphVisible = true;
-                    e.DragUIOverride.Caption = $"{navTab.Header} に{(op == Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move ? "移動" : "コピー")}";
-                }
-                else
-                {
-                    e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.None;
-                }
-            }
-            else
-            {
-                e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.None;
-                e.Handled = true;
-            }
-        }
-
-        private TabViewItem CreateCleanTabViewItem(TabViewItem sourceItem, NavigationTabItem? navTab)
-        {
-            var cleanItem = new TabViewItem
-            {
-                Header = sourceItem.Header,
-                IconSource = sourceItem.IconSource ?? new FontIconSource { Glyph = "\uE8B7" },
-                Tag = sourceItem.Tag,
-                DataContext = (sourceItem.Tag as string == "SettingsTab")
-                    ? (sourceItem.DataContext ?? new Views.Settings.SettingsControl())
-                    : (navTab ?? (sourceItem.DataContext as NavigationTabItem))
-            };
-            return cleanItem;
-        }
-
-        private async void MainTabView_TabStripDrop(object sender, Microsoft.UI.Xaml.DragEventArgs e)
-        {
-            if (TabDragDropService.IsDragging && TabDragDropService.DraggedTabViewItem != null)
-            {
-                var sourceWindow = TabDragDropService.SourceWindow;
-                var draggedItem = TabDragDropService.DraggedTabViewItem;
-                int targetIndex = CalculateTabDropIndex(e);
-
-                if (sourceWindow == this)
-                {
-                    // 同一ウィンドウ内のドラッグ＆ドロップ（並び替え）
-                    int oldIndex = MainTabView.TabItems.IndexOf(draggedItem);
-                    if (oldIndex >= 0 && oldIndex != targetIndex)
-                    {
-                        MainTabView.TabItems.RemoveAt(oldIndex);
-                        if (targetIndex > oldIndex) targetIndex--;
-                        if (targetIndex >= MainTabView.TabItems.Count)
-                        {
-                            MainTabView.TabItems.Add(draggedItem);
-                        }
-                        else
-                        {
-                            MainTabView.TabItems.Insert(Math.Max(0, targetIndex), draggedItem);
-                        }
-                        MainTabView.SelectedItem = draggedItem;
-                    }
-                    SyncTabsOrder();
-                }
-                else if (sourceWindow != null)
-                {
-                    // ウィンドウ間のタブ結合（移動）
-                    var navTab = TabDragDropService.DraggedNavTab;
-                    sourceWindow.DetachTab(draggedItem, disposeModel: false);
-                    var cleanItem = CreateCleanTabViewItem(draggedItem, navTab);
-                    this.AttachTab(cleanItem, navTab, targetIndex);
-                    this.MainTabView.UpdateLayout();
-                    this.Activate();
-                }
-
-                TabDragDropService.Clear();
-            }
-            else if (IsDataPackageSupported(e.DataView))
-            {
-                e.Handled = true;
-                var tabItem = GetTabViewItemAtPosition(e.GetPosition(MainTabView), e);
-                if (tabItem?.DataContext is NavigationTabItem navTab && Directory.Exists(navTab.CurrentPath))
-                {
-                    var def = e.GetDeferral();
-                    try
-                    {
-                        var paths = await ExtractPathsFromDataPackageAsync(e.DataView);
-                        if (paths.Count > 0)
-                        {
-                            bool isMove = (e.AcceptedOperation == Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move) ||
-                                          e.Modifiers.HasFlag(DragDropModifiers.Shift);
-
-                            bool success = await PerformFileTransferWithDialogAsync(paths, navTab.CurrentPath, isMove);
-                            if (success && (CurrentTab == navTab || CurrentTab?.CurrentPath.Equals(navTab.CurrentPath, StringComparison.OrdinalIgnoreCase) == true))
-                            {
-                                CurrentTab.Refresh();
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"[TabStripDrop] File drop error: {ex.Message}");
-                    }
-                    finally
-                    {
-                        def.Complete();
-                    }
-                }
-            }
-        }
-
-        private TabViewItem? GetTabViewItemAtPosition(Windows.Foundation.Point dropPos, Microsoft.UI.Xaml.DragEventArgs? e = null)
-        {
-            if (e != null)
-            {
-                try
-                {
-                    var hitElements = VisualTreeHelper.FindElementsInHostCoordinates(e.GetPosition(null), MainTabView);
-                    foreach (var el in hitElements)
-                    {
-                        if (el is DependencyObject dep)
-                        {
-                            var item = dep.FindParent<TabViewItem>();
-                            if (item != null && MainTabView.TabItems.Contains(item))
-                            {
-                                return item;
-                            }
-                        }
-                    }
-                }
-                catch { }
-            }
-
-            for (int i = 0; i < MainTabView.TabItems.Count; i++)
-            {
-                var tabItem = (MainTabView.TabItems[i] as TabViewItem) ?? (MainTabView.ContainerFromIndex(i) as TabViewItem);
-                if (tabItem != null)
-                {
-                    try
-                    {
-                        var bounds = tabItem.TransformToVisual(MainTabView).TransformBounds(
-                            new Windows.Foundation.Rect(0, 0, tabItem.ActualWidth, tabItem.ActualHeight));
-                        if (bounds.Contains(dropPos))
-                        {
-                            return tabItem;
-                        }
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
-                }
-            }
-            return null;
-        }
-
-        private int CalculateTabDropIndex(Microsoft.UI.Xaml.DragEventArgs e)
-        {
-            var dropPos = e.GetPosition(MainTabView);
-            for (int i = 0; i < MainTabView.TabItems.Count; i++)
-            {
-                var tabItem = (MainTabView.TabItems[i] as TabViewItem) ?? (MainTabView.ContainerFromIndex(i) as TabViewItem);
-                if (tabItem != null)
-                {
-                    try
-                    {
-                        var bounds = tabItem.TransformToVisual(MainTabView).TransformBounds(
-                            new Windows.Foundation.Rect(0, 0, tabItem.ActualWidth, tabItem.ActualHeight));
-                        if (dropPos.X < bounds.X + bounds.Width / 2)
-                        {
-                            return i;
-                        }
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
-                }
-            }
-            return MainTabView.TabItems.Count;
-        }
-
-        private void MainTabView_TabDroppedOutside(TabView sender, TabViewTabDroppedOutsideEventArgs args)
-        {
-            var tabItem = args.Tab ?? (args.Item as TabViewItem);
-            if (tabItem == null) return;
-
-            // ウィンドウ内にタブが1つしかない場合は分離しない
-            if (MainTabView.TabItems.Count <= 1)
-            {
-                TabDragDropService.Clear();
-                return;
-            }
-
-            var navTab = tabItem.DataContext as NavigationTabItem;
-
-            // 元ウィンドウからタブをデタッチ
-            DetachTab(tabItem, disposeModel: false);
-
-            // マウスカーソル位置を取得
-            Win32Interop.GetCursorPos(out var cursorPos);
-
-            // 新しいウィンドウを生成してクリーンなタブをアタッチ
-            var newWindow = new MainWindow(createInitialTab: false);
-            var cleanItem = CreateCleanTabViewItem(tabItem, navTab);
-            newWindow.AttachTab(cleanItem, navTab);
-
-            // 新しいウィンドウの位置をカーソル位置に設定
-            try
-            {
-                var appWindow = newWindow.AppWindow;
-                appWindow.Move(new Windows.Graphics.PointInt32(
-                    Math.Max(0, cursorPos.X - 120),
-                    Math.Max(0, cursorPos.Y - 24)));
-            }
-            catch
-            {
-                // ignored
-            }
-
-            newWindow.Activate();
-
-            // 新規分離ウィンドウの DWM フレーム再計算および微小位置更新（Windows OS の白線描画バグを完全に消去）
-            newWindow.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-            {
-                try
-                {
-                    nint newHwnd = newWindow.WindowHandle;
-                    if (newHwnd != nint.Zero)
-                    {
-                        Win32Interop.SetWindowPos(
-                            newHwnd,
-                            nint.Zero,
-                            0, 0, 0, 0,
-                            Win32Interop.SWP_NOMOVE | Win32Interop.SWP_NOSIZE | Win32Interop.SWP_NOZORDER | Win32Interop.SWP_FRAMECHANGED);
-
-                        var pt = newWindow.AppWindow.Position;
-                        newWindow.AppWindow.Move(new Windows.Graphics.PointInt32(pt.X, pt.Y + 1));
-                        newWindow.AppWindow.Move(new Windows.Graphics.PointInt32(pt.X, pt.Y));
-                    }
-                }
-                catch { }
-            });
-
-            TabDragDropService.Clear();
-        }
-
-        private void MainTabView_TabDragCompleted(TabView sender, TabViewTabDragCompletedEventArgs args)
-        {
-            TabDragDropService.Clear();
         }
 
         #endregion

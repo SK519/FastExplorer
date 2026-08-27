@@ -132,9 +132,11 @@ namespace FastExplorer.Services.Update
             return info;
         }
 
-        public async Task<bool> DownloadAndInstallUpdateAsync(string downloadUrl, Action<double>? progressCallback = null, CancellationToken cancellationToken = default)
+        public static string? DownloadedInstallerPath { get; set; }
+
+        public async Task<string?> DownloadUpdateAsync(string downloadUrl, Action<double>? progressCallback = null, CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrEmpty(downloadUrl)) return false;
+            if (string.IsNullOrEmpty(downloadUrl)) return null;
 
             try
             {
@@ -166,23 +168,47 @@ namespace FastExplorer.Services.Update
                     }
                 }
 
+                DownloadedInstallerPath = tempPath;
+                return tempPath;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public static void LaunchInstallerAndExit(string? installerPath = null)
+        {
+            var path = installerPath ?? DownloadedInstallerPath;
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+
+            try
+            {
                 var psi = new ProcessStartInfo
                 {
-                    FileName = tempPath,
+                    FileName = path,
                     Arguments = "/SILENT /NORESTART",
                     UseShellExecute = true
                 };
 
                 Process.Start(psi);
-
-                // インストーラーがファイルを上書きできるよう自プロセスを速やかに完全終了
                 Environment.Exit(0);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Update] LaunchInstaller error: {ex.Message}");
+            }
+        }
+
+        public async Task<bool> DownloadAndInstallUpdateAsync(string downloadUrl, Action<double>? progressCallback = null, CancellationToken cancellationToken = default)
+        {
+            var downloaded = await DownloadUpdateAsync(downloadUrl, progressCallback, cancellationToken);
+            if (!string.IsNullOrEmpty(downloaded))
+            {
+                LaunchInstallerAndExit(downloaded);
                 return true;
             }
-            catch
-            {
-                return false;
-            }
+            return false;
         }
     }
 }

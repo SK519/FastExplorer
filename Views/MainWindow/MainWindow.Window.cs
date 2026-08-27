@@ -127,12 +127,37 @@ namespace FastExplorer
         {
             try
             {
+                string theme = ConfigService.Current.Ui.Theme;
+                bool isDark = theme switch
+                {
+                    "light" => false,
+                    "dark" => true,
+                    _ => Application.Current.RequestedTheme == ApplicationTheme.Dark
+                };
+
                 if (AppWindow.TitleBar != null)
                 {
-                    // キャプションボタン (最小化・最大化・閉じる) の背景を透明にしてMicaに馴染ませる
+                    AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
                     AppWindow.TitleBar.ButtonBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
                     AppWindow.TitleBar.ButtonInactiveBackgroundColor = Windows.UI.Color.FromArgb(0, 0, 0, 0);
-                    AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
+
+                    if (isDark)
+                    {
+                        AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 240, 240, 240);
+                        AppWindow.TitleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 255, 255, 255);
+                        AppWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(30, 255, 255, 255);
+                        AppWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(50, 255, 255, 255);
+                        AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 240, 240, 240);
+                    }
+                    else
+                    {
+                        AppWindow.TitleBar.ButtonForegroundColor = Windows.UI.Color.FromArgb(255, 30, 30, 30);
+                        AppWindow.TitleBar.ButtonHoverForegroundColor = Windows.UI.Color.FromArgb(255, 0, 0, 0);
+                        AppWindow.TitleBar.ButtonHoverBackgroundColor = Windows.UI.Color.FromArgb(20, 0, 0, 0);
+                        AppWindow.TitleBar.ButtonPressedBackgroundColor = Windows.UI.Color.FromArgb(35, 0, 0, 0);
+                        AppWindow.TitleBar.ButtonInactiveForegroundColor = Windows.UI.Color.FromArgb(128, 30, 30, 30);
+                    }
+
                     // OS の自動ドラッグ領域を明示的にクリアして、単押し追従バグを防ぐ
                     AppWindow.TitleBar.SetDragRectangles([]);
                 }
@@ -141,6 +166,7 @@ namespace FastExplorer
                 nint hWnd = WindowHandle;
                 if (hWnd != nint.Zero)
                 {
+                    Win32Interop.ApplyImmersiveDarkMode(hWnd, isDark);
                     Win32Interop.SetWindowPos(
                         hWnd,
                         nint.Zero,

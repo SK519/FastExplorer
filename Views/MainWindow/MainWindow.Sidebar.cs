@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using FastExplorer.Core;
+using FastExplorer.Helpers;
 using FastExplorer.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -126,7 +127,7 @@ namespace FastExplorer
             var pinnedFolders = QuickAccessService.GetPinnedFolders();
             foreach (var pinned in pinnedFolders)
             {
-                newItems.Add(new FileItem
+                var pItem = new FileItem
                 {
                     Name = pinned.Name,
                     FullPath = pinned.Path,
@@ -134,7 +135,9 @@ namespace FastExplorer
                     FileType = "ピン留めフォルダー",
                     IsDirectory = true,
                     IsPinned = true
-                });
+                };
+                IconThumbnailService.Instance.ApplyImmediateDefaultIcon(pItem);
+                newItems.Add(pItem);
             }
 
             // 区切り線 2 (ピン留めとPCの間: 8pxの控えめな隙間)
@@ -151,6 +154,7 @@ namespace FastExplorer
                 IsExpandable = true,
                 IsExpanded = isPcExp
             };
+            IconThumbnailService.Instance.ApplyImmediateDefaultIcon(pcItem);
             newItems.Add(pcItem);
 
             if (isPcExp)
@@ -159,6 +163,7 @@ namespace FastExplorer
                 foreach (var drive in drives)
                 {
                     drive.IndentLevel = 1;
+                    IconThumbnailService.Instance.ApplyImmediateDefaultIcon(drive);
                     newItems.Add(drive);
                 }
             }
@@ -410,6 +415,23 @@ namespace FastExplorer
             if (e.ClickedItem is FileItem clicked && !clicked.IsSeparator && CurrentTab != null)
             {
                 CurrentTab.NavigateTo(clicked.FullPath);
+            }
+        }
+
+        private void SidebarList_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            var prop = e.GetCurrentPoint(SidebarList).Properties;
+            if (prop.IsMiddleButtonPressed)
+            {
+                if (e.OriginalSource is DependencyObject dep)
+                {
+                    var item = dep.FindParent<ListViewItem>();
+                    if (item?.Content is FileItem fileItem && !fileItem.IsSeparator && !string.IsNullOrEmpty(fileItem.FullPath))
+                    {
+                        CreateNewTab(fileItem.FullPath);
+                        e.Handled = true;
+                    }
+                }
             }
         }
 

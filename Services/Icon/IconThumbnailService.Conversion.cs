@@ -15,166 +15,117 @@ namespace FastExplorer.Services
 
         public static SoftwareBitmap? ConvertHIconToSoftwareBitmap(nint hIcon)
         {
+            if (hIcon == nint.Zero) return null;
             try
             {
                 if (!Win32Interop.GetIconInfo(hIcon, out var iconInfo))
                     return null;
 
                 nint hBitmap = iconInfo.hbmColor != nint.Zero ? iconInfo.hbmColor : iconInfo.hbmMask;
-                if (hBitmap == nint.Zero) return null;
-
+                int width = 16;
+                int height = 16;
                 try
                 {
-                    Win32Interop.GetObject(hBitmap, BitmapStructSize, out var bmp);
-                    int width = bmp.bmWidth;
-                    int height = bmp.bmHeight;
-
-                    if (iconInfo.hbmColor == nint.Zero)
+                    if (hBitmap != nint.Zero)
                     {
-                        height /= 2;
-                    }
-
-                    if (width <= 0 || height <= 0) return null;
-
-                    var bmi = new Win32Interop.BITMAPINFO
-                    {
-                        bmiHeader = new Win32Interop.BITMAPINFOHEADER
-                        {
-                            biSize = (uint)BitmapHeaderSize,
-                            biWidth = width,
-                            biHeight = -height,
-                            biPlanes = 1,
-                            biBitCount = 32,
-                            biCompression = Win32Interop.BI_RGB
-                        }
-                    };
-
-                    int requiredBytes = width * height * 4;
-                    byte[] pixelData = ArrayPool<byte>.Shared.Rent(requiredBytes);
-
-                    try
-                    {
-                        nint hdc = Win32Interop.GetDC(nint.Zero);
-                        try
-                        {
-                            int scanLines = Win32Interop.GetDIBits(
-                                hdc,
-                                hBitmap,
-                                0,
-                                (uint)height,
-                                pixelData,
-                                ref bmi,
-                                Win32Interop.DIB_RGB_COLORS);
-
-                            if (scanLines == 0) return null;
-                        }
-                        finally
-                        {
-                            Win32Interop.ReleaseDC(nint.Zero, hdc);
-                        }
-
-                        // アルファチャンネルの有無をチェック
-                        bool hasAlpha = false;
-                        for (int i = 3; i < requiredBytes; i += 4)
-                        {
-                            if (pixelData[i] > 0)
-                            {
-                                hasAlpha = true;
-                                break;
-                            }
-                        }
-
-                        // アルファが全て0（24bit GDIビットマップ）の場合、hbmMask があればマスクからアルファを復元
-                        if (!hasAlpha)
-                        {
-                            bool appliedMask = false;
-                            if (iconInfo.hbmMask != nint.Zero && iconInfo.hbmColor != nint.Zero)
-                            {
-                                var maskBmi = new Win32Interop.BITMAPINFO
-                                {
-                                    bmiHeader = new Win32Interop.BITMAPINFOHEADER
-                                    {
-                                        biSize = (uint)BitmapHeaderSize,
-                                        biWidth = width,
-                                        biHeight = -height,
-                                        biPlanes = 1,
-                                        biBitCount = 1,
-                                        biCompression = Win32Interop.BI_RGB
-                                    }
-                                };
-                                int maskRowBytes = ((width + 31) / 32) * 4;
-                                int maskTotalBytes = maskRowBytes * height;
-                                byte[] maskBytes = ArrayPool<byte>.Shared.Rent(maskTotalBytes);
-                                try
-                                {
-                                    nint maskHdc = Win32Interop.GetDC(nint.Zero);
-                                    try
-                                    {
-                                        int maskLines = Win32Interop.GetDIBits(
-                                            maskHdc,
-                                            iconInfo.hbmMask,
-                                            0,
-                                            (uint)height,
-                                            maskBytes,
-                                            ref maskBmi,
-                                            Win32Interop.DIB_RGB_COLORS);
-
-                                        if (maskLines > 0)
-                                        {
-                                            for (int y = 0; y < height; y++)
-                                            {
-                                                int rowOffset = y * maskRowBytes;
-                                                for (int x = 0; x < width; x++)
-                                                {
-                                                    int byteIdx = rowOffset + (x / 8);
-                                                    int bitIdx = 7 - (x % 8);
-                                                    bool isTransparent = ((maskBytes[byteIdx] >> bitIdx) & 1) != 0;
-                                                    int pixelIdx = (y * width + x) * 4;
-                                                    pixelData[pixelIdx + 3] = isTransparent ? (byte)0 : (byte)255;
-                                                }
-                                            }
-                                            hasAlpha = true;
-                                            appliedMask = true;
-                                        }
-                                    }
-                                    finally
-                                    {
-                                        Win32Interop.ReleaseDC(nint.Zero, maskHdc);
-                                    }
-                                }
-                                finally
-                                {
-                                    ArrayPool<byte>.Shared.Return(maskBytes);
-                                }
-                            }
-
-                            if (!appliedMask)
-                            {
-                                for (int i = 3; i < requiredBytes; i += 4)
-                                {
-                                    pixelData[i] = 255;
-                                }
-                            }
-                        }
-
-                        var softwareBitmap = SoftwareBitmap.CreateCopyFromBuffer(
-                            pixelData.AsBuffer(0, requiredBytes),
-                            BitmapPixelFormat.Bgra8,
-                            width,
-                            height,
-                            hasAlpha ? BitmapAlphaMode.Premultiplied : BitmapAlphaMode.Ignore);
-
-                        return softwareBitmap;
-                    }
-                    finally
-                    {
-                        ArrayPool<byte>.Shared.Return(pixelData);
+                        Win32Interop.GetObject(hBitmap, BitmapStructSize, out var bmp);
+                        width = bmp.bmWidth;
+                        height = bmp.bmHeight;
+                        if (iconInfo.hbmColor == nint.Zero) height /= 2;
                     }
                 }
                 finally
                 {
                     if (iconInfo.hbmColor != nint.Zero) Win32Interop.DeleteObject(iconInfo.hbmColor);
                     if (iconInfo.hbmMask != nint.Zero) Win32Interop.DeleteObject(iconInfo.hbmMask);
+                }
+
+                if (width <= 0 || height <= 0) return null;
+
+                var bmi = new Win32Interop.BITMAPINFO
+                {
+                    bmiHeader = new Win32Interop.BITMAPINFOHEADER
+                    {
+                        biSize = (uint)BitmapHeaderSize,
+                        biWidth = width,
+                        biHeight = -height, // top-down
+                        biPlanes = 1,
+                        biBitCount = 32,
+                        biCompression = Win32Interop.BI_RGB
+                    }
+                };
+
+                nint hdcScreen = Win32Interop.GetDC(nint.Zero);
+                try
+                {
+                    nint hdcMem = Win32Interop.CreateCompatibleDC(hdcScreen);
+                    try
+                    {
+                        nint hDib = Win32Interop.CreateDIBSection(hdcMem, ref bmi, Win32Interop.DIB_RGB_COLORS, out nint ppvBits, nint.Zero, 0);
+                        try
+                        {
+                            if (hDib == nint.Zero || ppvBits == nint.Zero) return null;
+
+                            nint hOld = Win32Interop.SelectObject(hdcMem, hDib);
+                            try
+                            {
+                                // DrawIconEx による Windows 純正の滑らかな 32bit アンチエイリアス描画
+                                Win32Interop.DrawIconEx(hdcMem, 0, 0, hIcon, width, height, 0, nint.Zero, Win32Interop.DI_NORMAL);
+                            }
+                            finally
+                            {
+                                Win32Interop.SelectObject(hdcMem, hOld);
+                            }
+
+                            int requiredBytes = width * height * 4;
+                            byte[] pixelData = ArrayPool<byte>.Shared.Rent(requiredBytes);
+                            try
+                            {
+                                Marshal.Copy(ppvBits, pixelData, 0, requiredBytes);
+
+                                bool hasAlpha = false;
+                                for (int i = 3; i < requiredBytes; i += 4)
+                                {
+                                    if (pixelData[i] > 0)
+                                    {
+                                        hasAlpha = true;
+                                        break;
+                                    }
+                                }
+
+                                if (!hasAlpha)
+                                {
+                                    for (int i = 3; i < requiredBytes; i += 4)
+                                    {
+                                        pixelData[i] = 255;
+                                    }
+                                }
+
+                                return SoftwareBitmap.CreateCopyFromBuffer(
+                                    pixelData.AsBuffer(0, requiredBytes),
+                                    BitmapPixelFormat.Bgra8,
+                                    width,
+                                    height,
+                                    hasAlpha ? BitmapAlphaMode.Premultiplied : BitmapAlphaMode.Ignore);
+                            }
+                            finally
+                            {
+                                ArrayPool<byte>.Shared.Return(pixelData);
+                            }
+                        }
+                        finally
+                        {
+                            if (hDib != nint.Zero) Win32Interop.DeleteObject(hDib);
+                        }
+                    }
+                    finally
+                    {
+                        if (hdcMem != nint.Zero) Win32Interop.DeleteDC(hdcMem);
+                    }
+                }
+                finally
+                {
+                    if (hdcScreen != nint.Zero) Win32Interop.ReleaseDC(nint.Zero, hdcScreen);
                 }
             }
             catch

@@ -60,8 +60,11 @@ Root: HKCU; Subkey: "Software\FastExplorer"; ValueType: string; ValueName: "Inst
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#MyAppExeName}"; ValueType: string; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#MyAppExeName}"; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\explore\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Folder\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Folder\shell\explore\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Drive\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"; ValueType: string; ValueName: "DisabledHotkeys"; ValueData: "E"; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\Drive\shell\explore\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
@@ -88,12 +91,6 @@ begin
   StartupLnk := ExpandConstant('{commonstartup}\FastExplorer.lnk');
   if FileExists(StartupLnk) then
     DeleteFile(StartupLnk);
-end;
-
-procedure CleanLegacyRegistryKeys();
-begin
-  RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\Folder\shell\open');
-  RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Classes\Folder\shell\explore');
 end;
 
 procedure CleanLegacyAppFolders();
@@ -135,7 +132,6 @@ function InitializeSetup(): Boolean;
 begin
   KillRunningProcesses();
   CleanStartupShortcuts();
-  CleanLegacyRegistryKeys();
   Result := True;
 end;
 
@@ -143,7 +139,6 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   KillRunningProcesses();
   CleanStartupShortcuts();
-  CleanLegacyRegistryKeys();
   Result := '';
 end;
 
@@ -151,7 +146,6 @@ function InitializeUninstall(): Boolean;
 begin
   KillRunningProcesses();
   CleanStartupShortcuts();
-  CleanLegacyRegistryKeys();
   Result := True;
 end;
 
@@ -220,12 +214,10 @@ begin
   begin
     KillRunningProcesses();
     CleanStartupShortcuts();
-    CleanLegacyRegistryKeys();
     CleanLegacyAppFolders();
   end
   else if CurStep = ssPostInstall then
   begin
-    CleanLegacyRegistryKeys();
     CleanLegacyAppFolders();
     RegisterScheduledTask();
   end;
@@ -239,7 +231,6 @@ begin
   begin
     KillRunningProcesses();
     CleanStartupShortcuts();
-    CleanLegacyRegistryKeys();
     CleanLegacyAppFolders();
     Exec('schtasks.exe', '/delete /tn "FastExplorer_Background" /f', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   end;

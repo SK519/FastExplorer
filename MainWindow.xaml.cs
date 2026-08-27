@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FastExplorer.Core;
 using FastExplorer.Models;
 using FastExplorer.Services;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -48,15 +49,26 @@ namespace FastExplorer
                 }
             };
 
-            // タイトルバーテーマ設定
-            SetupTitleBarTheme();
+            // タイトルバーテーマ・全体テーマ設定
+            ApplyTheme(ConfigService.Current.Ui.Theme);
 
             // ウィンドウアイコン設定 (タスクバープレビュー、Alt+Tab等)
             SetupWindowIcon();
 
-            // 前回のウィンドウ状態（最大化・サイズ・位置）を復元
-            RestoreWindowState();
-            this.Closed += (s, e) => SaveWindowState();
+            // 前回のウィンドウ状態（最大化・サイズ・位置）を復元 (分離ウィンドウ時は通常ウィンドウとして初期化)
+            if (createInitialTab)
+            {
+                RestoreWindowState();
+            }
+            else
+            {
+                if (AppWindow.Presenter is OverlappedPresenter presenter)
+                {
+                    presenter.Restore();
+                }
+                AppWindow.Resize(new Windows.Graphics.SizeInt32(980, 680));
+            }
+            this.Closed += (s, e) => { if (createInitialTab) SaveWindowState(); };
 
             // サイドバー構築
             InitializeSidebar();
@@ -128,37 +140,13 @@ namespace FastExplorer
 
                     var updateService = new FastExplorer.Services.Update.UpdateService();
                     var config = ConfigService.Current.Update;
-                    var info = await updateService.CheckForUpdatesAsync(config.GitHubOwner ?? "SK519", config.GitHubRepo ?? "FastExplorer");
-
-                    if (info.IsUpdateAvailable)
-                    {
-                        this.DispatcherQueue.TryEnqueue(() =>
-                        {
-                            if (UpdateNotificationInfoBar != null)
-                            {
-                                UpdateNotificationInfoBar.Title = $"FastExplorer v{info.LatestVersion} が利用可能です";
-                                UpdateNotificationInfoBar.Message = string.IsNullOrWhiteSpace(info.ReleaseNotes)
-                                    ? "新しいアップデートが公開されています。"
-                                    : info.ReleaseNotes;
-                                UpdateNotificationInfoBar.IsOpen = true;
-                            }
-                        });
-                    }
+                    await updateService.CheckForUpdatesAsync(config.GitHubOwner ?? "SK519", config.GitHubRepo ?? "FastExplorer");
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"[StartupUpdateCheck] Error: {ex.Message}");
                 }
             });
-        }
-
-        private void UpdateNotification_Click(object sender, RoutedEventArgs e)
-        {
-            if (UpdateNotificationInfoBar != null)
-            {
-                UpdateNotificationInfoBar.IsOpen = false;
-            }
-            OpenSettingsTab("About");
         }
 
         private void TriggerBackgroundWarmup()
@@ -376,6 +364,7 @@ namespace FastExplorer
                     _ => ElementTheme.Default
                 };
             }
+            SetupTitleBarTheme();
             ApplyWallpaper();
         }
 

@@ -2,11 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using FastExplorer.Models;
 
 namespace FastExplorer.Core
 {
-    public static class NativeFileScanner
+    public static partial class NativeFileScanner
     {
         public static List<FileItem> ScanDirectory(string directoryPath, bool showHiddenFiles = false)
         {
@@ -159,9 +160,8 @@ namespace FastExplorer.Core
         }
 
         public static List<FileItem> GetDrives() => GetDrivesInternal(false);
-        public static List<FileItem> GetNetworkPlaces() => GetDrivesInternal(true);
 
-        private static List<FileItem> GetDrivesInternal(bool networkOnly)
+        internal static List<FileItem> GetDrivesInternal(bool networkOnly)
         {
             var driveItems = new List<FileItem>();
 

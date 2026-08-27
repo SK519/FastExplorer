@@ -62,6 +62,17 @@ namespace FastExplorer.Core
                 }
             }
 
+            public static int ShellFolder_GetAttributesOf(nint pFolder, uint cidl, nint* apidl, ref uint rgfInOut)
+            {
+                if (pFolder == nint.Zero) return unchecked((int)0x80004003);
+                fixed (uint* pFlags = &rgfInOut)
+                {
+                    var vtbl = *(nint**)pFolder;
+                    var func = (delegate* unmanaged[Stdcall]<nint, uint, nint*, uint*, int>)vtbl[9];
+                    return func(pFolder, cidl, apidl, pFlags);
+                }
+            }
+
             public static int ShellItem_BindToHandler(nint pItem, nint pbc, in Guid bhid, in Guid riid, out nint ppv)
             {
                 ppv = nint.Zero;

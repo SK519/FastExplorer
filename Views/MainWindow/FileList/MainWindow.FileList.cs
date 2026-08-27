@@ -47,6 +47,7 @@ namespace FastExplorer
             FileGridView.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(FileGridView_PointerPressed), true);
             SidebarContainerGrid.AddHandler(UIElement.TappedEvent, new TappedEventHandler(SidebarContainer_Tapped), true);
             SidebarList.AddHandler(UIElement.TappedEvent, new TappedEventHandler(SidebarList_Tapped), true);
+            SidebarList.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(SidebarList_PointerPressed), true);
         }
 
         private void SyncSelectedItemsFromModel()
@@ -294,11 +295,27 @@ namespace FastExplorer
         private void FileListView_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
             var prop = e.GetCurrentPoint(FileListView).Properties;
+
+            // マウスホイール (中ボタン) クリック: フォルダー/アーカイブを新しいタブで開く
+            if (prop.IsMiddleButtonPressed)
+            {
+                if (e.OriginalSource is DependencyObject dep)
+                {
+                    var listViewItem = dep.FindParent<ListViewItem>();
+                    if (listViewItem?.Content is FileItem item && (item.IsDirectory || ArchiveService.IsSupportedArchive(item.FullPath) || item.FullPath.StartsWith("shell:")))
+                    {
+                        CreateNewTab(item.FullPath);
+                        e.Handled = true;
+                        return;
+                    }
+                }
+            }
+
             if (!prop.IsLeftButtonPressed) return;
 
-            if (e.OriginalSource is DependencyObject dep)
+            if (e.OriginalSource is DependencyObject depLeft)
             {
-                var listViewItem = dep.FindParent<ListViewItem>();
+                var listViewItem = depLeft.FindParent<ListViewItem>();
                 if (listViewItem == null)
                 {
                     _itemOnPointerPressed = null;
@@ -318,11 +335,27 @@ namespace FastExplorer
         private void FileGridView_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
             var prop = e.GetCurrentPoint(FileGridView).Properties;
+
+            // マウスホイール (中ボタン) クリック: フォルダー/アーカイブを新しいタブで開く
+            if (prop.IsMiddleButtonPressed)
+            {
+                if (e.OriginalSource is DependencyObject dep)
+                {
+                    var gridViewItem = dep.FindParent<GridViewItem>();
+                    if (gridViewItem?.Content is FileItem item && (item.IsDirectory || ArchiveService.IsSupportedArchive(item.FullPath) || item.FullPath.StartsWith("shell:")))
+                    {
+                        CreateNewTab(item.FullPath);
+                        e.Handled = true;
+                        return;
+                    }
+                }
+            }
+
             if (!prop.IsLeftButtonPressed) return;
 
-            if (e.OriginalSource is DependencyObject dep)
+            if (e.OriginalSource is DependencyObject depLeft)
             {
-                var gridViewItem = dep.FindParent<GridViewItem>();
+                var gridViewItem = depLeft.FindParent<GridViewItem>();
                 if (gridViewItem == null)
                 {
                     _itemOnPointerPressed = null;
