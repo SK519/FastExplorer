@@ -17,23 +17,16 @@ namespace FastExplorer
         private static extern bool AllowSetForegroundWindow(int dwProcessId);
         private const int ASFW_ANY = -1;
 
+        [System.Diagnostics.Conditional("DEBUG")]
         private static void LogLaunch(string message)
         {
-            try
-            {
-                string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FastExplorer");
-                Directory.CreateDirectory(logDir);
-                string logFile = Path.Combine(logDir, "launch.log");
-                File.AppendAllText(logFile, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}\r\n");
-            }
-            catch { }
+            // Debug build only
         }
 
         [STAThread]
         public static void Main(string[] args)
         {
             string[] fullCmdArgs = Environment.GetCommandLineArgs();
-            LogLaunch($"[Main] Started. Args: {string.Join(" | ", fullCmdArgs)}");
 
             using var mutex = new Mutex(true, MutexName, out bool isFirstInstance);
 
@@ -49,11 +42,9 @@ namespace FastExplorer
                     string payload = string.Join("\n", fullCmdArgs);
                     writer.WriteLine(payload);
                     writer.Flush();
-                    LogLaunch($"[Main] Sent payload to existing instance and exiting.");
                 }
-                catch (Exception ex)
+                catch
                 {
-                    LogLaunch($"[Main] Failed to send pipe message: {ex.Message}");
                 }
                 return;
             }

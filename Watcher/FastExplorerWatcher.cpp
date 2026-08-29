@@ -21,33 +21,9 @@ static const wchar_t* PIPE_NAME = L"\\\\.\\pipe\\FastExplorer_SingleInstance_Pip
 static const wchar_t* APP_MUTEX_NAME = L"FastExplorer_SingleInstance_Mutex_Global";
 static const wchar_t* HOOK_PROP_NAME = L"FastExplorer_WindowHooked";
 
-static void LogWatcher(const wchar_t* format, ...)
+static inline void LogWatcher(const wchar_t* format, ...)
 {
-    wchar_t localApp[MAX_PATH];
-    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localApp)))
-    {
-        std::wstring logPath = localApp;
-        logPath += L"\\FastExplorer";
-        CreateDirectoryW(logPath.c_str(), NULL);
-        logPath += L"\\watcher.log";
-
-        FILE* fp = NULL;
-        if (_wfopen_s(&fp, logPath.c_str(), L"a, ccs=UTF-8") == 0 && fp != NULL)
-        {
-            SYSTEMTIME st;
-            GetLocalTime(&st);
-            fwprintf(fp, L"[%04d-%02d-%02d %02d:%02d:%02d.%03d] ",
-                st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
-
-            va_list args;
-            va_start(args, format);
-            vfwprintf(fp, format, args);
-            va_end(args);
-
-            fwprintf(fp, L"\n");
-            fclose(fp);
-        }
-    }
+    // Release build: no-op for zero I/O overhead
 }
 
 typedef NTSTATUS(NTAPI* pfnNtQueryInformationProcess)(

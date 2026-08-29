@@ -374,38 +374,28 @@ namespace FastExplorer
             }
         }
 
+        [System.Diagnostics.Conditional("DEBUG")]
         private static void Log(string msg)
         {
-            try
-            {
-                string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "FastExplorer");
-                Directory.CreateDirectory(logDir);
-                string logFile = Path.Combine(logDir, "launch.log");
-                File.AppendAllText(logFile, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {msg}\r\n");
-            }
-            catch { }
+            // Debug build only
         }
 
         public static void HandleRemoteActivation(string[] args)
         {
-            Log($"[HandleRemoteActivation] Received: {string.Join(" | ", args)}");
             if (HasBackgroundFlag(args))
             {
-                Log("[HandleRemoteActivation] Received --background flag. Ignoring to avoid bringing window to foreground.");
                 return;
             }
 
             _appDispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
             {
                 ParseArguments(args, out string? targetPath, out string? selectItem);
-                Log($"[HandleRemoteActivation] Parsed -> targetPath='{targetPath}', selectItem='{selectItem}'");
                 OpenOrCreateWindow(targetPath, selectItem);
             });
         }
 
         public static void OpenOrCreateWindow(string? initialPath = null, string? selectItemName = null)
         {
-            Log($"[OpenOrCreateWindow] OpenWindows.Count={OpenWindows.Count}, initialPath='{initialPath}', selectItemName='{selectItemName}'");
             if (OpenWindows.Count > 0)
             {
                 var existing = OpenWindows.Last();
