@@ -56,18 +56,48 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
 
 [Registry]
+; システム全体 (HKLM) への既定エクスプローラー登録
+Root: HKLM; Subkey: "SOFTWARE\FastExplorer"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SOFTWARE\FastExplorer"; ValueType: dword; ValueName: "ReplaceDefaultExplorer"; ValueData: 1; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{#MyAppExeName}"; ValueType: string; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
+Root: HKLM; Subkey: "SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{#MyAppExeName}"; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletekey
+
+; Directory (フォルダーのダブルクリック / 開く / 探索) - HKLM
+Root: HKLM; Subkey: "SOFTWARE\Classes\Directory\shell"; ValueType: string; ValueData: "open"; Flags: uninsdeletekeyifempty
+Root: HKLM; Subkey: "SOFTWARE\Classes\Directory\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekeyifempty
+Root: HKLM; Subkey: "SOFTWARE\Classes\Directory\shell\open\command"; ValueType: string; ValueName: "DelegateExecute"; ValueData: "{{11dbb47c-a525-400b-9e80-a54615a090c0}"; Flags: uninsdeletekeyifempty
+Root: HKLM; Subkey: "SOFTWARE\Classes\Directory\shell\explore\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekeyifempty
+Root: HKLM; Subkey: "SOFTWARE\Classes\Directory\shell\explore\command"; ValueType: string; ValueName: "DelegateExecute"; ValueData: "{{11dbb47c-a525-400b-9e80-a54615a090c0}"; Flags: uninsdeletekeyifempty
+
+; Drive (ドライブのダブルクリック / 開く / 探索) - HKLM
+Root: HKLM; Subkey: "SOFTWARE\Classes\Drive\shell"; ValueType: string; ValueData: "open"; Flags: uninsdeletekeyifempty
+Root: HKLM; Subkey: "SOFTWARE\Classes\Drive\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekeyifempty
+Root: HKLM; Subkey: "SOFTWARE\Classes\Drive\shell\open\command"; ValueType: string; ValueName: "DelegateExecute"; ValueData: "{{11dbb47c-a525-400b-9e80-a54615a090c0}"; Flags: uninsdeletekeyifempty
+Root: HKLM; Subkey: "SOFTWARE\Classes\Drive\shell\explore\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekeyifempty
+Root: HKLM; Subkey: "SOFTWARE\Classes\Drive\shell\explore\command"; ValueType: string; ValueName: "DelegateExecute"; ValueData: "{{11dbb47c-a525-400b-9e80-a54615a090c0}"; Flags: uninsdeletekeyifempty
+
+; ユーザー個別 (HKCU) への既定エクスプローラー登録
 Root: HKCU; Subkey: "Software\FastExplorer"; ValueType: string; ValueName: "InstallPath"; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\FastExplorer"; ValueType: dword; ValueName: "ReplaceDefaultExplorer"; ValueData: 1; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#MyAppExeName}"; ValueType: string; ValueData: "{app}\{#MyAppExeName}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\App Paths\{#MyAppExeName}"; ValueType: string; ValueName: "Path"; ValueData: "{app}"; Flags: uninsdeletekey
+
+; Directory (フォルダーのダブルクリック / 開く / 探索) - HKCU
+Root: HKCU; Subkey: "Software\Classes\Directory\shell"; ValueType: string; ValueData: "open"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\open\command"; ValueType: string; ValueName: "DelegateExecute"; ValueData: "{{11dbb47c-a525-400b-9e80-a54615a090c0}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Directory\shell\explore\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\Folder\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
-Root: HKCU; Subkey: "Software\Classes\Folder\shell\explore\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Directory\shell\explore\command"; ValueType: string; ValueName: "DelegateExecute"; ValueData: "{{11dbb47c-a525-400b-9e80-a54615a090c0}"; Flags: uninsdeletekey
+
+; Drive (ドライブのダブルクリック / 開く / 探索) - HKCU
+Root: HKCU; Subkey: "Software\Classes\Drive\shell"; ValueType: string; ValueData: "open"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Drive\shell\open\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Drive\shell\open\command"; ValueType: string; ValueName: "DelegateExecute"; ValueData: "{{11dbb47c-a525-400b-9e80-a54615a090c0}"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Drive\shell\explore\command"; ValueType: string; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Drive\shell\explore\command"; ValueType: string; ValueName: "DelegateExecute"; ValueData: "{{11dbb47c-a525-400b-9e80-a54615a090c0}"; Flags: uninsdeletekey
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall
 
 [Code]
 procedure KillRunningProcesses();
@@ -88,9 +118,55 @@ begin
   StartupLnk := ExpandConstant('{userstartup}\FastExplorer.lnk');
   if FileExists(StartupLnk) then
     DeleteFile(StartupLnk);
+  StartupLnk := ExpandConstant('{userstartup}\FastExplorerWatcher.lnk');
+  if FileExists(StartupLnk) then
+    DeleteFile(StartupLnk);
   StartupLnk := ExpandConstant('{commonstartup}\FastExplorer.lnk');
   if FileExists(StartupLnk) then
     DeleteFile(StartupLnk);
+  StartupLnk := ExpandConstant('{commonstartup}\FastExplorerWatcher.lnk');
+  if FileExists(StartupLnk) then
+    DeleteFile(StartupLnk);
+end;
+
+procedure CleanDefaultExplorerRegistrations();
+begin
+  // 既定のファイルマネージャー関連キーの完全削除
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\Directory\shell\open');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\Directory\shell\explore');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\Folder\shell\open');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\Folder\shell\explore');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\Drive\shell\open');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\Drive\shell\explore');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\open');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\explore');
+
+  // shell の (既定) 値を削除
+  RegDeleteValue(HKEY_CURRENT_USER, 'Software\Classes\Directory\shell', '');
+  RegDeleteValue(HKEY_CURRENT_USER, 'Software\Classes\Folder\shell', '');
+  RegDeleteValue(HKEY_CURRENT_USER, 'Software\Classes\Drive\shell', '');
+
+  // 右クリックコンテキストメニュー関連キーの完全削除
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\Directory\shell\FastExplorer');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\Directory\Background\shell\FastExplorer');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\Drive\shell\FastExplorer');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Classes\Folder\shell\FastExplorer');
+
+  // アプリケーション情報およびスタートアップ登録の完全削除
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\FastExplorer');
+  RegDeleteKeyIncludingSubkeys(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\App Paths\FastExplorer.exe');
+  RegDeleteValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Run', 'FastExplorerWatcher');
+  RegDeleteValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Run', 'FastExplorer');
+end;
+
+procedure RestartWindowsExplorer();
+var
+  ResultCode: Integer;
+begin
+  // explorer.exe を再起動してシェル関連付けキャッシュを即座にリフレッシュ
+  Exec('taskkill.exe', '/f /im explorer.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(800);
+  Exec('cmd.exe', '/c start explorer.exe', '', SW_HIDE, ewNoWait, ResultCode);
 end;
 
 procedure CleanLegacyAppFolders();
@@ -232,6 +308,11 @@ begin
     KillRunningProcesses();
     CleanStartupShortcuts();
     CleanLegacyAppFolders();
+    CleanDefaultExplorerRegistrations();
     Exec('schtasks.exe', '/delete /tn "FastExplorer_Background" /f', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  end
+  else if CurUninstallStep = usPostUninstall then
+  begin
+    RestartWindowsExplorer();
   end;
 end;

@@ -297,49 +297,39 @@ namespace FastExplorer
         private void ViewModeGrid_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null) return;
-            if (CurrentTab.ViewMode is not (FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons))
+            // アイコン（イラスト）表示へ切り替え
+            if (CurrentTab.ViewMode is FolderViewMode.MediumIcons)
+            {
+                ApplyViewMode(FolderViewMode.LargeIcons);
+            }
+            else
             {
                 ApplyViewMode(FolderViewMode.MediumIcons);
             }
         }
 
-
-
         private void ViewSizeSmall_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null) return;
-            // アイコングリッドモードの場合: 小アイコンサイズに切り替え。リスト系モードの場合: Compact スケールを適用
-            if (CurrentTab.ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons)
-                ApplyViewMode(FolderViewMode.SmallIcons);
-            else
-                ApplyViewMode(CurrentTab.ViewMode, ViewScaleLevel.Compact);
+            ApplyViewMode(FolderViewMode.SmallIcons);
         }
 
         private void ViewSizeMedium_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null) return;
-            if (CurrentTab.ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons)
-                ApplyViewMode(FolderViewMode.MediumIcons);
-            else
-                ApplyViewMode(CurrentTab.ViewMode, ViewScaleLevel.Normal);
+            ApplyViewMode(FolderViewMode.MediumIcons);
         }
 
         private void ViewSizeLarge_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null) return;
-            if (CurrentTab.ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons)
-                ApplyViewMode(FolderViewMode.LargeIcons);
-            else
-                ApplyViewMode(CurrentTab.ViewMode, ViewScaleLevel.Large);
+            ApplyViewMode(FolderViewMode.LargeIcons);
         }
 
         private void ViewSizeExtraLarge_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null) return;
-            if (CurrentTab.ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons)
-                ApplyViewMode(FolderViewMode.ExtraLargeIcons);
-            else
-                ApplyViewMode(CurrentTab.ViewMode, ViewScaleLevel.ExtraLarge);
+            ApplyViewMode(FolderViewMode.ExtraLargeIcons);
         }
 
         private void CheckShowItemCheckBoxes_Toggled(object sender, RoutedEventArgs e)

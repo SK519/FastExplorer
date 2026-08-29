@@ -29,7 +29,6 @@ namespace FastExplorer.Views.Settings
                     }
                     else if (lastInfo != null && lastInfo.IsUpdateAvailable)
                     {
-                        UpdateStatusTextBlock.Text = $"最終確認: {lastTime:yyyy/MM/dd HH:mm:ss}";
                         if (NewVersionTitleTextBlock != null)
                             NewVersionTitleTextBlock.Text = $"新しいバージョン (v{lastInfo.LatestVersion}) が利用可能です！";
                         if (ReleaseNotesTextBlock != null)
@@ -38,6 +37,26 @@ namespace FastExplorer.Views.Settings
                             InstallUpdateButton.Tag = lastInfo.DownloadUrl;
                         if (UpdateAvailableCard != null)
                             UpdateAvailableCard.Visibility = Visibility.Visible;
+
+                        bool isDownloaded = !string.IsNullOrEmpty(FastExplorer.Services.Update.UpdateService.DownloadedInstallerPath) &&
+                                            File.Exists(FastExplorer.Services.Update.UpdateService.DownloadedInstallerPath);
+
+                        if (isDownloaded)
+                        {
+                            UpdateStatusTextBlock.Text = "ダウンロードが完了しました。「今すぐインストールして再起動」をクリックしてください。";
+                            if (InstallUpdateIcon != null) InstallUpdateIcon.Glyph = "\uE777";
+                            if (InstallUpdateText != null) InstallUpdateText.Text = "今すぐインストールして再起動";
+                            if (OpenInstallerFolderButton != null) OpenInstallerFolderButton.Visibility = Visibility.Visible;
+                            if (UpdateDownloadProgressBar != null) UpdateDownloadProgressBar.Visibility = Visibility.Collapsed;
+                            if (InstallUpdateButton != null) InstallUpdateButton.IsEnabled = true;
+                        }
+                        else
+                        {
+                            UpdateStatusTextBlock.Text = $"最終確認: {lastTime:yyyy/MM/dd HH:mm:ss}";
+                            if (InstallUpdateIcon != null) InstallUpdateIcon.Glyph = "\uE896";
+                            if (InstallUpdateText != null) InstallUpdateText.Text = "ダウンロードして更新";
+                            if (OpenInstallerFolderButton != null) OpenInstallerFolderButton.Visibility = Visibility.Collapsed;
+                        }
                     }
                     else
                     {
@@ -90,6 +109,24 @@ namespace FastExplorer.Views.Settings
                     ReleaseNotesTextBlock.Text = string.IsNullOrWhiteSpace(info.ReleaseNotes) ? "最新のインストーラーがリリースされています。" : info.ReleaseNotes;
                     InstallUpdateButton.Tag = info.DownloadUrl;
                     UpdateAvailableCard.Visibility = Visibility.Visible;
+
+                    bool isDownloaded = !string.IsNullOrEmpty(FastExplorer.Services.Update.UpdateService.DownloadedInstallerPath) &&
+                                        File.Exists(FastExplorer.Services.Update.UpdateService.DownloadedInstallerPath);
+
+                    if (isDownloaded)
+                    {
+                        UpdateStatusTextBlock.Text = "ダウンロードが完了しました。「今すぐインストールして再起動」をクリックしてください。";
+                        if (InstallUpdateIcon != null) InstallUpdateIcon.Glyph = "\uE777";
+                        if (InstallUpdateText != null) InstallUpdateText.Text = "今すぐインストールして再起動";
+                        if (OpenInstallerFolderButton != null) OpenInstallerFolderButton.Visibility = Visibility.Visible;
+                        if (UpdateDownloadProgressBar != null) UpdateDownloadProgressBar.Visibility = Visibility.Collapsed;
+                    }
+                    else
+                    {
+                        if (InstallUpdateIcon != null) InstallUpdateIcon.Glyph = "\uE896";
+                        if (InstallUpdateText != null) InstallUpdateText.Text = "ダウンロードして更新";
+                        if (OpenInstallerFolderButton != null) OpenInstallerFolderButton.Visibility = Visibility.Collapsed;
+                    }
                 }
                 else
                 {
@@ -121,6 +158,7 @@ namespace FastExplorer.Views.Settings
             if (InstallUpdateButton.Tag is string downloadUrl && !string.IsNullOrEmpty(downloadUrl))
             {
                 InstallUpdateButton.IsEnabled = false;
+                if (OpenInstallerFolderButton != null) OpenInstallerFolderButton.Visibility = Visibility.Collapsed;
                 UpdateDownloadProgressBar.Visibility = Visibility.Visible;
                 UpdateDownloadProgressBar.Value = 0;
                 if (InstallUpdateText != null) InstallUpdateText.Text = "ダウンロード中...";
@@ -139,15 +177,19 @@ namespace FastExplorer.Views.Settings
                 });
 
                 InstallUpdateButton.IsEnabled = true;
-                if (!string.IsNullOrEmpty(path))
+                if (!string.IsNullOrEmpty(path) && File.Exists(path))
                 {
                     if (InstallUpdateIcon != null) InstallUpdateIcon.Glyph = "\uE777";
                     if (InstallUpdateText != null) InstallUpdateText.Text = "今すぐインストールして再起動";
+                    if (OpenInstallerFolderButton != null) OpenInstallerFolderButton.Visibility = Visibility.Visible;
+                    UpdateDownloadProgressBar.Visibility = Visibility.Collapsed;
                     UpdateStatusTextBlock.Text = "ダウンロードが完了しました。「今すぐインストールして再起動」をクリックしてください。";
                 }
                 else
                 {
+                    if (InstallUpdateIcon != null) InstallUpdateIcon.Glyph = "\uE896";
                     if (InstallUpdateText != null) InstallUpdateText.Text = "ダウンロードして更新";
+                    if (OpenInstallerFolderButton != null) OpenInstallerFolderButton.Visibility = Visibility.Collapsed;
                     UpdateDownloadProgressBar.Visibility = Visibility.Collapsed;
                     UpdateStatusTextBlock.Text = "ダウンロードに失敗しました。ネットワーク接続をご確認ください。";
                 }
@@ -156,6 +198,11 @@ namespace FastExplorer.Views.Settings
             {
                 UpdateStatusTextBlock.Text = "ダウンロード URL が無効です。";
             }
+        }
+
+        private void OpenInstallerFolder_Click(object sender, RoutedEventArgs e)
+        {
+            FastExplorer.Services.Update.UpdateService.OpenDownloadedInstallerFolder();
         }
 
         #endregion

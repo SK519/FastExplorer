@@ -211,7 +211,7 @@
 
     <!-- 8. タイル表示テンプレート (GridView 用) -->
     <DataTemplate x:Key="TilesItemTemplate">
-        <Grid Width="240" Height="52" Padding="4,6,8,6" ColumnSpacing="8" Opacity="{Binding Opacity}">
+        <Grid Width="270" Height="62" Padding="6,4,8,4" ColumnSpacing="10" Opacity="{Binding Opacity}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
@@ -221,12 +221,12 @@
             <CheckBox Grid.Column="0"
                       IsChecked="{Binding IsSelected, Mode=TwoWay}"
                       Visibility="{Binding CheckBoxVisibility}"
-                      MinWidth="0" MinHeight="0" Padding="0" Margin="8,0,6,0" VerticalAlignment="Center"/>
+                      MinWidth="0" MinHeight="0" Padding="0" Margin="4,0,4,0" VerticalAlignment="Center"/>
 
             <Image Grid.Column="1"
                    Source="{Binding Icon}"
-                   Width="36"
-                   Height="36"
+                   Width="40"
+                   Height="40"
                    VerticalAlignment="Center"/>
 
             <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
@@ -245,10 +245,20 @@
                              LostFocus="RenameBox_LostFocus"
                              Loaded="RenameBox_Loaded"/>
                 </Grid>
+                <!-- 通常ファイル/フォルダーの場合: 種類 (FileType) -->
                 <TextBlock Text="{Binding FileType}"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            FontSize="11"
-                           TextTrimming="CharacterEllipsis"/>
+                           TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding FileTypeVisibility}"/>
+                <!-- ドライブの場合: プログレスバー & 空き容量テキスト -->
+                <StackPanel Spacing="3" Visibility="{Binding DriveSpaceVisibility}">
+                    <ProgressBar Value="{Binding DrivePercent}" Maximum="100" Height="6" MinHeight="6" CornerRadius="3" Background="{ThemeResource ControlStrokeColorDefaultBrush}" Foreground="{ThemeResource AccentFillColorDefaultBrush}"/>
+                    <TextBlock Text="{Binding DriveSpaceText}"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                               FontSize="11"
+                               TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
             </StackPanel>
         </Grid>
     </DataTemplate>

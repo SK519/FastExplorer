@@ -67,12 +67,14 @@ namespace FastExplorer.Views.MainWindow.Navigation
                 if (!string.IsNullOrEmpty(FastExplorer.Services.Update.UpdateService.DownloadedInstallerPath) &&
                     System.IO.File.Exists(FastExplorer.Services.Update.UpdateService.DownloadedInstallerPath))
                 {
+                    UpdateAvailableButton.IsEnabled = true;
                     if (UpdateAvailableIcon != null) UpdateAvailableIcon.Glyph = "\uE777";
                     if (UpdateAvailableText != null) UpdateAvailableText.Text = "今すぐインストール";
                     ToolTipService.SetToolTip(UpdateAvailableButton, "アップデート準備完了。クリックしてインストールし再起動");
                 }
                 else if (!_isDownloadingUpdate)
                 {
+                    UpdateAvailableButton.IsEnabled = true;
                     if (UpdateAvailableIcon != null) UpdateAvailableIcon.Glyph = "\uE895";
                     if (UpdateAvailableText != null) UpdateAvailableText.Text = $"更新 (v{info.LatestVersion})";
                     ToolTipService.SetToolTip(UpdateAvailableButton, $"FastExplorer v{info.LatestVersion} (クリックしてダウンロード)");

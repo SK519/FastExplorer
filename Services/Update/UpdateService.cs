@@ -140,7 +140,18 @@ namespace FastExplorer.Services.Update
 
             try
             {
-                var tempPath = Path.Combine(Path.GetTempPath(), "FastExplorer_Setup.exe");
+                string tempPath = Path.Combine(Path.GetTempPath(), "FastExplorer_Setup.exe");
+                try
+                {
+                    if (File.Exists(tempPath))
+                    {
+                        File.Delete(tempPath);
+                    }
+                }
+                catch
+                {
+                    tempPath = Path.Combine(Path.GetTempPath(), $"FastExplorer_Setup_{Guid.NewGuid():N}.exe");
+                }
 
                 using (var response = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
                 {
@@ -161,18 +172,28 @@ namespace FastExplorer.Services.Update
 
                             if (totalBytes > 0 && progressCallback != null)
                             {
-                                double progress = (double)totalRead / totalBytes * 100.0;
+                                double progress = Math.Min(100.0, (double)totalRead / totalBytes * 100.0);
                                 progressCallback(progress);
                             }
                         }
                     }
                 }
 
+                progressCallback?.Invoke(100.0);
                 DownloadedInstallerPath = tempPath;
+
+                // ダウンロード完了を全画面・コントロールに通知
+                try
+                {
+                    UpdateStatusChanged?.Invoke(LastUpdateInfo ?? new UpdateInfo { IsUpdateAvailable = true, DownloadUrl = downloadUrl });
+                }
+                catch { }
+
                 return tempPath;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[Update] DownloadUpdateAsync error: {ex.Message}");
                 return null;
             }
         }
@@ -197,6 +218,26 @@ namespace FastExplorer.Services.Update
             catch (Exception ex)
             {
                 Debug.WriteLine($"[Update] LaunchInstaller error: {ex.Message}");
+            }
+        }
+
+        public static void OpenDownloadedInstallerFolder(string? installerPath = null)
+        {
+            var path = installerPath ?? DownloadedInstallerPath;
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "explorer.exe",
+                    Arguments = $"/select,\"{path}\"",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Update] OpenDownloadedInstallerFolder error: {ex.Message}");
             }
         }
 

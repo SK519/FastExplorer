@@ -252,6 +252,15 @@ namespace FastExplorer
                 return;
             }
 
+            // PC (ThisPC) の場合はタイル表示（デバイスとドライブ）を初期値に
+            if (path.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
+            {
+                _viewMode = FolderViewMode.Tiles;
+                _viewScale = ViewScaleLevel.Normal;
+                _customSize = 48;
+                return;
+            }
+
             // 画像フォルダー（パスやフォルダー名にピクチャ・写真・イラスト等が含まれる）の場合は大アイコンを初期値に
             if (FastExplorer.Helpers.FolderTypeHelper.IsImageFolderByPath(path))
             {

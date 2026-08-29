@@ -17,7 +17,6 @@ namespace FastExplorer
         private static extern bool AllowSetForegroundWindow(int dwProcessId);
         private const int ASFW_ANY = -1;
 
-        [System.Diagnostics.Conditional("DEBUG")]
         private static void LogLaunch(string message)
         {
             try

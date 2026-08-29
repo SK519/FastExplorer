@@ -192,6 +192,36 @@ namespace FastExplorer
             return false;
         }
 
+        private static string CleanArgumentPath(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+            string clean = raw.Trim('"', '\'', ' ', '\t', '\r', '\n');
+
+            // 末尾や先頭に残った引用符やバックスラッシュの誤エスケープ（例: G:" や "G:\ など）を除去
+            clean = clean.Trim('"', '\'');
+
+            // file:/// 形式のデコード
+            if (clean.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    if (Uri.TryCreate(clean, UriKind.Absolute, out var uri))
+                    {
+                        clean = uri.LocalPath;
+                    }
+                }
+                catch { }
+            }
+
+            // ドライブレター単体（例: "C:" または "G:"）の場合は "C:\" に正規化
+            if (clean.Length == 2 && char.IsLetter(clean[0]) && clean[1] == ':')
+            {
+                clean += "\\";
+            }
+
+            return clean;
+        }
+
         private static void ParseArguments(string[] cmdArgs, out string? targetPath, out string? selectItem)
         {
             targetPath = null;
@@ -211,7 +241,7 @@ namespace FastExplorer
                 {
                     afterSelect = afterSelect.Substring(1).Trim();
                 }
-                string cleanPath = afterSelect.Trim('"', '\'', ' ');
+                string cleanPath = CleanArgumentPath(afterSelect);
 
                 if (!string.IsNullOrEmpty(cleanPath))
                 {
@@ -247,8 +277,8 @@ namespace FastExplorer
 
             for (int i = startIndex; i < cmdArgs.Length; i++)
             {
-                string arg = cmdArgs[i].Trim('"', '\'', ' ');
-                if (!IsOwnBinaryOrFlag(arg))
+                string arg = CleanArgumentPath(cmdArgs[i]);
+                if (!string.IsNullOrEmpty(arg) && !IsOwnBinaryOrFlag(arg))
                 {
                     validArgs.Add(arg);
                 }
@@ -263,49 +293,61 @@ namespace FastExplorer
             // 3. 単体引数の判定
             foreach (var raw in validArgs)
             {
+                string clean = CleanArgumentPath(raw);
+                if (string.IsNullOrEmpty(clean)) continue;
+
                 // ごみ箱
-                if (RecycleBinService.IsRecycleBinPath(raw))
+                if (RecycleBinService.IsRecycleBinPath(clean))
                 {
                     targetPath = RecycleBinService.RecycleBinUri;
                     return;
                 }
 
                 // 特殊シェルURI
-                if (raw.StartsWith("shell:", StringComparison.OrdinalIgnoreCase) ||
-                    raw.StartsWith("::", StringComparison.OrdinalIgnoreCase) ||
-                    raw.StartsWith(@"\\", StringComparison.OrdinalIgnoreCase) ||
-                    raw.Equals("ThisPC", StringComparison.OrdinalIgnoreCase) ||
-                    raw.Equals("Home", StringComparison.OrdinalIgnoreCase))
+                if (clean.StartsWith("shell:", StringComparison.OrdinalIgnoreCase) ||
+                    clean.StartsWith("::", StringComparison.OrdinalIgnoreCase) ||
+                    clean.StartsWith(@"\\", StringComparison.OrdinalIgnoreCase) ||
+                    clean.Equals("ThisPC", StringComparison.OrdinalIgnoreCase) ||
+                    clean.Equals("Home", StringComparison.OrdinalIgnoreCase))
                 {
-                    targetPath = raw;
+                    targetPath = clean;
                     return;
                 }
 
                 // 絶対パスのディレクトリまたはファイル判定
                 try
                 {
-                    if (Path.IsPathRooted(raw))
+                    if (Path.IsPathRooted(clean) || (clean.Length >= 2 && char.IsLetter(clean[0]) && clean[1] == ':'))
                     {
-                        if (Directory.Exists(raw))
+                        if (Directory.Exists(clean))
                         {
-                            targetPath = raw;
+                            targetPath = clean;
                             return;
                         }
-                        if (File.Exists(raw))
+                        if (File.Exists(clean))
                         {
-                            string? parent = Path.GetDirectoryName(raw);
-                            targetPath = string.IsNullOrEmpty(parent) ? raw : parent;
-                            selectItem = Path.GetFileName(raw);
+                            string? parent = Path.GetDirectoryName(clean);
+                            targetPath = string.IsNullOrEmpty(parent) ? clean : parent;
+                            selectItem = Path.GetFileName(clean);
                             return;
                         }
+
+                        // Directory.Exists / File.Exists が判定できない場合（Googleドライブ仮想パスなど）もパスとして採用
+                        targetPath = clean;
+                        return;
                     }
                 }
-                catch { }
+                catch
+                {
+                    targetPath = clean;
+                    return;
+                }
             }
 
             // 4. スペース区切りで分割されていた絶対パス全体の結合判定 (例: C:\Program Files\Some Folder)
-            string joinedPath = string.Join(" ", validArgs).Trim('"', '\'', ' ');
-            if (!string.IsNullOrEmpty(joinedPath) && Path.IsPathRooted(joinedPath) && !IsOwnBinaryOrFlag(joinedPath))
+            string joinedRaw = string.Join(" ", validArgs);
+            string joinedPath = CleanArgumentPath(joinedRaw);
+            if (!string.IsNullOrEmpty(joinedPath) && (Path.IsPathRooted(joinedPath) || (joinedPath.Length >= 2 && char.IsLetter(joinedPath[0]) && joinedPath[1] == ':')) && !IsOwnBinaryOrFlag(joinedPath))
             {
                 try
                 {
@@ -321,12 +363,17 @@ namespace FastExplorer
                         selectItem = Path.GetFileName(joinedPath);
                         return;
                     }
+                    targetPath = joinedPath;
+                    return;
                 }
-                catch { }
+                catch
+                {
+                    targetPath = joinedPath;
+                    return;
+                }
             }
         }
 
-        [System.Diagnostics.Conditional("DEBUG")]
         private static void Log(string msg)
         {
             try
@@ -348,7 +395,7 @@ namespace FastExplorer
                 return;
             }
 
-            _appDispatcherQueue?.TryEnqueue(() =>
+            _appDispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
             {
                 ParseArguments(args, out string? targetPath, out string? selectItem);
                 Log($"[HandleRemoteActivation] Parsed -> targetPath='{targetPath}', selectItem='{selectItem}'");
@@ -362,7 +409,6 @@ namespace FastExplorer
             if (OpenWindows.Count > 0)
             {
                 var existing = OpenWindows.Last();
-                existing.AppWindow.Show();
                 if (existing.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)
                 {
                     if (presenter.State == Microsoft.UI.Windowing.OverlappedPresenterState.Minimized)
@@ -370,6 +416,7 @@ namespace FastExplorer
                         presenter.Restore();
                     }
                 }
+                existing.AppWindow.Show();
                 existing.Activate();
                 Win32Interop.ForceForegroundWindow(existing.WindowHandle);
 

@@ -172,6 +172,7 @@ namespace FastExplorer.Core
             {
                 string rawDrives = new(buffer, 0, (int)length);
                 string[] driveRoots = rawDrives.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+                Array.Sort(driveRoots, StringComparer.OrdinalIgnoreCase);
 
                 foreach (string root in driveRoots)
                 {
@@ -190,19 +191,58 @@ namespace FastExplorer.Core
                     };
 
                     string driveLetter = root.TrimEnd('\\');
-                    string label = $"{typeName} ({driveLetter})";
+                    string volumeLabel = string.Empty;
+                    long totalBytes = 0;
+                    long freeBytes = 0;
+                    double drivePercent = 0;
+                    string driveSpaceText = string.Empty;
+
+                    try
+                    {
+                        var driveInfo = new DriveInfo(root);
+                        if (driveInfo.IsReady)
+                        {
+                            volumeLabel = driveInfo.VolumeLabel;
+                            totalBytes = driveInfo.TotalSize;
+                            freeBytes = driveInfo.AvailableFreeSpace;
+                            if (totalBytes > 0)
+                            {
+                                long usedBytes = totalBytes - freeBytes;
+                                drivePercent = Math.Clamp(((double)usedBytes / totalBytes) * 100.0, 0.0, 100.0);
+                                string freeStr = FileItem.FormatDiskSpace(freeBytes);
+                                string totalStr = FileItem.FormatDiskSpace(totalBytes);
+                                driveSpaceText = $"空き領域 {freeStr}/{totalStr}";
+                            }
+                        }
+                    }
+                    catch { }
+
+                    string label;
+                    if (!string.IsNullOrWhiteSpace(volumeLabel))
+                    {
+                        label = $"{volumeLabel} ({driveLetter})";
+                    }
+                    else
+                    {
+                        label = $"{typeName} ({driveLetter})";
+                    }
 
                     driveItems.Add(new FileItem
                     {
                         Name = label,
                         FullPath = root,
                         IsDirectory = true,
-                        FileType = "ドライブ",
-                        GlyphIcon = "\uEDA2"
+                        IsDrive = true,
+                        FileType = typeName,
+                        GlyphIcon = "\uEDA2",
+                        DrivePercent = drivePercent,
+                        DriveSpaceText = driveSpaceText,
+                        SizeInBytes = totalBytes
                     });
                 }
             }
 
+            driveItems.Sort((a, b) => string.Compare(a.FullPath, b.FullPath, StringComparison.OrdinalIgnoreCase));
             return driveItems;
         }
 

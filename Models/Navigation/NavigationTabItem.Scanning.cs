@@ -195,6 +195,13 @@ namespace FastExplorer
                     return a.IsDirectory ? -1 : 1;
                 }
 
+                // ドライブ同士の場合はドライブレター（C:\, D:\, G:\ ...）のアルファベット順（ABC順）でソート
+                if (a.IsDrive && b.IsDrive)
+                {
+                    int driveCmp = string.Compare(a.FullPath, b.FullPath, StringComparison.OrdinalIgnoreCase);
+                    return asc ? driveCmp : -driveCmp;
+                }
+
                 int cmp = 0;
                 switch (sortCol)
                 {

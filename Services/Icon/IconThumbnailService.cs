@@ -332,7 +332,7 @@ namespace FastExplorer.Services
             {
                 if (_defaultWslSource != null) item.Icon = _defaultWslSource;
             }
-            else if (item.FileType == "ドライブ" || IsDriveRootPath(item.FullPath))
+            else if (item.IsDrive || item.FileType == "ドライブ" || item.FileType == "ローカル ディスク" || item.FileType == "USB ドライブ" || item.FileType == "ネットワーク ドライブ" || item.FileType == "CD/DVD ドライブ" || item.FileType == "RAM ディスク" || IsDriveRootPath(item.FullPath))
             {
                 string root = item.FullPath.TrimEnd('\\', '/').ToUpperInvariant() + "\\";
                 if (_driveSourceCache.TryGetValue(root, out var driveSrc) || _driveSourceCache.TryGetValue(item.FullPath, out driveSrc))

@@ -548,12 +548,20 @@
                                         </ScrollViewer>
                                         <ProgressBar x:Name="UpdateDownloadProgressBar" Value="0" Maximum="100" Visibility="Collapsed" Margin="0,6,0,0"/>
                                     </StackPanel>
-                                    <Button x:Name="InstallUpdateButton" Grid.Column="1" VerticalAlignment="Center" Click="InstallUpdate_Click" Style="{StaticResource AccentButtonStyle}">
-                                        <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <FontIcon x:Name="InstallUpdateIcon" Glyph="&#xE896;" FontSize="13"/>
-                                            <TextBlock x:Name="InstallUpdateText" Text="ダウンロードして更新"/>
-                                        </StackPanel>
-                                    </Button>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <Button x:Name="OpenInstallerFolderButton" Visibility="Collapsed" Click="OpenInstallerFolder_Click" ToolTipService.ToolTip="ダウンロードしたインストーラーのフォルダーを表示">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon Glyph="&#xE838;" FontSize="13"/>
+                                                <TextBlock Text="フォルダーを開く"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button x:Name="InstallUpdateButton" Click="InstallUpdate_Click" Style="{StaticResource AccentButtonStyle}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon x:Name="InstallUpdateIcon" Glyph="&#xE896;" FontSize="13"/>
+                                                <TextBlock x:Name="InstallUpdateText" Text="ダウンロードして更新"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                         </StackPanel>

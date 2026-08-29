@@ -5,13 +5,100 @@
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <exdisp.h>
+#include <winternl.h>
 #include <string>
+#include <fstream>
+
+#pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "shell32.lib")
 
 static HHOOK g_hHook = NULL;
 static HWINEVENTHOOK g_hWinEventHook = NULL;
+static HWINEVENTHOOK g_hFgHook = NULL;
 static HANDLE g_hMutex = NULL;
 static const wchar_t* MUTEX_NAME = L"FastExplorerWatcherMutex_Global";
 static const wchar_t* PIPE_NAME = L"\\\\.\\pipe\\FastExplorer_SingleInstance_Pipe_Global";
+static const wchar_t* APP_MUTEX_NAME = L"FastExplorer_SingleInstance_Mutex_Global";
+static const wchar_t* HOOK_PROP_NAME = L"FastExplorer_WindowHooked";
+
+static void LogWatcher(const wchar_t* format, ...)
+{
+    wchar_t localApp[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, localApp)))
+    {
+        std::wstring logPath = localApp;
+        logPath += L"\\FastExplorer";
+        CreateDirectoryW(logPath.c_str(), NULL);
+        logPath += L"\\watcher.log";
+
+        FILE* fp = NULL;
+        if (_wfopen_s(&fp, logPath.c_str(), L"a, ccs=UTF-8") == 0 && fp != NULL)
+        {
+            SYSTEMTIME st;
+            GetLocalTime(&st);
+            fwprintf(fp, L"[%04d-%02d-%02d %02d:%02d:%02d.%03d] ",
+                st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond, st.wMilliseconds);
+
+            va_list args;
+            va_start(args, format);
+            vfwprintf(fp, format, args);
+            va_end(args);
+
+            fwprintf(fp, L"\n");
+            fclose(fp);
+        }
+    }
+}
+
+typedef NTSTATUS(NTAPI* pfnNtQueryInformationProcess)(
+    HANDLE ProcessHandle,
+    PROCESSINFOCLASS ProcessInformationClass,
+    PVOID ProcessInformation,
+    ULONG ProcessInformationLength,
+    PULONG ReturnLength);
+
+// プロセスのコマンドライン引数を直接メモリから高速取得
+static bool GetProcessCommandLine(DWORD pid, std::wstring& outCmdLine)
+{
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
+    if (!hProcess) return false;
+
+    HMODULE hNtdll = GetModuleHandleW(L"ntdll.dll");
+    if (!hNtdll) { CloseHandle(hProcess); return false; }
+
+    pfnNtQueryInformationProcess NtQueryInformationProcess =
+        (pfnNtQueryInformationProcess)GetProcAddress(hNtdll, "NtQueryInformationProcess");
+    if (!NtQueryInformationProcess) { CloseHandle(hProcess); return false; }
+
+    PROCESS_BASIC_INFORMATION pbi;
+    ULONG len = 0;
+    if (NtQueryInformationProcess(hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), &len) >= 0)
+    {
+        PEB peb;
+        if (ReadProcessMemory(hProcess, pbi.PebBaseAddress, &peb, sizeof(peb), NULL))
+        {
+            RTL_USER_PROCESS_PARAMETERS params;
+            if (ReadProcessMemory(hProcess, peb.ProcessParameters, &params, sizeof(params), NULL))
+            {
+                if (params.CommandLine.Length > 0 && params.CommandLine.Buffer != NULL)
+                {
+                    wchar_t* buf = new wchar_t[params.CommandLine.Length / sizeof(wchar_t) + 1];
+                    if (ReadProcessMemory(hProcess, params.CommandLine.Buffer, buf, params.CommandLine.Length, NULL))
+                    {
+                        buf[params.CommandLine.Length / sizeof(wchar_t)] = L'\0';
+                        outCmdLine = buf;
+                        delete[] buf;
+                        CloseHandle(hProcess);
+                        return true;
+                    }
+                    delete[] buf;
+                }
+            }
+        }
+    }
+    CloseHandle(hProcess);
+    return false;
+}
 
 static void CleanDisabledHotkeys()
 {
@@ -82,7 +169,6 @@ static BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam)
 
 static HWND g_cachedHwnd = NULL;
 static wchar_t g_cachedExePath[MAX_PATH] = { 0 };
-static const wchar_t* APP_MUTEX_NAME = L"FastExplorer_SingleInstance_Mutex_Global";
 
 static bool TryGetExeFromRegistry(HKEY rootKey, const wchar_t* subKey, const wchar_t* valueName, wchar_t* outPath, DWORD maxLen)
 {
@@ -160,15 +246,7 @@ static bool GetFastExplorerExePath(wchar_t* outPath, DWORD maxLen)
         return true;
     }
 
-    // 4. レジストリ登録パスからの取得 (Software\Classes\Directory\shell\open\command)
-    if (TryGetExeFromRegistry(HKEY_CURRENT_USER, L"Software\\Classes\\Directory\\shell\\open\\command", NULL, outPath, maxLen) ||
-        TryGetExeFromRegistry(HKEY_LOCAL_MACHINE, L"Software\\Classes\\Directory\\shell\\open\\command", NULL, outPath, maxLen))
-    {
-        wcscpy_s(g_cachedExePath, MAX_PATH, outPath);
-        return true;
-    }
-
-    // 5. 動的に取得した Program Files 配下の FastExplorer.exe
+    // 4. 動的に取得した Program Files 配下の FastExplorer.exe
     PWSTR pKnownPath = NULL;
     if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_ProgramFiles, 0, NULL, &pKnownPath)))
     {
@@ -223,12 +301,37 @@ static void ForceForeground(HWND hWnd)
     }
 }
 
-static bool IsFastExplorerRunning()
+static bool TrySendPipeMessage(const wchar_t* customArgs)
 {
-    HANDLE hMutex = OpenMutexW(SYNCHRONIZE, FALSE, APP_MUTEX_NAME);
-    if (hMutex != NULL)
+    HANDLE hPipe = CreateFileW(
+        PIPE_NAME,
+        GENERIC_WRITE,
+        0,
+        NULL,
+        OPEN_EXISTING,
+        0,
+        NULL);
+
+    if (hPipe != INVALID_HANDLE_VALUE)
     {
-        CloseHandle(hMutex);
+        std::wstring payload = L"FastExplorer.exe\n";
+        if (customArgs != NULL && customArgs[0] != L'\0')
+        {
+            payload += customArgs;
+        }
+        payload += L"\n";
+
+        DWORD written = 0;
+        int utf8Len = WideCharToMultiByte(CP_UTF8, 0, payload.c_str(), -1, NULL, 0, NULL, NULL);
+        if (utf8Len > 0)
+        {
+            char* utf8Buf = new char[utf8Len];
+            WideCharToMultiByte(CP_UTF8, 0, payload.c_str(), -1, utf8Buf, utf8Len, NULL, NULL);
+            WriteFile(hPipe, utf8Buf, (DWORD)strlen(utf8Buf), &written, NULL);
+            delete[] utf8Buf;
+        }
+        CloseHandle(hPipe);
+        LogWatcher(L"[Pipe] Sent args: %s", customArgs ? customArgs : L"(none)");
         return true;
     }
     return false;
@@ -236,38 +339,11 @@ static bool IsFastExplorerRunning()
 
 static void LaunchOrActivateFastExplorer(const wchar_t* customArgs = NULL)
 {
-    // 1. プロセスが起動しているかを O(1) で即時判定
-    if (IsFastExplorerRunning())
+    LogWatcher(L"[LaunchOrActivate] Requested with args: %s", customArgs ? customArgs : L"(null)");
+
+    // 1. 起動中の FastExplorer プロセスに名前付きパイプで通知
+    if (TrySendPipeMessage(customArgs))
     {
-        if (customArgs != NULL && customArgs[0] != L'\0')
-        {
-            HANDLE hPipe = CreateFileW(
-                PIPE_NAME,
-                GENERIC_WRITE,
-                0,
-                NULL,
-                OPEN_EXISTING,
-                0,
-                NULL);
-
-            if (hPipe != INVALID_HANDLE_VALUE)
-            {
-                std::wstring payload = L"FastExplorer.exe\n";
-                payload += customArgs;
-                payload += L"\n";
-                DWORD written = 0;
-                int utf8Len = WideCharToMultiByte(CP_UTF8, 0, payload.c_str(), -1, NULL, 0, NULL, NULL);
-                if (utf8Len > 0)
-                {
-                    char* utf8Buf = new char[utf8Len];
-                    WideCharToMultiByte(CP_UTF8, 0, payload.c_str(), -1, utf8Buf, utf8Len, NULL, NULL);
-                    WriteFile(hPipe, utf8Buf, (DWORD)strlen(utf8Buf), &written, NULL);
-                    delete[] utf8Buf;
-                }
-                CloseHandle(hPipe);
-            }
-        }
-
         if (g_cachedHwnd != NULL && IsWindow(g_cachedHwnd))
         {
             ForceForeground(g_cachedHwnd);
@@ -276,53 +352,99 @@ static void LaunchOrActivateFastExplorer(const wchar_t* customArgs = NULL)
 
         HWND hExistingWnd = NULL;
         EnumWindows(EnumWindowsProc, (LPARAM)&hExistingWnd);
-
         if (hExistingWnd != NULL)
         {
             g_cachedHwnd = hExistingWnd;
             ForceForeground(hExistingWnd);
             return;
         }
+        return;
     }
 
-    // 2. 起動していない場合はプロセス起動
+    // 2. 起動していない場合は GUI プロセスとして明示的にフォアグラウンド起動
     g_cachedHwnd = NULL;
     wchar_t exePath[MAX_PATH] = { 0 };
     if (GetFastExplorerExePath(exePath, MAX_PATH))
     {
+        wchar_t exeDir[MAX_PATH] = { 0 };
+        wcscpy_s(exeDir, MAX_PATH, exePath);
+        wchar_t* lastSlash = wcsrchr(exeDir, L'\\');
+        if (lastSlash != NULL) *lastSlash = L'\0';
+
+        std::wstring safeArgs;
+        if (customArgs != NULL && customArgs[0] != L'\0')
+        {
+            safeArgs = L"\"";
+            safeArgs += customArgs;
+            if (!safeArgs.empty() && safeArgs.back() == L'\\')
+            {
+                safeArgs += L'\\'; // Win32 コマンドライン引数エスケープバグ対策
+            }
+            safeArgs += L"\"";
+        }
+
+        SHELLEXECUTEINFOW sei = { sizeof(sei) };
+        sei.fMask = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_FLAG_NO_UI;
+        sei.lpVerb = L"open";
+        sei.lpFile = exePath;
+        sei.lpParameters = !safeArgs.empty() ? safeArgs.c_str() : NULL;
+        sei.lpDirectory = exeDir[0] != L'\0' ? exeDir : NULL;
+        sei.nShow = SW_SHOWNORMAL;
+
+        LogWatcher(L"[Launch] Executing ShellExecuteEx: %s %s", exePath, sei.lpParameters ? sei.lpParameters : L"");
+
+        if (ShellExecuteExW(&sei))
+        {
+            if (sei.hProcess != NULL)
+            {
+                CloseHandle(sei.hProcess);
+            }
+            LogWatcher(L"[Launch] ShellExecuteEx SUCCEEDED.");
+            return;
+        }
+
+        // ShellExecuteEx が失敗した場合の CreateProcessW フォールバック (親プロセスの SW_HIDE 継承を明示防止)
         STARTUPINFOW si = { sizeof(si) };
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_SHOWNORMAL;
         PROCESS_INFORMATION pi = { 0 };
         wchar_t cmdLine[MAX_PATH * 2];
 
-        if (customArgs != NULL && customArgs[0] != L'\0')
+        if (!safeArgs.empty())
         {
-            swprintf_s(cmdLine, L"\"%s\" \"%s\"", exePath, customArgs);
+            swprintf_s(cmdLine, L"\"%s\" %s", exePath, safeArgs.c_str());
         }
         else
         {
             swprintf_s(cmdLine, L"\"%s\"", exePath);
         }
 
-        if (CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+        LogWatcher(L"[Launch] Falling back to CreateProcessW: %s", cmdLine);
+
+        if (CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, exeDir[0] != L'\0' ? exeDir : NULL, &si, &pi))
         {
             CloseHandle(pi.hThread);
             CloseHandle(pi.hProcess);
+            LogWatcher(L"[Launch] CreateProcessW SUCCEEDED.");
         }
         else
         {
-            ShellExecuteW(NULL, L"open", exePath, customArgs, NULL, SW_SHOWNORMAL);
+            LogWatcher(L"[Launch] CreateProcessW FAILED: %d", GetLastError());
         }
     }
 }
 
 static bool IsDefaultExplorerEnabledInRegistry()
 {
+    // HKLM または HKCU をチェック
+    DWORD val = 0;
+    DWORD type = REG_DWORD;
+    DWORD size = sizeof(val);
+
     HKEY hKey;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\FastExplorer", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
     {
-        DWORD val = 0;
-        DWORD type = REG_DWORD;
-        DWORD size = sizeof(val);
         if (RegQueryValueExW(hKey, L"ReplaceDefaultExplorer", NULL, &type, (LPBYTE)&val, &size) == ERROR_SUCCESS)
         {
             RegCloseKey(hKey);
@@ -330,32 +452,95 @@ static bool IsDefaultExplorerEnabledInRegistry()
         }
         RegCloseKey(hKey);
     }
-    return false;
+
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\FastExplorer", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+    {
+        if (RegQueryValueExW(hKey, L"ReplaceDefaultExplorer", NULL, &type, (LPBYTE)&val, &size) == ERROR_SUCCESS)
+        {
+            RegCloseKey(hKey);
+            return val != 0;
+        }
+        RegCloseKey(hKey);
+    }
+
+    return true; // デフォルトは有効
 }
 
-// Explorer (CabinetWClass) ウィンドウを捕捉し、画面表示前に即座に非表示にして FastExplorer にリダイレクト
-static void CALLBACK WinEventProc(
-    HWINEVENTHOOK hWinEventHook,
-    DWORD event,
-    HWND hwnd,
-    LONG idObject,
-    LONG idChild,
-    DWORD idEventThread,
-    DWORD dwmsEventTime)
+struct ExplorerRedirectContext
 {
-    if (idObject != OBJID_WINDOW || hwnd == NULL || idChild != CHILDID_SELF) return;
-    if (!IsDefaultExplorerEnabledInRegistry()) return;
+    HWND hwnd;
+    DWORD pid;
+};
 
-    wchar_t className[256] = { 0 };
-    if (GetClassNameW(hwnd, className, 256) > 0)
+// コマンドライン文字列から引数部分（/select,... または パス）を抽出
+static std::wstring ExtractArgsFromCommandLine(const std::wstring& cmdLine)
+{
+    if (cmdLine.empty()) return L"";
+
+    // 1. /select, オプションの検出
+    size_t selectPos = cmdLine.find(L"/select");
+    if (selectPos != std::wstring::npos)
     {
-        if (_wcsicmp(className, L"CabinetWClass") == 0 || _wcsicmp(className, L"ExploreWClass") == 0)
-        {
-            // チラつき・黒枠表示を完全に防止するため即座に非表示化 & 画面外へ退避
-            ShowWindow(hwnd, SW_HIDE);
-            SetWindowPos(hwnd, NULL, -32000, -32000, 0, 0, SWP_NOACTIVATE | SWP_NOREDRAW | SWP_HIDEWINDOW);
+        return cmdLine.substr(selectPos);
+    }
 
-            // IShellWindows を使って対象フォルダーのパスを取得
+    // 2. 引数部分の抽出 (最初のトークンをスキップ)
+    size_t idx = 0;
+    while (idx < cmdLine.length() && iswspace(cmdLine[idx])) idx++;
+    if (idx >= cmdLine.length()) return L"";
+
+    if (cmdLine[idx] == L'"')
+    {
+        idx++;
+        while (idx < cmdLine.length() && cmdLine[idx] != L'"') idx++;
+        if (idx < cmdLine.length()) idx++;
+    }
+    else
+    {
+        while (idx < cmdLine.length() && !iswspace(cmdLine[idx])) idx++;
+    }
+
+    while (idx < cmdLine.length() && iswspace(cmdLine[idx])) idx++;
+    if (idx < cmdLine.length())
+    {
+        return cmdLine.substr(idx);
+    }
+
+    return L"";
+}
+
+// バックグラウンドでコマンドラインまたは IShellWindows からフォルダパスを解決して FastExplorer に転送 (超高速・低遅延最適化)
+static DWORD WINAPI ExplorerRedirectThread(LPVOID lpParam)
+{
+    ExplorerRedirectContext* ctx = (ExplorerRedirectContext*)lpParam;
+    if (!ctx) return 0;
+
+    HWND hwnd = ctx->hwnd;
+    DWORD pid = ctx->pid;
+    delete ctx;
+
+    std::wstring targetPath = L"";
+
+    // 1. プロセスのコマンドライン引数を直接高速取得 (0ミリ秒解決)
+    std::wstring rawCmdLine;
+    if (GetProcessCommandLine(pid, rawCmdLine))
+    {
+        std::wstring args = ExtractArgsFromCommandLine(rawCmdLine);
+        if (!args.empty())
+        {
+            targetPath = args;
+        }
+    }
+
+    // 2. コマンドラインから取れなかった場合のみ、IShellWindows で高速走査 (10ms 周期)
+    if (targetPath.empty())
+    {
+        CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+
+        for (int retry = 0; retry < 15; retry++)
+        {
+            if (!IsWindow(hwnd)) break;
+
             IShellWindows* pSW = NULL;
             if (SUCCEEDED(CoCreateInstance(CLSID_ShellWindows, NULL, CLSCTX_ALL, IID_IShellWindows, (void**)&pSW)) && pSW != NULL)
             {
@@ -374,29 +559,109 @@ static void CALLBACK WinEventProc(
                         if (SUCCEEDED(pDisp->QueryInterface(IID_IWebBrowserApp, (void**)&pBrowser)) && pBrowser != NULL)
                         {
                             SHANDLE_PTR sHwnd = 0;
-                            if (SUCCEEDED(pBrowser->get_HWND(&sHwnd)) && (HWND)sHwnd == hwnd)
+                            if (SUCCEEDED(pBrowser->get_HWND(&sHwnd)))
                             {
-                                BSTR bstrUrl = NULL;
-                                if (SUCCEEDED(pBrowser->get_LocationURL(&bstrUrl)) && bstrUrl != NULL)
+                                HWND itemHwnd = (HWND)sHwnd;
+                                if (itemHwnd == hwnd || GetAncestor(itemHwnd, GA_ROOT) == hwnd || GetAncestor(hwnd, GA_ROOT) == itemHwnd)
                                 {
-                                    wchar_t path[MAX_PATH] = { 0 };
-                                    DWORD pathLen = MAX_PATH;
-                                    if (SUCCEEDED(PathCreateFromUrlW(bstrUrl, path, &pathLen, 0)) && path[0] != L'\0')
+                                    BSTR bstrUrl = NULL;
+                                    if (SUCCEEDED(pBrowser->get_LocationURL(&bstrUrl)) && bstrUrl != NULL)
                                     {
-                                        PostMessageW(hwnd, WM_CLOSE, 0, 0);
-                                        LaunchOrActivateFastExplorer(path);
+                                        if (bstrUrl[0] != L'\0')
+                                        {
+                                            wchar_t path[MAX_PATH] = { 0 };
+                                            DWORD pathLen = MAX_PATH;
+                                            if (SUCCEEDED(PathCreateFromUrlW(bstrUrl, path, &pathLen, 0)) && path[0] != L'\0')
+                                            {
+                                                targetPath = path;
+                                            }
+                                            else if (wcsncmp(bstrUrl, L"file://", 7) == 0 || wcsncmp(bstrUrl, L"shell:", 6) == 0)
+                                            {
+                                                targetPath = bstrUrl;
+                                            }
+                                        }
+                                        SysFreeString(bstrUrl);
                                     }
-                                    SysFreeString(bstrUrl);
                                 }
                             }
                             pBrowser->Release();
                         }
                         pDisp->Release();
                     }
+
+                    if (!targetPath.empty()) break;
                 }
                 pSW->Release();
             }
+
+            if (!targetPath.empty()) break;
+            Sleep(10);
         }
+
+        CoUninitialize();
+    }
+
+    if (IsWindow(hwnd))
+    {
+        ShowWindow(hwnd, SW_HIDE);
+        RemovePropW(hwnd, HOOK_PROP_NAME);
+        PostMessageW(hwnd, WM_CLOSE, 0, 0);
+    }
+
+    LaunchOrActivateFastExplorer(targetPath.empty() ? NULL : targetPath.c_str());
+
+    return 0;
+}
+
+// Explorer (CabinetWClass) ウィンドウを捕捉し、画面表示前に即座に非表示（完全透明化）にして FastExplorer にリダイレクト
+static void CALLBACK WinEventProc(
+    HWINEVENTHOOK hWinEventHook,
+    DWORD event,
+    HWND hwnd,
+    LONG idObject,
+    LONG idChild,
+    DWORD idEventThread,
+    DWORD dwmsEventTime)
+{
+    if (hwnd == NULL) return;
+    if (!IsDefaultExplorerEnabledInRegistry()) return;
+
+    wchar_t className[256] = { 0 };
+    if (GetClassNameW(hwnd, className, 256) <= 0) return;
+
+    // CabinetWClass (通常のエクスプローラー) および ExploreWClass 以外は絶対に介入しない (タスクバーやメニューへの誤爆を防止)
+    if (_wcsicmp(className, L"CabinetWClass") != 0 && _wcsicmp(className, L"ExploreWClass") != 0)
+    {
+        return;
+    }
+
+    if (GetPropW(hwnd, HOOK_PROP_NAME) != NULL) return;
+    SetPropW(hwnd, HOOK_PROP_NAME, (HANDLE)1);
+
+    // チラつき・描画枠・タスクバーアイコンを完全に防止するため即座に画面外移動 & 完全透明化 & 非表示化
+    SetWindowPos(hwnd, NULL, -32000, -32000, 0, 0, SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOSIZE | SWP_HIDEWINDOW);
+    LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exStyle | WS_EX_LAYERED | WS_EX_TOOLWINDOW);
+    SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA);
+    ShowWindow(hwnd, SW_HIDE);
+
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+
+    LogWatcher(L"[WinEvent] Intercepted %s HWND=0x%p PID=%d event=0x%X", className, hwnd, pid, event);
+
+    ExplorerRedirectContext* ctx = new ExplorerRedirectContext();
+    ctx->hwnd = hwnd;
+    ctx->pid = pid;
+
+    HANDLE hThread = CreateThread(NULL, 0, ExplorerRedirectThread, ctx, 0, NULL);
+    if (hThread != NULL)
+    {
+        CloseHandle(hThread);
+    }
+    else
+    {
+        delete ctx;
     }
 }
 
@@ -463,6 +728,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     g_hHook = SetWindowsHookExW(WH_KEYBOARD_LL, LowLevelKeyboardProc, hInstance, 0);
 
+    // 有効なイベント範囲で登録 (OBJECT_CREATE 〜 OBJECT_SHOW)
     g_hWinEventHook = SetWinEventHook(
         EVENT_OBJECT_CREATE, EVENT_OBJECT_SHOW,
         NULL,
@@ -470,6 +736,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         0, 0,
         WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
     );
+
+    LogWatcher(L"[Main] FastExplorerWatcher started. Hook=%p", g_hWinEventHook);
 
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0))
@@ -500,6 +768,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
 
     CoUninitialize();
+
+    LogWatcher(L"[Main] FastExplorerWatcher exiting.");
 
     return 0;
 }

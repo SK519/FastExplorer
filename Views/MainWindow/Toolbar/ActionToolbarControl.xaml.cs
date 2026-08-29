@@ -89,15 +89,10 @@ namespace FastExplorer.Views.MainWindow.Toolbar
             SetFlyoutButtonActive(BtnFlyoutTiles, mode == FolderViewMode.Tiles);
 
             // サイズボタンの選択状態ハイライト
-            bool sizeSmall   = isGridMode ? mode == FolderViewMode.SmallIcons      : scale == ViewScaleLevel.Compact;
-            bool sizeMedium  = isGridMode ? mode == FolderViewMode.MediumIcons     : scale == ViewScaleLevel.Normal;
-            bool sizeLarge   = isGridMode ? mode == FolderViewMode.LargeIcons      : scale == ViewScaleLevel.Large;
-            bool sizeXLarge  = isGridMode ? mode == FolderViewMode.ExtraLargeIcons : scale == ViewScaleLevel.ExtraLarge;
-
-            SetFlyoutButtonActive(BtnSizeSmall, sizeSmall);
-            SetFlyoutButtonActive(BtnSizeMedium, sizeMedium);
-            SetFlyoutButtonActive(BtnSizeLarge, sizeLarge);
-            SetFlyoutButtonActive(BtnSizeExtraLarge, sizeXLarge);
+            SetFlyoutButtonActive(BtnSizeSmall, mode == FolderViewMode.SmallIcons);
+            SetFlyoutButtonActive(BtnSizeMedium, mode == FolderViewMode.MediumIcons);
+            SetFlyoutButtonActive(BtnSizeLarge, mode == FolderViewMode.LargeIcons);
+            SetFlyoutButtonActive(BtnSizeExtraLarge, mode == FolderViewMode.ExtraLargeIcons);
 
             if (CheckShowItemCheckBoxes != null) CheckShowItemCheckBoxes.IsOn = showCheckBoxes;
             if (CheckShowHiddenFiles != null) CheckShowHiddenFiles.IsOn = showHidden;

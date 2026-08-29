@@ -154,6 +154,44 @@ namespace FastExplorer
             ? (DateDeleted != DateTime.MinValue ? FormattedDateDeleted : FileType)
             : FileType;
 
+        private bool _isDrive;
+        public bool IsDrive
+        {
+            get => _isDrive;
+            set
+            {
+                if (SetField(ref _isDrive, value))
+                {
+                    OnPropertyChanged(nameof(DriveSpaceVisibility));
+                    OnPropertyChanged(nameof(FileTypeVisibility));
+                }
+            }
+        }
+
+        private double _drivePercent;
+        public double DrivePercent
+        {
+            get => _drivePercent;
+            set => SetField(ref _drivePercent, value);
+        }
+
+        private string _driveSpaceText = string.Empty;
+        public string DriveSpaceText
+        {
+            get => _driveSpaceText;
+            set
+            {
+                if (SetField(ref _driveSpaceText, value))
+                {
+                    OnPropertyChanged(nameof(DriveSpaceVisibility));
+                    OnPropertyChanged(nameof(FileTypeVisibility));
+                }
+            }
+        }
+
+        public Visibility DriveSpaceVisibility => _isDrive && !string.IsNullOrEmpty(_driveSpaceText) ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility FileTypeVisibility => _isDrive && !string.IsNullOrEmpty(_driveSpaceText) ? Visibility.Collapsed : Visibility.Visible;
+
         public bool IsDirectory
         {
             get => _isDirectory;
@@ -514,6 +552,26 @@ namespace FastExplorer
                 len /= 1024;
             }
             return $"{len:0.##} {FileSizeUnits[order]}";
+        }
+
+        public static string FormatDiskSpace(long bytes)
+        {
+            if (bytes <= 0) return "0 GB";
+            double gb = bytes / (1024.0 * 1024.0 * 1024.0);
+            if (gb >= 1000.0)
+            {
+                double tb = gb / 1024.0;
+                return $"{tb:0.##} TB";
+            }
+            else if (gb >= 1.0)
+            {
+                return $"{Math.Round(gb)} GB";
+            }
+            else
+            {
+                double mb = bytes / (1024.0 * 1024.0);
+                return $"{Math.Round(mb)} MB";
+            }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
