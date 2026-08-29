@@ -311,25 +311,57 @@ namespace FastExplorer
         private void ViewSizeSmall_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null) return;
-            ApplyViewMode(FolderViewMode.SmallIcons);
+            bool isGrid = CurrentTab.ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons;
+            if (isGrid)
+            {
+                ApplyViewMode(FolderViewMode.SmallIcons, ViewScaleLevel.Compact);
+            }
+            else
+            {
+                ApplyViewMode(CurrentTab.ViewMode, ViewScaleLevel.Compact);
+            }
         }
 
         private void ViewSizeMedium_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null) return;
-            ApplyViewMode(FolderViewMode.MediumIcons);
+            bool isGrid = CurrentTab.ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons;
+            if (isGrid)
+            {
+                ApplyViewMode(FolderViewMode.MediumIcons, ViewScaleLevel.Normal);
+            }
+            else
+            {
+                ApplyViewMode(CurrentTab.ViewMode, ViewScaleLevel.Normal);
+            }
         }
 
         private void ViewSizeLarge_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null) return;
-            ApplyViewMode(FolderViewMode.LargeIcons);
+            bool isGrid = CurrentTab.ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons;
+            if (isGrid)
+            {
+                ApplyViewMode(FolderViewMode.LargeIcons, ViewScaleLevel.Large);
+            }
+            else
+            {
+                ApplyViewMode(CurrentTab.ViewMode, ViewScaleLevel.Large);
+            }
         }
 
         private void ViewSizeExtraLarge_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null) return;
-            ApplyViewMode(FolderViewMode.ExtraLargeIcons);
+            bool isGrid = CurrentTab.ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons;
+            if (isGrid)
+            {
+                ApplyViewMode(FolderViewMode.ExtraLargeIcons, ViewScaleLevel.ExtraLarge);
+            }
+            else
+            {
+                ApplyViewMode(CurrentTab.ViewMode, ViewScaleLevel.ExtraLarge);
+            }
         }
 
         private void CheckShowItemCheckBoxes_Toggled(object sender, RoutedEventArgs e)
@@ -363,7 +395,7 @@ namespace FastExplorer
             var mode = CurrentTab?.ViewMode ?? FolderViewMode.Details;
             var scale = CurrentTab?.ViewScale ?? ViewScaleLevel.Normal;
 
-            ActionToolbar?.UpdateViewMenuState(mode, scale, ConfigService.Current.Ui.ShowItemCheckBoxes, ConfigService.Current.Ui.ShowHiddenFiles);
+            ActionToolbar?.UpdateViewMenuState(mode, scale, ConfigService.Current.Ui.ShowItemCheckBoxes, ConfigService.Current.Ui.ShowHiddenFiles, IsPreviewPaneVisible);
 
             // 背景右クリックメニュー
             if (MenuBgViewExtraLarge != null) MenuBgViewExtraLarge.IsChecked = mode == FolderViewMode.ExtraLargeIcons;

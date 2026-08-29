@@ -357,42 +357,85 @@ namespace FastExplorer.Views.Settings
             ConfigService.Save();
         }
 
-        private void ToggleDefaultExplorer_Toggled(object sender, RoutedEventArgs e)
+        private bool _isSettingDefaultExplorer = false;
+
+        private async void ToggleDefaultExplorer_Toggled(object sender, RoutedEventArgs e)
         {
-            if (_isInitializing) return;
+            if (_isInitializing || _isSettingDefaultExplorer) return;
 
+            _isSettingDefaultExplorer = true;
             bool isEnabled = ToggleDefaultExplorer.IsOn;
-            bool success = SystemIntegrationService.SetAsDefaultExplorer(isEnabled);
-            if (success)
+
+            // 連打防止のため UI トグルを即時無効化し、処理中表示を開始
+            ToggleDefaultExplorer.IsEnabled = false;
+            if (DefaultExplorerProgressRing != null)
             {
-                ConfigService.Current.SystemIntegration.ReplaceDefaultExplorer = isEnabled;
+                DefaultExplorerProgressRing.IsActive = true;
+                DefaultExplorerProgressRing.Visibility = Visibility.Visible;
+            }
+            if (DefaultExplorerStatusText != null)
+            {
+                DefaultExplorerStatusText.Text = isEnabled ? "既定に設定中..." : "既定を解除中...";
+            }
 
-                // 既定の切り替えに伴い、右クリックメニュー連携および Win+E キー連動も自動で一括連動
-                SystemIntegrationService.SetContextMenuIntegration(isEnabled);
-                ConfigService.Current.SystemIntegration.AddContextMenuToFolders = isEnabled;
-                ConfigService.Current.SystemIntegration.InterceptWinE = isEnabled;
-
-                if (App.CurrentWindow is global::FastExplorer.MainWindow mw)
+            try
+            {
+                bool success = await System.Threading.Tasks.Task.Run(() =>
                 {
-                    if (isEnabled)
+                    return SystemIntegrationService.SetAsDefaultExplorer(isEnabled);
+                });
+
+                if (success)
+                {
+                    ConfigService.Current.SystemIntegration.ReplaceDefaultExplorer = isEnabled;
+
+                    // 既定の切り替えに伴い、右クリックメニュー連携および Win+E キー連動も自動で一括連動
+                    SystemIntegrationService.SetContextMenuIntegration(isEnabled);
+                    ConfigService.Current.SystemIntegration.AddContextMenuToFolders = isEnabled;
+                    ConfigService.Current.SystemIntegration.InterceptWinE = isEnabled;
+
+                    if (App.CurrentWindow is global::FastExplorer.MainWindow mw)
                     {
-                        SystemIntegrationService.RegisterWinEHotKey(mw.WindowHandle);
+                        if (isEnabled)
+                        {
+                            SystemIntegrationService.RegisterWinEHotKey(mw.WindowHandle);
+                        }
+                        else
+                        {
+                            SystemIntegrationService.UnregisterWinEHotKey(mw.WindowHandle);
+                        }
                     }
-                    else
-                    {
-                        SystemIntegrationService.UnregisterWinEHotKey(mw.WindowHandle);
-                    }
+
+                    ConfigService.Save();
+                }
+                else
+                {
+                    _isInitializing = true;
+                    ToggleDefaultExplorer.IsOn = !isEnabled;
+                    _isInitializing = false;
                 }
 
-                ConfigService.Save();
+                // シェルや Watcher プロセスの安全な遷移・初期化完了を待機（最低 1.2 秒のクールダウン）
+                await System.Threading.Tasks.Task.Delay(1200);
             }
-            else
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"[Settings] ToggleDefaultExplorer_Toggled error: {ex.Message}");
                 _isInitializing = true;
                 ToggleDefaultExplorer.IsOn = !isEnabled;
                 _isInitializing = false;
             }
-            UpdateDefaultExplorerStatusBadge(ToggleDefaultExplorer.IsOn);
+            finally
+            {
+                UpdateDefaultExplorerStatusBadge(ToggleDefaultExplorer.IsOn);
+                if (DefaultExplorerProgressRing != null)
+                {
+                    DefaultExplorerProgressRing.IsActive = false;
+                    DefaultExplorerProgressRing.Visibility = Visibility.Collapsed;
+                }
+                ToggleDefaultExplorer.IsEnabled = true;
+                _isSettingDefaultExplorer = false;
+            }
         }
 
         private static int CompressionLevelToIndex(ArchiveCompressionLevel level) => level switch

@@ -104,7 +104,6 @@ namespace FastExplorer
             // 項目チェックボックス表示の初期化
             ApplyItemCheckBoxesState();
             ApplyWallpaper();
-            InitializeComponentEvents();
             InitializeFileListEvents();
             InitializeColumnResize();
 
@@ -136,7 +135,7 @@ namespace FastExplorer
                 try
                 {
                     // UIと初期タブの初回レンダリングが落ち着いた後にバックグラウンドで確認
-                    await Task.Delay(1500);
+                    await Task.Delay(2500);
 
                     var updateService = new FastExplorer.Services.Update.UpdateService();
                     var config = ConfigService.Current.Update;
@@ -156,7 +155,7 @@ namespace FastExplorer
                 try
                 {
                     // UIと初期タブの初回レンダリングを最優先するため少し待機
-                    await Task.Delay(300);
+                    await Task.Delay(1000);
 
                     // 1. 新規作成テンプレートの一覧走査とアイコン事前キャッシュ
                     var templates = ShellNewService.GetShellNewTemplates();
@@ -402,6 +401,11 @@ namespace FastExplorer
             ActionToolbar.ViewSizeMediumRequested += (s, e) => ViewSizeMedium_Click(s, e);
             ActionToolbar.ViewSizeLargeRequested += (s, e) => ViewSizeLarge_Click(s, e);
             ActionToolbar.ViewSizeExtraLargeRequested += (s, e) => ViewSizeExtraLarge_Click(s, e);
+
+            ActionToolbar.ShowPreviewPaneChanged += isOn =>
+            {
+                IsPreviewPaneVisible = isOn;
+            };
 
             ActionToolbar.ShowCheckBoxesChanged += isOn =>
             {

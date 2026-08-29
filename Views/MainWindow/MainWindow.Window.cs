@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using FastExplorer.Core;
 using FastExplorer.Helpers;
@@ -180,34 +181,45 @@ namespace FastExplorer
             }
         }
 
+        private static string? _cachedIconPath;
+        private static nint _cachedIconBig;
+        private static nint _cachedIconSmall;
+
         private void SetupWindowIcon()
         {
             try
             {
-                string baseDir = AppContext.BaseDirectory;
-                string iconPath = System.IO.Path.Combine(baseDir, "icon.ico");
-                if (!System.IO.File.Exists(iconPath))
+                if (_cachedIconPath == null)
                 {
-                    iconPath = System.IO.Path.GetFullPath("icon.ico");
+                    string baseDir = AppContext.BaseDirectory;
+                    string iconPath = System.IO.Path.Combine(baseDir, "icon.ico");
+                    if (!System.IO.File.Exists(iconPath))
+                    {
+                        iconPath = System.IO.Path.GetFullPath("icon.ico");
+                    }
+                    _cachedIconPath = System.IO.File.Exists(iconPath) ? iconPath : string.Empty;
+
+                    if (!string.IsNullOrEmpty(_cachedIconPath))
+                    {
+                        _cachedIconBig = Win32Interop.LoadImageW(nint.Zero, _cachedIconPath, Win32Interop.IMAGE_ICON, 32, 32, Win32Interop.LR_LOADFROMFILE);
+                        _cachedIconSmall = Win32Interop.LoadImageW(nint.Zero, _cachedIconPath, Win32Interop.IMAGE_ICON, 16, 16, Win32Interop.LR_LOADFROMFILE);
+                    }
                 }
 
-                if (System.IO.File.Exists(iconPath))
+                if (!string.IsNullOrEmpty(_cachedIconPath))
                 {
-                    AppWindow.SetIcon(iconPath);
+                    AppWindow.SetIcon(_cachedIconPath);
 
                     nint hWnd = WindowHandle;
                     if (hWnd != nint.Zero)
                     {
-                        nint hIconBig = Win32Interop.LoadImageW(nint.Zero, iconPath, Win32Interop.IMAGE_ICON, 32, 32, Win32Interop.LR_LOADFROMFILE);
-                        nint hIconSmall = Win32Interop.LoadImageW(nint.Zero, iconPath, Win32Interop.IMAGE_ICON, 16, 16, Win32Interop.LR_LOADFROMFILE);
-
-                        if (hIconBig != nint.Zero)
+                        if (_cachedIconBig != nint.Zero)
                         {
-                            Win32Interop.SendMessage(hWnd, Win32Interop.WM_SETICON, (nuint)Win32Interop.ICON_BIG, hIconBig);
+                            Win32Interop.SendMessage(hWnd, Win32Interop.WM_SETICON, (nuint)Win32Interop.ICON_BIG, _cachedIconBig);
                         }
-                        if (hIconSmall != nint.Zero)
+                        if (_cachedIconSmall != nint.Zero)
                         {
-                            Win32Interop.SendMessage(hWnd, Win32Interop.WM_SETICON, (nuint)Win32Interop.ICON_SMALL, hIconSmall);
+                            Win32Interop.SendMessage(hWnd, Win32Interop.WM_SETICON, (nuint)Win32Interop.ICON_SMALL, _cachedIconSmall);
                         }
                     }
                 }
@@ -455,59 +467,6 @@ namespace FastExplorer
             }
 
             return Win32Interop.DefSubclassProc(hWnd, uMsg, wParam, lParam);
-        }
-
-        #endregion
-
-        #region Wallpaper & Background
-
-        private string? _currentLoadedWallpaperPath;
-
-        public void ApplyWallpaper()
-        {
-            try
-            {
-                var ui = ConfigService.Current.Ui;
-                string path = ui.BackgroundImagePath;
-
-                if (string.IsNullOrWhiteSpace(path) || !System.IO.File.Exists(path))
-                {
-                    BackgroundHostGrid.Visibility = Visibility.Collapsed;
-                    BackgroundImageHost.Source = null;
-                    _currentLoadedWallpaperPath = null;
-                    return;
-                }
-
-                // 画像の読み込み (パスが変わった場合のみ再ロード)
-                if (_currentLoadedWallpaperPath != path || BackgroundImageHost.Source == null)
-                {
-                    var bitmap = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(path));
-                    BackgroundImageHost.Source = bitmap;
-                    _currentLoadedWallpaperPath = path;
-                }
-
-                // 不透明度 (Opacity)
-                BackgroundImageHost.Opacity = Math.Clamp(ui.BackgroundOpacity, 0.0, 1.0);
-
-                // フィット方式 (Stretch)
-                BackgroundImageHost.Stretch = ui.BackgroundFit switch
-                {
-                    "Uniform" => Microsoft.UI.Xaml.Media.Stretch.Uniform,
-                    "Fill" => Microsoft.UI.Xaml.Media.Stretch.Fill,
-                    "None" => Microsoft.UI.Xaml.Media.Stretch.None,
-                    _ => Microsoft.UI.Xaml.Media.Stretch.UniformToFill
-                };
-
-                // 背景ティントオーバーレイ
-                BackgroundTintOverlay.Opacity = Math.Clamp(ui.BackgroundTintOpacity, 0.0, 1.0);
-
-                BackgroundHostGrid.Visibility = Visibility.Visible;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[Wallpaper] Error applying wallpaper: {ex.Message}");
-                BackgroundHostGrid.Visibility = Visibility.Collapsed;
-            }
         }
 
         #endregion

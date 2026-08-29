@@ -23,14 +23,6 @@
     <Grid x:Name="RootGrid" Background="Transparent">
         <Grid.Resources>
             <ResourceDictionary>
-                <ResourceDictionary.MergedDictionaries>
-                    <ResourceDictionary Source="ms-appx:///Resources/ContextMenuResources.xaml"/>
-                    <ResourceDictionary Source="ms-appx:///Resources/FileItemDetailsTemplates.xaml"/>
-                    <ResourceDictionary Source="ms-appx:///Resources/FileItemGridTemplates.xaml"/>
-                    <ResourceDictionary Source="ms-appx:///Resources/FileItemGridScaledTemplates.xaml"/>
-                    <ResourceDictionary Source="ms-appx:///Resources/LayoutTemplates.xaml"/>
-                </ResourceDictionary.MergedDictionaries>
-
                 <!-- 選択アイテム用 Win11 風コンテキストメニュー -->
                 <Flyout x:Key="ItemContextMenu" x:Name="ItemContextMenu" Placement="BottomEdgeAlignedLeft" Opening="ItemContextMenu_Opening" Closed="ItemContextMenu_Closed">
                     <Flyout.FlyoutPresenterStyle>
@@ -247,7 +239,7 @@
         <Grid Grid.Row="2">
             <Grid x:Name="ExplorerContentGrid">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="220" MinWidth="150" MaxWidth="400"/>
+                    <ColumnDefinition x:Name="SidebarColumn" Width="220" MinWidth="0" MaxWidth="400"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition x:Name="PreviewSplitterColumn" Width="0"/>

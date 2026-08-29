@@ -29,15 +29,30 @@ namespace FastExplorer.Views.MainWindow.Home
             this.InitializeComponent();
         }
 
+        private int _loadVersion = 0;
+
         public void RefreshHomeView()
         {
-            var pinnedFolders = QuickAccessService.GetPinnedFolderItems();
-            foreach (var item in pinnedFolders)
+            int version = System.Threading.Interlocked.Increment(ref _loadVersion);
+
+            // バックグラウンドでピン留めフォルダーを取得して非同期でUIに反映
+            System.Threading.Tasks.Task.Run(() =>
             {
-                IconThumbnailService.Instance.ApplyImmediateDefaultIcon(item);
-                IconThumbnailService.Instance.Enqueue(item);
-            }
-            HomeQuickAccessGridView.ItemsSource = pinnedFolders;
+                var pinnedFolders = QuickAccessService.GetPinnedFolderItems();
+                foreach (var item in pinnedFolders)
+                {
+                    IconThumbnailService.Instance.ApplyImmediateDefaultIcon(item);
+                    IconThumbnailService.Instance.Enqueue(item);
+                }
+
+                this.DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (version == _loadVersion)
+                    {
+                        HomeQuickAccessGridView.ItemsSource = pinnedFolders;
+                    }
+                });
+            });
 
             UpdateHomeTabContent();
         }
@@ -142,20 +157,32 @@ namespace FastExplorer.Views.MainWindow.Home
 
         public void UpdateHomeTabContent()
         {
-            if (_selectedHomeTab == 0)
+            int currentTab = _selectedHomeTab;
+            int version = _loadVersion;
+
+            if (currentTab == 0)
             {
-                var recentItems = GetWindowsRecentFiles();
-                if (recentItems.Count > 0)
+                System.Threading.Tasks.Task.Run(() =>
                 {
-                    HomeRecentEmptyStateGrid.Visibility = Visibility.Collapsed;
-                    HomeRecentListView.Visibility = Visibility.Visible;
-                    HomeRecentListView.ItemsSource = recentItems;
-                }
-                else
-                {
-                    HomeRecentListView.Visibility = Visibility.Collapsed;
-                    HomeRecentEmptyStateGrid.Visibility = Visibility.Visible;
-                }
+                    var recentItems = GetWindowsRecentFiles();
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (version == _loadVersion && _selectedHomeTab == 0)
+                        {
+                            if (recentItems.Count > 0)
+                            {
+                                HomeRecentEmptyStateGrid.Visibility = Visibility.Collapsed;
+                                HomeRecentListView.Visibility = Visibility.Visible;
+                                HomeRecentListView.ItemsSource = recentItems;
+                            }
+                            else
+                            {
+                                HomeRecentListView.Visibility = Visibility.Collapsed;
+                                HomeRecentEmptyStateGrid.Visibility = Visibility.Visible;
+                            }
+                        }
+                    });
+                });
             }
             else
             {

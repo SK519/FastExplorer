@@ -75,7 +75,7 @@ namespace FastExplorer.Views.Settings
 
             if (App.CurrentWindow is global::FastExplorer.MainWindow window)
             {
-                window.ApplyWallpaper();
+                window.UpdateWallpaperProperties();
             }
         }
 
@@ -92,7 +92,7 @@ namespace FastExplorer.Views.Settings
 
             if (App.CurrentWindow is global::FastExplorer.MainWindow window)
             {
-                window.ApplyWallpaper();
+                window.UpdateWallpaperProperties();
             }
         }
 
@@ -106,7 +106,7 @@ namespace FastExplorer.Views.Settings
 
                 if (App.CurrentWindow is global::FastExplorer.MainWindow window)
                 {
-                    window.ApplyWallpaper();
+                    window.UpdateWallpaperProperties();
                 }
             }
         }

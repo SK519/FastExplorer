@@ -58,139 +58,145 @@ namespace FastExplorer.Services
             }
         }
 
+        private static readonly object _defaultExplorerLock = new();
+        private static long _lastExplorerRestartTime = 0;
+
         public static bool SetAsDefaultExplorer(bool enable)
         {
-            try
+            lock (_defaultExplorerLock)
             {
-                EnsureCleanExplorerDisabledHotkeys();
-                string exePath = GetCurrentExecutablePath();
-                string commandValue = $"\"{exePath}\" \"%1\"";
-
-                if (enable)
+                try
                 {
-                    const string explorerDelegateExecuteGuid = "{11dbb47c-a525-400b-9e80-a54615a090c0}";
-
-                    // 1. Directory (フォルダーのダブルクリック / 開く / 探索)
-                    using (var shellKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\shell"))
-                    {
-                        shellKey?.SetValue(null, "open");
-                    }
-                    using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\shell\open\command"))
-                    {
-                        key?.SetValue(null, commandValue);
-                        key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
-                    }
-                    using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\shell\explore\command"))
-                    {
-                        key?.SetValue(null, commandValue);
-                        key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
-                    }
-
-                    // 2. Folder の不正なオーバーライドを削除して Windows シェルの破損を防止
-                    Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\Folder\shell\open", throwOnMissingSubKey: false);
-                    Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\Folder\shell\explore", throwOnMissingSubKey: false);
-                    using (var folderShellKey = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Folder\shell", true))
-                    {
-                        folderShellKey?.DeleteValue("", false);
-                    }
-
-                    // 3. Drive (ドライブのダブルクリック / 開く / 探索)
-                    using (var shellKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Drive\shell"))
-                    {
-                        shellKey?.SetValue(null, "open");
-                    }
-                    using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Drive\shell\open\command"))
-                    {
-                        key?.SetValue(null, commandValue);
-                        key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
-                    }
-                    using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Drive\shell\explore\command"))
-                    {
-                        key?.SetValue(null, commandValue);
-                        key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
-                    }
-
-                    // 4. ごみ箱 (CLSID)
-                    using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\open\command"))
-                    {
-                        key?.SetValue(null, $"\"{exePath}\" \"shell:RecycleBinFolder\"");
-                        key?.DeleteValue("DelegateExecute", false);
-                    }
-                    using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\explore\command"))
-                    {
-                        key?.SetValue(null, $"\"{exePath}\" \"shell:RecycleBinFolder\"");
-                        key?.DeleteValue("DelegateExecute", false);
-                    }
-
-                    // 5. コンテキストメニュー「FastExplorer で開く」
-                    SetContextMenuIntegration(true);
-
-                    // 6. スタートアップ & タスクスケジューラ登録（FastExplorerWatcher.exe）
-                    SetStartupRunKey(true);
-
-                    // 7. アプリケーションインストール先パスの記録
-                    using (var appKey = Registry.CurrentUser.CreateSubKey(@"Software\FastExplorer"))
-                    {
-                        appKey?.SetValue("InstallPath", exePath);
-                        appKey?.SetValue("ReplaceDefaultExplorer", 1, RegistryValueKind.DWord);
-                    }
-                    using (var appPathKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\App Paths\FastExplorer.exe"))
-                    {
-                        appPathKey?.SetValue(null, exePath);
-                        appPathKey?.SetValue("Path", AppDomain.CurrentDomain.BaseDirectory);
-                    }
-                }
-                else
-                {
-                    using (var appKey = Registry.CurrentUser.CreateSubKey(@"Software\FastExplorer"))
-                    {
-                        appKey?.SetValue("ReplaceDefaultExplorer", 0, RegistryValueKind.DWord);
-                    }
-
-                    // 1. 各 open / explore サブキーを完全削除して Windows 標準 (HKLM) に戻す
-                    string[] openKeys = [
-                        @"Software\Classes\Directory\shell\open",
-                        @"Software\Classes\Directory\shell\explore",
-                        @"Software\Classes\Folder\shell\open",
-                        @"Software\Classes\Folder\shell\explore",
-                        @"Software\Classes\Drive\shell\open",
-                        @"Software\Classes\Drive\shell\explore",
-                        @"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\open",
-                        @"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\explore"
-                    ];
-                    foreach (var openKey in openKeys)
-                    {
-                        Registry.CurrentUser.DeleteSubKeyTree(openKey, throwOnMissingSubKey: false);
-                    }
-
-                    // 2. shell の (既定) 値を削除
-                    string[] shellKeys = [
-                        @"Software\Classes\Directory\shell",
-                        @"Software\Classes\Folder\shell",
-                        @"Software\Classes\Drive\shell"
-                    ];
-                    foreach (var sKey in shellKeys)
-                    {
-                        using var key = Registry.CurrentUser.OpenSubKey(sKey, true);
-                        key?.DeleteValue("", false);
-                    }
-
-                    // 3. スタートアップ & タスクスケジューラ登録解除
-                    SetStartupRunKey(false);
-                    SetTaskSchedulerTask(false);
                     EnsureCleanExplorerDisabledHotkeys();
-                    KillWatcherProcesses();
-                    RestartWindowsExplorer();
-                }
+                    string exePath = GetCurrentExecutablePath();
+                    string commandValue = $"\"{exePath}\" \"%1\"";
 
-                ConfigService.Current.SystemIntegration.ReplaceDefaultExplorer = enable;
-                ConfigService.Save();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[SystemIntegration] SetAsDefaultExplorer error: {ex.Message}");
-                return false;
+                    if (enable)
+                    {
+                        const string explorerDelegateExecuteGuid = "{11dbb47c-a525-400b-9e80-a54615a090c0}";
+
+                        // 1. Directory (フォルダーのダブルクリック / 開く / 探索)
+                        using (var shellKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\shell"))
+                        {
+                            shellKey?.SetValue(null, "open");
+                        }
+                        using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\shell\open\command"))
+                        {
+                            key?.SetValue(null, commandValue);
+                            key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
+                        }
+                        using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\shell\explore\command"))
+                        {
+                            key?.SetValue(null, commandValue);
+                            key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
+                        }
+
+                        // 2. Folder の不正なオーバーライドを削除して Windows シェルの破損を防止
+                        Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\Folder\shell\open", throwOnMissingSubKey: false);
+                        Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\Folder\shell\explore", throwOnMissingSubKey: false);
+                        using (var folderShellKey = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Folder\shell", true))
+                        {
+                            folderShellKey?.DeleteValue("", false);
+                        }
+
+                        // 3. Drive (ドライブのダブルクリック / 開く / 探索)
+                        using (var shellKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Drive\shell"))
+                        {
+                            shellKey?.SetValue(null, "open");
+                        }
+                        using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Drive\shell\open\command"))
+                        {
+                            key?.SetValue(null, commandValue);
+                            key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
+                        }
+                        using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Drive\shell\explore\command"))
+                        {
+                            key?.SetValue(null, commandValue);
+                            key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
+                        }
+
+                        // 4. ごみ箱 (CLSID)
+                        using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\open\command"))
+                        {
+                            key?.SetValue(null, $"\"{exePath}\" \"shell:RecycleBinFolder\"");
+                            key?.DeleteValue("DelegateExecute", false);
+                        }
+                        using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\explore\command"))
+                        {
+                            key?.SetValue(null, $"\"{exePath}\" \"shell:RecycleBinFolder\"");
+                            key?.DeleteValue("DelegateExecute", false);
+                        }
+
+                        // 5. コンテキストメニュー「FastExplorer で開く」
+                        SetContextMenuIntegration(true);
+
+                        // 6. スタートアップ & タスクスケジューラ登録（FastExplorerWatcher.exe）
+                        SetStartupRunKey(true);
+
+                        // 7. アプリケーションインストール先パスの記録
+                        using (var appKey = Registry.CurrentUser.CreateSubKey(@"Software\FastExplorer"))
+                        {
+                            appKey?.SetValue("InstallPath", exePath);
+                            appKey?.SetValue("ReplaceDefaultExplorer", 1, RegistryValueKind.DWord);
+                        }
+                        using (var appPathKey = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\App Paths\FastExplorer.exe"))
+                        {
+                            appPathKey?.SetValue(null, exePath);
+                            appPathKey?.SetValue("Path", AppDomain.CurrentDomain.BaseDirectory);
+                        }
+                    }
+                    else
+                    {
+                        using (var appKey = Registry.CurrentUser.CreateSubKey(@"Software\FastExplorer"))
+                        {
+                            appKey?.SetValue("ReplaceDefaultExplorer", 0, RegistryValueKind.DWord);
+                        }
+
+                        // 1. 各 open / explore サブキーを完全削除して Windows 標準 (HKLM) に戻す
+                        string[] openKeys = [
+                            @"Software\Classes\Directory\shell\open",
+                            @"Software\Classes\Directory\shell\explore",
+                            @"Software\Classes\Folder\shell\open",
+                            @"Software\Classes\Folder\shell\explore",
+                            @"Software\Classes\Drive\shell\open",
+                            @"Software\Classes\Drive\shell\explore",
+                            @"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\open",
+                            @"Software\Classes\CLSID\{645FF040-5081-101B-9F08-00AA002F954E}\shell\explore"
+                        ];
+                        foreach (var openKey in openKeys)
+                        {
+                            Registry.CurrentUser.DeleteSubKeyTree(openKey, throwOnMissingSubKey: false);
+                        }
+
+                        // 2. shell の (既定) 値を削除
+                        string[] shellKeys = [
+                            @"Software\Classes\Directory\shell",
+                            @"Software\Classes\Folder\shell",
+                            @"Software\Classes\Drive\shell"
+                        ];
+                        foreach (var sKey in shellKeys)
+                        {
+                            using var key = Registry.CurrentUser.OpenSubKey(sKey, true);
+                            key?.DeleteValue("", false);
+                        }
+
+                        // 3. スタートアップ & タスクスケジューラ登録解除
+                        SetStartupRunKey(false);
+                        SetTaskSchedulerTask(false);
+                        EnsureCleanExplorerDisabledHotkeys();
+                        KillWatcherProcesses();
+                        RestartWindowsExplorer();
+                    }
+
+                    ConfigService.Current.SystemIntegration.ReplaceDefaultExplorer = enable;
+                    ConfigService.Save();
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[SystemIntegration] SetAsDefaultExplorer error: {ex.Message}");
+                    return false;
+                }
             }
         }
 
@@ -198,6 +204,14 @@ namespace FastExplorer.Services
         {
             try
             {
+                long now = Environment.TickCount64;
+                if (now - _lastExplorerRestartTime < 4000)
+                {
+                    // 直近4秒以内の連続再起動呼び出しを防止
+                    return;
+                }
+                _lastExplorerRestartTime = now;
+
                 foreach (var p in Process.GetProcessesByName("explorer"))
                 {
                     try { p.Kill(); } catch { }

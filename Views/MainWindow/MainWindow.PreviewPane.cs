@@ -18,11 +18,22 @@ namespace FastExplorer
                 {
                     if (value)
                     {
-                        PreviewPaneColumn.MinWidth = 220;
-                        PreviewPaneColumn.Width = new GridLength(300, GridUnitType.Pixel);
+                        try
+                        {
+                            if (AppWindow != null && AppWindow.Size.Width < 760)
+                            {
+                                int newWidth = Math.Max(760, AppWindow.Size.Width + 280);
+                                AppWindow.Resize(new Windows.Graphics.SizeInt32(newWidth, AppWindow.Size.Height));
+                            }
+                        }
+                        catch { }
+
+                        PreviewPaneColumn.MinWidth = 180;
+                        PreviewPaneColumn.Width = new GridLength(280, GridUnitType.Pixel);
                         PreviewSplitterColumn.Width = GridLength.Auto;
                         PreviewPane.Visibility = Visibility.Visible;
                         PreviewSplitter.Visibility = Visibility.Visible;
+                        ActionToolbar?.UpdatePreviewButtonVisual(true);
                         UpdatePreviewPane();
                     }
                     else
@@ -32,6 +43,7 @@ namespace FastExplorer
                         PreviewSplitterColumn.Width = new GridLength(0, GridUnitType.Pixel);
                         PreviewPane.Visibility = Visibility.Collapsed;
                         PreviewSplitter.Visibility = Visibility.Collapsed;
+                        ActionToolbar?.UpdatePreviewButtonVisual(false);
                     }
                 }
             }
@@ -51,7 +63,7 @@ namespace FastExplorer
         {
             if (PreviewPane == null || PreviewPane.Visibility == Visibility.Collapsed) return;
 
-            var selectedItems = ActiveListControl?.SelectedItems?.OfType<FileItem>().ToList() ?? [];
+            var selectedItems = GetCurrentlySelectedItems();
             PreviewPane.UpdatePreview(selectedItems, CurrentTab?.CurrentPath);
         }
 

@@ -442,7 +442,10 @@
                                 <TextBlock Text="※ 管理者権限不要 (HKCU) で安全に登録され、いつでもワンクリックで元に戻せます。" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                                 <TextBlock Text="※ 既定を解除する際、Windows 標準の Win + E キーショートカットを再有効化するため、Windows エクスプローラー (explorer.exe) が自動で再起動します。" FontSize="11" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
                             </StackPanel>
-                            <ToggleSwitch x:Name="ToggleDefaultExplorer" Grid.Column="1" VerticalAlignment="Center" Toggled="ToggleDefaultExplorer_Toggled"/>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <ProgressRing x:Name="DefaultExplorerProgressRing" IsActive="False" Visibility="Collapsed" Width="20" Height="20"/>
+                                <ToggleSwitch x:Name="ToggleDefaultExplorer" VerticalAlignment="Center" Toggled="ToggleDefaultExplorer_Toggled"/>
+                            </StackPanel>
                         </Grid>
                     </Border>
                 </StackPanel>

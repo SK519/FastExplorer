@@ -29,6 +29,7 @@ namespace FastExplorer.Views.MainWindow.Toolbar
         public event RoutedEventHandler? ViewSizeMediumRequested;
         public event RoutedEventHandler? ViewSizeLargeRequested;
         public event RoutedEventHandler? ViewSizeExtraLargeRequested;
+        public event Action<bool>? ShowPreviewPaneChanged;
         public event Action<bool>? ShowCheckBoxesChanged;
         public event Action<bool>? ShowHiddenFilesChanged;
         public event Action<System.Collections.Generic.IList<MenuFlyoutItemBase>>? NewMenuOpening;
@@ -73,11 +74,13 @@ namespace FastExplorer.Views.MainWindow.Toolbar
 
         private FolderViewMode _currentMode = FolderViewMode.Details;
         private ViewScaleLevel _currentScale = ViewScaleLevel.Normal;
+        private bool _isPreviewPaneVisible = false;
 
-        public void UpdateViewMenuState(FolderViewMode mode, ViewScaleLevel scale, bool showCheckBoxes, bool showHidden)
+        public void UpdateViewMenuState(FolderViewMode mode, ViewScaleLevel scale, bool showCheckBoxes, bool showHidden, bool showPreview = false)
         {
             _currentMode = mode;
             _currentScale = scale;
+            _isPreviewPaneVisible = showPreview;
 
             bool isGridMode = mode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons;
 
@@ -88,14 +91,49 @@ namespace FastExplorer.Views.MainWindow.Toolbar
             SetFlyoutButtonActive(BtnFlyoutGrid, isGridMode);
             SetFlyoutButtonActive(BtnFlyoutTiles, mode == FolderViewMode.Tiles);
 
-            // サイズボタンの選択状態ハイライト
-            SetFlyoutButtonActive(BtnSizeSmall, mode == FolderViewMode.SmallIcons);
-            SetFlyoutButtonActive(BtnSizeMedium, mode == FolderViewMode.MediumIcons);
-            SetFlyoutButtonActive(BtnSizeLarge, mode == FolderViewMode.LargeIcons);
-            SetFlyoutButtonActive(BtnSizeExtraLarge, mode == FolderViewMode.ExtraLargeIcons);
+            // サイズボタンの選択状態ハイライト (グリッド時はモード、それ以外のレイアウト時はスケールに連動)
+            if (isGridMode)
+            {
+                SetFlyoutButtonActive(BtnSizeSmall, mode == FolderViewMode.SmallIcons);
+                SetFlyoutButtonActive(BtnSizeMedium, mode == FolderViewMode.MediumIcons);
+                SetFlyoutButtonActive(BtnSizeLarge, mode == FolderViewMode.LargeIcons);
+                SetFlyoutButtonActive(BtnSizeExtraLarge, mode == FolderViewMode.ExtraLargeIcons);
+            }
+            else
+            {
+                SetFlyoutButtonActive(BtnSizeSmall, scale == ViewScaleLevel.Compact);
+                SetFlyoutButtonActive(BtnSizeMedium, scale == ViewScaleLevel.Normal);
+                SetFlyoutButtonActive(BtnSizeLarge, scale == ViewScaleLevel.Large);
+                SetFlyoutButtonActive(BtnSizeExtraLarge, scale == ViewScaleLevel.ExtraLarge);
+            }
 
+            if (CheckShowPreviewPane != null) CheckShowPreviewPane.IsOn = showPreview;
             if (CheckShowItemCheckBoxes != null) CheckShowItemCheckBoxes.IsOn = showCheckBoxes;
             if (CheckShowHiddenFiles != null) CheckShowHiddenFiles.IsOn = showHidden;
+
+            UpdatePreviewButtonVisual(showPreview);
+        }
+
+        public void UpdatePreviewButtonVisual(bool isVisible)
+        {
+            _isPreviewPaneVisible = isVisible;
+            if (ToolbarBtnTogglePreview != null)
+            {
+                if (isVisible)
+                {
+                    ToolbarBtnTogglePreview.Background = Views.Settings.SettingsControl.GetThemeBrush("AccentFillColorDefaultBrush", new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue));
+                    ToolbarBtnTogglePreview.Foreground = Views.Settings.SettingsControl.GetThemeBrush("TextOnAccentFillColorPrimaryBrush", new SolidColorBrush(Microsoft.UI.Colors.White));
+                }
+                else
+                {
+                    ToolbarBtnTogglePreview.Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                    ToolbarBtnTogglePreview.Foreground = Views.Settings.SettingsControl.GetThemeBrush("TextFillColorPrimaryBrush", new SolidColorBrush(Microsoft.UI.Colors.White));
+                }
+            }
+            if (CheckShowPreviewPane != null && CheckShowPreviewPane.IsOn != isVisible)
+            {
+                CheckShowPreviewPane.IsOn = isVisible;
+            }
         }
 
         private static void SetFlyoutButtonActive(Button? button, bool isActive)
@@ -117,7 +155,7 @@ namespace FastExplorer.Views.MainWindow.Toolbar
 
         private void ViewMenuFlyout_Opening(object? sender, object e)
         {
-            UpdateViewMenuState(_currentMode, _currentScale, ConfigService.Current.Ui.ShowItemCheckBoxes, ConfigService.Current.Ui.ShowHiddenFiles);
+            UpdateViewMenuState(_currentMode, _currentScale, ConfigService.Current.Ui.ShowItemCheckBoxes, ConfigService.Current.Ui.ShowHiddenFiles, _isPreviewPaneVisible);
         }
 
         private void NewFolder_Click(object sender, RoutedEventArgs e) => NewFolderRequested?.Invoke(sender, e);
@@ -142,6 +180,11 @@ namespace FastExplorer.Views.MainWindow.Toolbar
         private void ViewSizeMedium_Click(object sender, RoutedEventArgs e) { ToolbarViewFlyout.Hide(); ViewSizeMediumRequested?.Invoke(sender, e); }
         private void ViewSizeLarge_Click(object sender, RoutedEventArgs e) { ToolbarViewFlyout.Hide(); ViewSizeLargeRequested?.Invoke(sender, e); }
         private void ViewSizeExtraLarge_Click(object sender, RoutedEventArgs e) { ToolbarViewFlyout.Hide(); ViewSizeExtraLargeRequested?.Invoke(sender, e); }
+
+        private void CheckShowPreviewPane_Toggled(object sender, RoutedEventArgs e)
+        {
+            ShowPreviewPaneChanged?.Invoke(CheckShowPreviewPane.IsOn);
+        }
 
         private void CheckShowItemCheckBoxes_Toggled(object sender, RoutedEventArgs e)
         {

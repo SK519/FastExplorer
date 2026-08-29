@@ -103,76 +103,93 @@ namespace FastExplorer.Services
             _dispatcherQueue = dispatcherQueue;
             _initEvent.Set();
 
-            // 基本デフォルトアイコンを最優先で即座に初期化
-            _dispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, async () =>
+            // 重い Win32/COM/GDI+ ビットマップ抽出はバックグラウンドスレッドで実行し、UIスレッドのブロックを完全排除
+            System.Threading.Tasks.Task.Run(async () =>
             {
                 try
                 {
-                    _defaultFolderBitmap = GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_FOLDER);
-                    if (_defaultFolderBitmap != null)
-                    {
-                        var src = new SoftwareBitmapSource();
-                        await src.SetBitmapAsync(_defaultFolderBitmap);
-                        _defaultFolderSource = src;
-                    }
+                    // 1. 最重要基本アイコンのビットマップをバックグラウンドで事前抽出
+                    var folderBmp = GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_FOLDER);
+                    var fileBmp = GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_DOCNOTASSOC);
+                    var homeBmp = GetHomeSoftwareBitmap(32);
+                    var recycleBmp = GetRecycleBinSoftwareBitmap(true);
+                    var pcBmp = GetPcSoftwareBitmap(true);
+                    var netBmp = GetNetworkSoftwareBitmap(true);
+                    var wslBmp = GetWslSoftwareBitmap(32);
+                    var driveBmp = GetDriveSoftwareBitmap("C:\\", false);
 
-                    _defaultFileBitmap = GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_DOCNOTASSOC);
-                    if (_defaultFileBitmap != null)
-                    {
-                        var src = new SoftwareBitmapSource();
-                        await src.SetBitmapAsync(_defaultFileBitmap);
-                        _defaultFileSource = src;
-                    }
+                    _defaultFolderBitmap = folderBmp;
+                    _defaultFileBitmap = fileBmp;
+                    _defaultHomeBitmap = homeBmp;
+                    _defaultRecycleBinBitmap = recycleBmp;
+                    _defaultPcBitmap = pcBmp;
+                    _defaultNetworkBitmap = netBmp;
+                    _defaultWslBitmap = wslBmp;
+                    _defaultDriveBitmap = driveBmp;
 
-                    _defaultHomeBitmap = GetHomeSoftwareBitmap(32);
-                    if (_defaultHomeBitmap != null)
+                    // 2. UIスレッド上で SoftwareBitmapSource に変換 (最優先バッチ)
+                    _dispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, async () =>
                     {
-                        var src = new SoftwareBitmapSource();
-                        await src.SetBitmapAsync(_defaultHomeBitmap);
-                        _defaultHomeSource = src;
-                    }
+                        try
+                        {
+                            if (folderBmp != null)
+                            {
+                                var src = new SoftwareBitmapSource();
+                                await src.SetBitmapAsync(folderBmp);
+                                _defaultFolderSource = src;
+                            }
+                            if (fileBmp != null)
+                            {
+                                var src = new SoftwareBitmapSource();
+                                await src.SetBitmapAsync(fileBmp);
+                                _defaultFileSource = src;
+                            }
+                            if (homeBmp != null)
+                            {
+                                var src = new SoftwareBitmapSource();
+                                await src.SetBitmapAsync(homeBmp);
+                                _defaultHomeSource = src;
+                            }
+                            if (recycleBmp != null)
+                            {
+                                var src = new SoftwareBitmapSource();
+                                await src.SetBitmapAsync(recycleBmp);
+                                _defaultRecycleBinSource = src;
+                            }
+                            if (pcBmp != null)
+                            {
+                                var src = new SoftwareBitmapSource();
+                                await src.SetBitmapAsync(pcBmp);
+                                _defaultPcSource = src;
+                            }
+                            if (netBmp != null)
+                            {
+                                var src = new SoftwareBitmapSource();
+                                await src.SetBitmapAsync(netBmp);
+                                _defaultNetworkSource = src;
+                            }
+                            if (wslBmp != null)
+                            {
+                                var src = new SoftwareBitmapSource();
+                                await src.SetBitmapAsync(wslBmp);
+                                _defaultWslSource = src;
+                            }
+                            if (driveBmp != null)
+                            {
+                                var src = new SoftwareBitmapSource();
+                                await src.SetBitmapAsync(driveBmp);
+                                _defaultDriveSource = src;
+                            }
 
-                    _defaultRecycleBinBitmap = GetRecycleBinSoftwareBitmap(true);
-                    if (_defaultRecycleBinBitmap != null)
-                    {
-                        var src = new SoftwareBitmapSource();
-                        await src.SetBitmapAsync(_defaultRecycleBinBitmap);
-                        _defaultRecycleBinSource = src;
-                    }
+                            DefaultIconsInitialized?.Invoke();
+                        }
+                        catch { }
+                    });
 
-                    _defaultPcBitmap = GetPcSoftwareBitmap(true);
-                    if (_defaultPcBitmap != null)
-                    {
-                        var src = new SoftwareBitmapSource();
-                        await src.SetBitmapAsync(_defaultPcBitmap);
-                        _defaultPcSource = src;
-                    }
+                    // 3. ドライブ固有アイコン・主要拡張子のウォームアップは初回UI描画が落ち着いた後にバックグラウンドで実行
+                    await System.Threading.Tasks.Task.Delay(600);
 
-                    _defaultNetworkBitmap = GetNetworkSoftwareBitmap(true);
-                    if (_defaultNetworkBitmap != null)
-                    {
-                        var src = new SoftwareBitmapSource();
-                        await src.SetBitmapAsync(_defaultNetworkBitmap);
-                        _defaultNetworkSource = src;
-                    }
-
-                    _defaultWslBitmap = GetWslSoftwareBitmap(32);
-                    if (_defaultWslBitmap != null)
-                    {
-                        var src = new SoftwareBitmapSource();
-                        await src.SetBitmapAsync(_defaultWslBitmap);
-                        _defaultWslSource = src;
-                    }
-
-                    _defaultDriveBitmap = GetDriveSoftwareBitmap("C:\\", false);
-                    if (_defaultDriveBitmap != null)
-                    {
-                        var src = new SoftwareBitmapSource();
-                        await src.SetBitmapAsync(_defaultDriveBitmap);
-                        _defaultDriveSource = src;
-                    }
-
-                    // ドライブ固有のアイコン（Googleドライブ等の専用アイコン）を全ドライブ分事前キャッシュ
+                    // ドライブ一覧の取得とアイコンキャッシュ
                     try
                     {
                         var drives = DriveInfo.GetDrives();
@@ -184,18 +201,23 @@ namespace FastExplorer.Services
                                 var bmp = GetDriveSoftwareBitmap(root, false);
                                 if (bmp != null)
                                 {
-                                    var src = new SoftwareBitmapSource();
-                                    await src.SetBitmapAsync(bmp);
-                                    _driveSourceCache[root] = src;
-                                    _driveSourceCache[root.TrimEnd('\\')] = src;
+                                    _dispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () =>
+                                    {
+                                        try
+                                        {
+                                            var src = new SoftwareBitmapSource();
+                                            await src.SetBitmapAsync(bmp);
+                                            _driveSourceCache[root] = src;
+                                            _driveSourceCache[root.TrimEnd('\\')] = src;
+                                        }
+                                        catch { }
+                                    });
                                 }
                             }
                             catch { }
                         }
                     }
                     catch { }
-
-                    DefaultIconsInitialized?.Invoke();
 
                     // 主要拡張子の非同期ウォームアップ
                     string[] commonExtensions =
@@ -208,9 +230,16 @@ namespace FastExplorer.Services
                         var bmp = GetSoftwareBitmapForExtension(ext);
                         if (bmp != null)
                         {
-                            var src = new SoftwareBitmapSource();
-                            await src.SetBitmapAsync(bmp);
-                            _extensionSourceCache[ext] = src;
+                            _dispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () =>
+                            {
+                                try
+                                {
+                                    var src = new SoftwareBitmapSource();
+                                    await src.SetBitmapAsync(bmp);
+                                    _extensionSourceCache[ext] = src;
+                                }
+                                catch { }
+                            });
                         }
                     }
                 }
@@ -398,173 +427,6 @@ namespace FastExplorer.Services
             {
                 _workQueue.Add(item);
             }
-        }
-
-        public void ClearCache()
-        {
-            lock (_lruLock)
-            {
-                foreach (var kvp in _lruCache)
-                {
-                    try { kvp.Value.Dispose(); } catch { }
-                }
-                _lruCache.Clear();
-                _imageSourceCache.Clear();
-                _lruKeys.Clear();
-            }
-        }
-
-        private static string GetCacheKey(FileItem item)
-        {
-            if (item.FullPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
-            {
-                return "special::home";
-            }
-            if (RecycleBinService.IsRecycleBinPath(item.FullPath))
-            {
-                return "special::recyclebin";
-            }
-            if (item.FullPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
-            {
-                return "special::thispc";
-            }
-            if (item.FullPath.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || item.FullPath.Equals("Network", StringComparison.OrdinalIgnoreCase))
-            {
-                return "special::network";
-            }
-            if (IsWslRootPath(item.FullPath, item.Name))
-            {
-                return "special::wsl::" + item.FullPath.ToLowerInvariant();
-            }
-
-            if (item.FullPath.StartsWith("::") || item.FullPath.StartsWith("shell:") || item.FullPath.StartsWith("urn:"))
-            {
-                return "shellitem::" + item.FullPath.ToLowerInvariant();
-            }
-
-            // ドライブ
-            if (item.FullPath.Length <= 3 && item.FullPath.Contains(':'))
-            {
-                return "drive::" + item.FullPath.ToUpperInvariant();
-            }
-
-            // フォルダーはそれぞれの固有パスをキーにしてキャッシュ
-            if (item.IsDirectory)
-            {
-                return "folder::" + item.FullPath.ToLowerInvariant();
-            }
-
-            // ファイル
-            string ext = item.Extension;
-            if (item.AllowThumbnail && (string.IsNullOrEmpty(ext) || MediaPreviewExtensions.Contains(ext) || CustomIconExtensions.Contains(ext)))
-            {
-                return item.FullPath.ToLowerInvariant();
-            }
-            if (!item.AllowThumbnail && (string.IsNullOrEmpty(ext) || CustomIconExtensions.Contains(ext)))
-            {
-                return item.FullPath.ToLowerInvariant();
-            }
-            return "ext::" + ext;
-        }
-
-        private void ProcessWorkQueue()
-        {
-            try
-            {
-                Core.Win32Interop.OleInitialize(nint.Zero);
-            }
-            catch { }
-
-            // UI DispatcherQueue の初期化完了を待機（最大5秒）
-            _initEvent.Wait(5000);
-
-            foreach (var item in _workQueue.GetConsumingEnumerable())
-            {
-                _queuedPaths.TryRemove(item.FullPath, out _);
-                try
-                {
-                    string key = GetCacheKey(item);
-                    if (_lruCache.TryGetValue(key, out var cachedBitmap))
-                    {
-                        SetIconToItem(item, cachedBitmap, key);
-                        continue;
-                    }
-
-                    SoftwareBitmap? bitmap = ExtractIconAsSoftwareBitmap(item);
-                    if (bitmap != null)
-                    {
-                        AddToCache(key, bitmap);
-                        SetIconToItem(item, bitmap, key);
-                    }
-                }
-                catch
-                {
-                    // アイコン抽出エラーはスキップ
-                }
-
-                if (_workQueue.Count == 0)
-                {
-                    // キュー消化完了時に一時メモリを解放し、未使用物理メモリをOSに返却
-                    GC.Collect(2, GCCollectionMode.Optimized, false, false);
-                    try
-                    {
-                        using var curProcess = System.Diagnostics.Process.GetCurrentProcess();
-                        Core.Win32Interop.SetProcessWorkingSetSize(curProcess.Handle, (nint)(-1), (nint)(-1));
-                    }
-                    catch { }
-                }
-            }
-        }
-
-        private void AddToCache(string key, SoftwareBitmap bitmap)
-        {
-            lock (_lruLock)
-            {
-                if (_lruCache.Count >= MaxCacheEntries)
-                {
-                    if (_lruKeys.First != null)
-                    {
-                        string oldestKey = _lruKeys.First.Value;
-                        _lruKeys.RemoveFirst();
-                        if (_lruCache.TryRemove(oldestKey, out var oldBmp))
-                        {
-                            try { oldBmp.Dispose(); } catch { }
-                        }
-                        _imageSourceCache.TryRemove(oldestKey, out _);
-                    }
-                }
-                _lruCache[key] = bitmap;
-                _lruKeys.AddLast(key);
-            }
-        }
-
-        private void SetIconToItem(FileItem item, SoftwareBitmap softwareBitmap, string cacheKey)
-        {
-            if (_dispatcherQueue == null)
-            {
-                _initEvent.Wait(2000);
-            }
-
-            _dispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () =>
-            {
-                try
-                {
-                    if (_imageSourceCache.TryGetValue(cacheKey, out var cachedSource))
-                    {
-                        item.Icon = cachedSource;
-                        return;
-                    }
-
-                    var source = new SoftwareBitmapSource();
-                    await source.SetBitmapAsync(softwareBitmap);
-                    _imageSourceCache[cacheKey] = source;
-                    item.Icon = source;
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[IconThumbnailService] SetIconToItem error: {ex.Message}");
-                }
-            });
         }
 
         public static bool IsImageOrientedMode(FolderViewMode mode)

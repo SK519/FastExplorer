@@ -26,17 +26,27 @@ namespace FastExplorer
             _ => (ListViewBase)FileGridView
         }) ?? FileListView;
 
+        private bool _isSelectionVisualsUpdatePending = false;
+
+        public void RequestSelectionVisualsUpdate()
+        {
+            if (_isSelectionVisualsUpdatePending) return;
+            _isSelectionVisualsUpdatePending = true;
+
+            this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                _isSelectionVisualsUpdatePending = false;
+                UpdateSelectionVisuals();
+            });
+        }
+
         public void InitializeFileListEvents()
         {
             InitializeMarqueeSelection();
             FileOperationService.ClipboardStateChanged += OnClipboardStateChanged;
             FileItem.SelectionVisualsCallback = () =>
             {
-                this.DispatcherQueue.TryEnqueue(() =>
-                {
-                    SyncSelectedItemsFromModel();
-                    UpdateSelectionVisuals();
-                });
+                RequestSelectionVisualsUpdate();
             };
             HookFileListScrollSync();
 
@@ -48,29 +58,6 @@ namespace FastExplorer
             SidebarContainerGrid.AddHandler(UIElement.TappedEvent, new TappedEventHandler(SidebarContainer_Tapped), true);
             SidebarList.AddHandler(UIElement.TappedEvent, new TappedEventHandler(SidebarList_Tapped), true);
             SidebarList.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler(SidebarList_PointerPressed), true);
-        }
-
-        private void SyncSelectedItemsFromModel()
-        {
-            if (CurrentTab?.Items == null || _isSynchronizingSelection) return;
-            try
-            {
-                _isSynchronizingSelection = true;
-                var list = ActiveListControl;
-                if (list != null)
-                {
-                    var selected = CurrentTab.Items.Where(i => i.IsSelected).ToList();
-                    list.SelectedItems.Clear();
-                    foreach (var item in selected)
-                    {
-                        list.SelectedItems.Add(item);
-                    }
-                }
-            }
-            finally
-            {
-                _isSynchronizingSelection = false;
-            }
         }
 
         private ScrollViewer? _fileListScrollViewer;
@@ -156,7 +143,11 @@ namespace FastExplorer
                 _isSynchronizingSelection = true;
                 foreach (var item in CurrentTab.Items)
                 {
-                    item.IsSelected = (item == target);
+                    bool isTarget = (item == target);
+                    if (item.IsSelected != isTarget)
+                    {
+                        item.SetIsSelectedSilently(isTarget);
+                    }
                 }
                 var list = ActiveListControl;
                 if (list != null)
@@ -172,9 +163,8 @@ namespace FastExplorer
             {
                 _isSynchronizingSelection = false;
             }
-            UpdateSelectionVisuals();
+            RequestSelectionVisualsUpdate();
         }
-
 
         public void ClearAllSelections()
         {
@@ -185,7 +175,10 @@ namespace FastExplorer
                 {
                     foreach (var item in CurrentTab.Items)
                     {
-                        item.IsSelected = false;
+                        if (item.IsSelected)
+                        {
+                            item.SetIsSelectedSilently(false);
+                        }
                     }
                 }
                 ActiveListControl?.SelectedItems?.Clear();
@@ -194,7 +187,7 @@ namespace FastExplorer
             {
                 _isSynchronizingSelection = false;
             }
-            UpdateSelectionVisuals();
+            RequestSelectionVisualsUpdate();
         }
 
         private void SidebarContainer_Tapped(object sender, TappedRoutedEventArgs e)
@@ -431,12 +424,17 @@ namespace FastExplorer
             try
             {
                 _isSynchronizingSelection = true;
-                var selectedSet = new HashSet<FileItem>(ActiveListControl.SelectedItems.OfType<FileItem>());
-                if (CurrentTab.Items != null)
+                var list = ActiveListControl;
+                if (list != null && CurrentTab.Items != null)
                 {
+                    var selectedSet = new HashSet<FileItem>(list.SelectedItems.OfType<FileItem>());
                     foreach (var item in CurrentTab.Items)
                     {
-                        item.IsSelected = selectedSet.Contains(item);
+                        bool shouldBeSelected = selectedSet.Contains(item);
+                        if (item.IsSelected != shouldBeSelected)
+                        {
+                            item.SetIsSelectedSilently(shouldBeSelected);
+                        }
                     }
                 }
             }
@@ -445,7 +443,7 @@ namespace FastExplorer
                 _isSynchronizingSelection = false;
             }
 
-            UpdateSelectionVisuals();
+            RequestSelectionVisualsUpdate();
         }
 
         private void ItemCheckBox_Click(object sender, RoutedEventArgs e)
@@ -458,23 +456,31 @@ namespace FastExplorer
                 var list = ActiveListControl;
                 if (list != null)
                 {
-                    if (isChecked)
+                    _isSynchronizingSelection = true;
+                    try
                     {
-                        if (!list.SelectedItems.Contains(item))
+                        if (isChecked)
                         {
-                            list.SelectedItems.Add(item);
+                            if (!list.SelectedItems.Contains(item))
+                            {
+                                list.SelectedItems.Add(item);
+                            }
+                        }
+                        else
+                        {
+                            if (list.SelectedItems.Contains(item))
+                            {
+                                list.SelectedItems.Remove(item);
+                            }
                         }
                     }
-                    else
+                    finally
                     {
-                        if (list.SelectedItems.Contains(item))
-                        {
-                            list.SelectedItems.Remove(item);
-                        }
+                        _isSynchronizingSelection = false;
                     }
                 }
 
-                UpdateSelectionVisuals();
+                RequestSelectionVisualsUpdate();
             }
         }
 
@@ -493,25 +499,39 @@ namespace FastExplorer
             if (CurrentTab == null) return;
 
             var selected = GetCurrentlySelectedItems();
-            long totalBytes = selected.Where(i => !i.IsDirectory).Sum(i => i.SizeInBytes);
-            CurrentTab.UpdateStatusText(selected.Count, totalBytes);
+            int selectedCount = selected.Count;
+            long totalBytes = 0;
+            for (int i = 0; i < selectedCount; i++)
+            {
+                var item = selected[i];
+                if (!item.IsDirectory)
+                {
+                    totalBytes += item.SizeInBytes;
+                }
+            }
+
+            CurrentTab.UpdateStatusText(selectedCount, totalBytes);
             if (StatusBar != null) StatusBar.StatusText = CurrentTab.StatusText;
-            UpdateActionToolbarButtons();
-            UpdatePreviewPane();
-            FileListHeader?.UpdateSelectAllCheckBox(selected.Count, CurrentTab.Items?.Count ?? 0);
+
+            bool hasSelection = selectedCount > 0;
+            bool isSingle = selectedCount == 1;
+            bool canPaste = FileOperationService.CanPaste();
+            bool isThisPC = CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase);
+            bool isRecycleBin = RecycleBinService.IsRecycleBinPath(CurrentTab.CurrentPath);
+
+            ActionToolbar?.UpdateButtonsState(hasSelection, isSingle, isThisPC, canPaste, isRecycleBin);
+            FileListHeader?.UpdateHeaderForRecycleBin(isRecycleBin);
+            FileListHeader?.UpdateSelectAllCheckBox(selectedCount, CurrentTab.Items?.Count ?? 0);
+
+            if (PreviewPane != null && IsPreviewPaneVisible)
+            {
+                PreviewPane.UpdatePreview(selected, CurrentTab.CurrentPath);
+            }
         }
 
         public void UpdateActionToolbarButtons()
         {
-            var selected = GetCurrentlySelectedItems();
-            bool hasSelection = selected.Count > 0;
-            bool isSingle = selected.Count == 1;
-            bool canPaste = FileOperationService.CanPaste();
-            bool isThisPC = CurrentTab?.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase) == true;
-            bool isRecycleBin = RecycleBinService.IsRecycleBinPath(CurrentTab?.CurrentPath);
-
-            ActionToolbar?.UpdateButtonsState(hasSelection, isSingle, isThisPC, canPaste, isRecycleBin);
-            FileListHeader?.UpdateHeaderForRecycleBin(isRecycleBin);
+            UpdateSelectionVisuals();
         }
 
         #endregion
