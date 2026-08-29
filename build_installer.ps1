@@ -1,7 +1,7 @@
 # FastExplorer Installer Build Script
 param(
     [string]$Arch = "x64",          # "x64" or "arm64"
-    [string]$Version = "1.0.0",      # e.g. "1.0.1", "v1.1.0"
+    [string]$Version = "1.0.8",      # e.g. "1.0.8", "v1.1.0"
     [switch]$Release,               # GitHub Releases に自動アップロード
     [string]$Notes = "",            # リリースノート (説明文)
     [string]$Title = "",            # リリースタイトル (省略時は "FastExplorer vX.X.X")
