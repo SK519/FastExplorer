@@ -334,8 +334,19 @@ namespace FastExplorer
                 CancelActiveRenaming();
             }
 
-            if (FocusManager.GetFocusedElement(this.Content.XamlRoot) is TextBox ||
-                CurrentTab?.Items?.Any(x => x.IsRenaming) == true)
+            var focusedElement = (this.Content?.XamlRoot != null)
+                ? FocusManager.GetFocusedElement(this.Content.XamlRoot) as DependencyObject
+                : null;
+
+            // テキスト入力・サジェスト入力中、またはリネーム中の場合はグローバルキーハンドラを完全に抑止
+            if (focusedElement is TextBox ||
+                focusedElement is AutoSuggestBox ||
+                focusedElement is PasswordBox ||
+                focusedElement is ComboBox ||
+                (focusedElement != null && Helpers.VisualTreeExtensions.FindParent<TextBox>(focusedElement) != null) ||
+                (focusedElement != null && Helpers.VisualTreeExtensions.FindParent<AutoSuggestBox>(focusedElement) != null) ||
+                CurrentTab?.Items?.Any(x => x.IsRenaming) == true ||
+                _isRenameImeComposing)
             {
                 return;
             }
@@ -344,10 +355,28 @@ namespace FastExplorer
             // Handled 判定より前に捕捉して選択されている項目を開く
             if (e.Key == Windows.System.VirtualKey.Enter)
             {
+                // リネーム確定直後、アドレスバー確定直後、またはIME変換確定直後はファイル起動を完全に抑止
                 if (CurrentTab?.Items?.Any(x => x.IsRenaming) == true ||
-                    Stopwatch.GetElapsedTime(_lastRenameCommittedTimestamp).TotalMilliseconds < 500)
+                    _isRenameImeComposing ||
+                    Stopwatch.GetElapsedTime(_lastRenameCommittedTimestamp).TotalMilliseconds < 500 ||
+                    Stopwatch.GetElapsedTime(FastExplorer.Views.MainWindow.Navigation.AddressBarControl.LastAddressCommittedTimestamp).TotalMilliseconds < 500 ||
+                    Stopwatch.GetElapsedTime(_lastImeCompositionEndedTimestamp).TotalMilliseconds < 350)
                 {
                     e.Handled = true;
+                    return;
+                }
+
+                // 根本ガード: フォーカスがファイルリスト（ActiveListControl）またはその項目内にない場合はファイルを開かない
+                bool isFocusInFileList = false;
+                if (ActiveListControl != null && focusedElement != null)
+                {
+                    isFocusInFileList = (focusedElement == ActiveListControl) ||
+                                        Helpers.VisualTreeExtensions.FindParent<ListViewBase>(focusedElement) == ActiveListControl;
+                }
+
+                if (!isFocusInFileList)
+                {
+                    // サイドバー、ツールバー、タブバー等の外部フォーカス時のEnterはファイル起動に貫通させない
                     return;
                 }
 

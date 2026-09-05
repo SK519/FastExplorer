@@ -17,10 +17,40 @@ namespace FastExplorer.Models
         public bool IsPaused { get; set; }
         public bool IsCancelled { get; set; }
         public bool IsMove { get; set; }
+        public bool IsSizeCalculating { get; set; }
 
-        public double ProgressPercentage => TotalBytes > 0
-            ? Math.Clamp((double)BytesTransferred / TotalBytes * 100.0, 0, 100.0)
-            : 0;
+        public double ProgressPercentage
+        {
+            get
+            {
+                // サイズ集計中の場合は、分母が未確定なため 100% に跳ね上がるのを防ぐ
+                if (IsSizeCalculating)
+                {
+                    if (TotalBytes > 0)
+                    {
+                        double bytesPct = (double)BytesTransferred / TotalBytes * 100.0;
+                        return Math.Clamp(bytesPct, 0, 99.0);
+                    }
+                    return 0;
+                }
+
+                if (TotalBytes > 0)
+                {
+                    double bytesPct = Math.Clamp((double)BytesTransferred / TotalBytes * 100.0, 0, 100.0);
+                    if (TotalFiles > 0)
+                    {
+                        double filesPct = Math.Clamp((double)FilesTransferred / TotalFiles * 100.0, 0, 100.0);
+                        return Math.Max(bytesPct, filesPct);
+                    }
+                    return bytesPct;
+                }
+                else if (TotalFiles > 0)
+                {
+                    return Math.Clamp((double)FilesTransferred / TotalFiles * 100.0, 0, 100.0);
+                }
+                return 0;
+            }
+        }
 
         public static string FormatBytes(long bytes)
         {

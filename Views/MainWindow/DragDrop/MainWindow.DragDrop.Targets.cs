@@ -40,6 +40,10 @@ namespace FastExplorer
             try
             {
                 success = await FileOperationService.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove, progress, controller);
+                if (success)
+                {
+                    await Task.Delay(150);
+                }
             }
             finally
             {
@@ -68,6 +72,10 @@ namespace FastExplorer
             try
             {
                 success = await FileOperationService.PasteFilesAsync(destinationDirectory, progress, controller);
+                if (success)
+                {
+                    await Task.Delay(150);
+                }
             }
             finally
             {

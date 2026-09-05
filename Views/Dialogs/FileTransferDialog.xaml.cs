@@ -59,15 +59,25 @@ namespace FastExplorer.Views.Dialogs
             IconPauseResume.Glyph = "\uE769"; // Pause icon
             ToolTipService.SetToolTip(BtnPauseResume, "一時停止");
 
-            TransferProgressBar.IsIndeterminate = false;
-            TransferProgressBar.Value = p.ProgressPercentage;
-            PercentText.Text = $"{(int)p.ProgressPercentage}%";
+            if (p.IsSizeCalculating && p.TotalBytes <= 0)
+            {
+                TransferProgressBar.IsIndeterminate = true;
+                PercentText.Text = "計算中...";
+            }
+            else
+            {
+                TransferProgressBar.IsIndeterminate = false;
+                TransferProgressBar.Value = p.ProgressPercentage;
+                PercentText.Text = $"{(int)p.ProgressPercentage}%";
+            }
 
             // アイテム概要 (転送済みバイト / 合計バイト & 残り項目数)
             string transferredStr = FileTransferProgress.FormatBytes(p.BytesTransferred);
-            string totalStr = FileTransferProgress.FormatBytes(p.TotalBytes);
+            string totalStr = (p.IsSizeCalculating && p.TotalBytes <= 0) ? "計算中..." : FileTransferProgress.FormatBytes(p.TotalBytes);
             int remainingFiles = Math.Max(0, p.TotalFiles - p.FilesTransferred);
-            ItemsSummaryText.Text = $"{transferredStr} / {totalStr} (残り {remainingFiles} 項目)";
+            ItemsSummaryText.Text = (p.IsSizeCalculating && p.TotalBytes <= 0)
+                ? $"{transferredStr} 転送済み (全体を計算中...)"
+                : $"{transferredStr} / {totalStr} (残り {remainingFiles} 項目)";
 
             // 速度と残り時間
             SpeedText.Text = FileTransferProgress.FormatSpeed(p.BytesPerSecond);

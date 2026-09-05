@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using FastExplorer.Models;
 using FastExplorer.Services;
@@ -13,6 +14,8 @@ namespace FastExplorer.Views.MainWindow.Navigation
 {
     public sealed partial class AddressBarControl : UserControl
     {
+        public static long LastAddressCommittedTimestamp { get; set; }
+
         private readonly ObservableCollection<TypedPathSuggestionItem> _suggestions = [];
 
         public event RoutedEventHandler? BackRequested;
@@ -215,6 +218,11 @@ namespace FastExplorer.Views.MainWindow.Navigation
                 SearchFilterEscaped?.Invoke();
                 e.Handled = true;
             }
+            else if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                LastAddressCommittedTimestamp = Stopwatch.GetTimestamp();
+                e.Handled = true;
+            }
         }
 
         private void BreadcrumbContainer_PointerPressed(object sender, PointerRoutedEventArgs e)
@@ -290,6 +298,7 @@ namespace FastExplorer.Views.MainWindow.Navigation
 
         private void AddressSuggestBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
         {
+            LastAddressCommittedTimestamp = Stopwatch.GetTimestamp();
             if (_isDeletingSuggestion) return;
             string path = (args.ChosenSuggestion as TypedPathSuggestionItem)?.Path ?? args.QueryText?.Trim() ?? string.Empty;
             SwitchToBreadcrumbs();
@@ -308,6 +317,11 @@ namespace FastExplorer.Views.MainWindow.Navigation
             if (e.Key == VirtualKey.Escape)
             {
                 SwitchToBreadcrumbs();
+                e.Handled = true;
+            }
+            else if (e.Key == VirtualKey.Enter)
+            {
+                LastAddressCommittedTimestamp = Stopwatch.GetTimestamp();
                 e.Handled = true;
             }
             else if (e.Key == VirtualKey.Down)

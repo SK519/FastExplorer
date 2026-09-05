@@ -24,30 +24,60 @@ namespace FastExplorer.Services
             var pathList = sourcePaths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (pathList.Count == 0) return false;
 
-            // 初期化（UIをブロックせず即座に転送を開始）
+            // 初期化（直下ファイルのサイズ・項目数を同期的に即座に取得して初期値とする）
+            long initialBytes = 0;
+            int initialFiles = 0;
+            bool hasDirectories = false;
+
+            foreach (var p in pathList)
+            {
+                if (File.Exists(p))
+                {
+                    try
+                    {
+                        initialBytes += new FileInfo(p).Length;
+                        initialFiles++;
+                    }
+                    catch { }
+                }
+                else if (Directory.Exists(p))
+                {
+                    initialFiles++;
+                    hasDirectories = true;
+                }
+            }
+
             var state = new FileTransferState
             {
-                TotalBytes = 0,
-                TotalFiles = 1,
+                TotalBytes = initialBytes,
+                TotalFiles = Math.Max(1, initialFiles),
                 DestinationDirectory = destinationDirectory,
-                IsMove = isMove
+                IsMove = isMove,
+                IsSizeCalculating = hasDirectories
             };
 
-            // バックグラウンドで非同期に合計サイズを計算・更新（コピー開始を一切ブロックしない）
+            // ディレクトリを含む場合のみバックグラウンドで全体サイズ・ファイル数を再帰集計
             using var sizeCts = new System.Threading.CancellationTokenSource();
-            _ = Task.Run(() =>
+            if (hasDirectories)
             {
-                try
+                _ = Task.Run(() =>
                 {
-                    var (tBytes, tFiles) = CalculateTotalSize(pathList, sizeCts.Token);
-                    if (!sizeCts.IsCancellationRequested)
+                    try
                     {
-                        state.TotalBytes = Math.Max(state.BytesTransferred, tBytes);
-                        state.TotalFiles = Math.Max(state.FilesTransferred, tFiles);
+                        var (tBytes, tFiles) = CalculateTotalSize(pathList, sizeCts.Token);
+                        if (!sizeCts.IsCancellationRequested)
+                        {
+                            state.TotalBytes = Math.Max(state.BytesTransferred, tBytes);
+                            state.TotalFiles = Math.Max(state.FilesTransferred, tFiles);
+                        }
                     }
-                }
-                catch { }
-            }, sizeCts.Token);
+                    catch { }
+                    finally
+                    {
+                        state.IsSizeCalculating = false;
+                    }
+                }, sizeCts.Token);
+            }
 
             ConflictResolution? rememberedResolution = null;
 
@@ -145,6 +175,15 @@ namespace FastExplorer.Services
                     {
                         await CopyOrMoveDirectoryAsync(src, destPath, isMove, progress, controller, state);
                     }
+                }
+
+                // 完了時に確実に 100% を進捗報告
+                if (controller?.IsCancelled != true)
+                {
+                    state.IsSizeCalculating = false;
+                    state.FilesTransferred = Math.Max(state.FilesTransferred, state.TotalFiles);
+                    state.BytesTransferred = Math.Max(state.BytesTransferred, state.TotalBytes);
+                    ReportCurrentProgress(progress, state, controller);
                 }
 
                 return controller?.IsCancelled != true;
@@ -265,6 +304,27 @@ namespace FastExplorer.Services
                 return;
             }
 
+            // 同一ドライブ間の移動で、移動先フォルダーがまだ存在しない場合は Directory.Move で高速移動
+            if (isMove)
+            {
+                bool sameDrive = Path.GetPathRoot(sourceDir)?.Equals(Path.GetPathRoot(targetDir), StringComparison.OrdinalIgnoreCase) == true;
+                if (sameDrive && !Directory.Exists(targetDir))
+                {
+                    try
+                    {
+                        state.CurrentFileName = new DirectoryInfo(sourceDir).Name;
+                        Directory.Move(sourceDir, targetDir);
+                        state.FilesTransferred++;
+                        ReportCurrentProgress(progress, state, controller);
+                        return;
+                    }
+                    catch
+                    {
+                        // フォールバック: 個別ファイルコピー/移動
+                    }
+                }
+            }
+
             Directory.CreateDirectory(targetDir);
 
             foreach (string file in Directory.GetFiles(sourceDir))
@@ -375,7 +435,8 @@ namespace FastExplorer.Services
                 EstimatedTimeRemaining = state.GetEstimatedRemainingTime(),
                 IsPaused = controller?.IsPaused == true,
                 IsCancelled = controller?.IsCancelled == true,
-                IsMove = state.IsMove
+                IsMove = state.IsMove,
+                IsSizeCalculating = state.IsSizeCalculating
             };
 
             progress.Report(p);
@@ -391,6 +452,7 @@ namespace FastExplorer.Services
             public int TotalFiles;
             public int FilesTransferred;
             public bool IsMove;
+            public bool IsSizeCalculating;
 
             private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
             private long _lastBytes = 0;

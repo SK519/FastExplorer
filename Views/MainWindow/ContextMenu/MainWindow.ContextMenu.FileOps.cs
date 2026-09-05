@@ -35,8 +35,7 @@ namespace FastExplorer
                     var tb = container.FindDescendant<TextBox>();
                     if (tb != null)
                     {
-                        tb.PreviewKeyDown -= RenameBox_PreviewKeyDown;
-                        tb.PreviewKeyDown += RenameBox_PreviewKeyDown;
+                        AttachRenameBoxEvents(tb);
                         tb.Focus(FocusState.Programmatic);
                         string text = tb.Text;
                         int dot = text.LastIndexOf('.');

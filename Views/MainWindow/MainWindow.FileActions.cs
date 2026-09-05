@@ -38,13 +38,35 @@ namespace FastExplorer
         #region Inline Renaming
 
         private long _lastRenameCommittedTimestamp;
+        private bool _isRenameImeComposing;
+        private long _lastImeCompositionEndedTimestamp;
+
+        internal void AttachRenameBoxEvents(TextBox tb)
+        {
+            tb.PreviewKeyDown -= RenameBox_PreviewKeyDown;
+            tb.PreviewKeyDown += RenameBox_PreviewKeyDown;
+            tb.TextCompositionStarted -= RenameBox_TextCompositionStarted;
+            tb.TextCompositionStarted += RenameBox_TextCompositionStarted;
+            tb.TextCompositionEnded -= RenameBox_TextCompositionEnded;
+            tb.TextCompositionEnded += RenameBox_TextCompositionEnded;
+        }
+
+        private void RenameBox_TextCompositionStarted(TextBox sender, TextCompositionStartedEventArgs args)
+        {
+            _isRenameImeComposing = true;
+        }
+
+        private void RenameBox_TextCompositionEnded(TextBox sender, TextCompositionEndedEventArgs args)
+        {
+            _isRenameImeComposing = false;
+            _lastImeCompositionEndedTimestamp = Stopwatch.GetTimestamp();
+        }
 
         private void RenameBox_Loaded(object sender, RoutedEventArgs e)
         {
             if (sender is TextBox tb)
             {
-                tb.PreviewKeyDown -= RenameBox_PreviewKeyDown;
-                tb.PreviewKeyDown += RenameBox_PreviewKeyDown;
+                AttachRenameBoxEvents(tb);
 
                 if (tb.DataContext is FileItem item && item.IsRenaming)
                 {
@@ -72,7 +94,15 @@ namespace FastExplorer
         {
             if (sender is TextBox tb && tb.DataContext is FileItem item && item.IsRenaming)
             {
-                if (e.Key == VirtualKey.Enter && (int)e.Key != 229 && (int)e.OriginalKey != 229)
+                // IME変換中またはIME確定直後(350ms以内)のEnterは、変換確定操作であるためリネームコミットしない
+                if (_isRenameImeComposing ||
+                    Stopwatch.GetElapsedTime(_lastImeCompositionEndedTimestamp).TotalMilliseconds < 350 ||
+                    (int)e.Key == 229 || (int)e.OriginalKey == 229)
+                {
+                    return;
+                }
+
+                if (e.Key == VirtualKey.Enter)
                 {
                     _lastRenameCommittedTimestamp = Stopwatch.GetTimestamp();
                     CommitRename(item, tb.Text.Trim());
@@ -91,7 +121,15 @@ namespace FastExplorer
         {
             if (sender is TextBox tb && tb.DataContext is FileItem item && item.IsRenaming)
             {
-                if (e.Key == VirtualKey.Enter && (int)e.Key != 229 && (int)e.OriginalKey != 229)
+                // IME変換中またはIME確定直後(350ms以内)のEnterは、変換確定操作であるためリネームコミットしない
+                if (_isRenameImeComposing ||
+                    Stopwatch.GetElapsedTime(_lastImeCompositionEndedTimestamp).TotalMilliseconds < 350 ||
+                    (int)e.Key == 229 || (int)e.OriginalKey == 229)
+                {
+                    return;
+                }
+
+                if (e.Key == VirtualKey.Enter)
                 {
                     _lastRenameCommittedTimestamp = Stopwatch.GetTimestamp();
                     CommitRename(item, tb.Text.Trim());

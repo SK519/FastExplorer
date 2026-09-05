@@ -32,10 +32,19 @@ namespace FastExplorer
         {
             if (CurrentTab == null) return;
 
-            // テキストボックス入力中または名前変更中の場合は、ファイルリストのショートカット操作（Backspace, Ctrl+V, Delete, Ctrl+C等）を抑止
+            var focusedElement = (this.Content?.XamlRoot != null)
+                ? Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(this.Content.XamlRoot) as DependencyObject
+                : null;
+
+            // テキストボックス入力中、サジェスト入力中、または名前変更中の場合は、ファイルリストの操作を抑止
             if (e.OriginalSource is TextBox ||
+                e.OriginalSource is AutoSuggestBox ||
+                focusedElement is TextBox ||
+                focusedElement is AutoSuggestBox ||
+                (focusedElement != null && Helpers.VisualTreeExtensions.FindParent<TextBox>(focusedElement) != null) ||
+                (focusedElement != null && Helpers.VisualTreeExtensions.FindParent<AutoSuggestBox>(focusedElement) != null) ||
                 CurrentTab.Items?.Any(x => x.IsRenaming) == true ||
-                (this.Content?.XamlRoot != null && Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(this.Content.XamlRoot) is TextBox))
+                _isRenameImeComposing)
             {
                 return;
             }
@@ -48,9 +57,12 @@ namespace FastExplorer
             if (e.Key == VirtualKey.Enter)
             {
                 if (CurrentTab?.Items?.Any(x => x.IsRenaming) == true ||
-                    Stopwatch.GetElapsedTime(_lastRenameCommittedTimestamp).TotalMilliseconds < 500)
+                    _isRenameImeComposing ||
+                    Stopwatch.GetElapsedTime(_lastRenameCommittedTimestamp).TotalMilliseconds < 500 ||
+                    Stopwatch.GetElapsedTime(FastExplorer.Views.MainWindow.Navigation.AddressBarControl.LastAddressCommittedTimestamp).TotalMilliseconds < 500 ||
+                    Stopwatch.GetElapsedTime(_lastImeCompositionEndedTimestamp).TotalMilliseconds < 350)
                 {
-                    // 名前変更入力中、および名前変更確定直後はEnterによるファイル起動を抑止
+                    // 名前変更入力中、アドレス確定直後、IME確定直後、および名前変更確定直後はEnterによるファイル起動を抑止
                     e.Handled = true;
                     return;
                 }
