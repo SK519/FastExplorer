@@ -50,8 +50,8 @@
     <!-- ツールチップモダンデザイン (角丸8px・アクリルすりガラスぼかし) -->
     <Style x:Key="DefaultToolTipStyle" TargetType="ToolTip">
         <Setter Property="Background" Value="{ThemeResource ToolTipBackgroundBrush}"/>
-        <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
-        <Setter Property="BorderBrush" Value="{ThemeResource SurfaceStrokeColorDefaultBrush}"/>
+        <Setter Property="Foreground" Value="{ThemeResource ToolTipForeground}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource ToolTipBorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="10,6"/>
         <Setter Property="CornerRadius" Value="8"/>
@@ -59,16 +59,16 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToolTip">
-                    <ContentPresenter x:Name="LayoutRoot"
-                        Background="{TemplateBinding Background}"
-                        BorderBrush="{TemplateBinding BorderBrush}"
-                        BorderThickness="{TemplateBinding BorderThickness}"
-                        CornerRadius="8"
-                        Padding="{TemplateBinding Padding}"
-                        MaxWidth="{TemplateBinding MaxWidth}"
-                        Content="{TemplateBinding Content}"
-                        ContentTransitions="{TemplateBinding ContentTransitions}"
-                        TextWrapping="Wrap"/>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          ContentTransitions="{TemplateBinding ContentTransitions}"
+                                          MaxWidth="{TemplateBinding MaxWidth}"
+                                          TextWrapping="Wrap"/>
+                    </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

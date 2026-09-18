@@ -17,15 +17,23 @@
 
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Default">
-                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#181818" TintOpacity="0.30" FallbackColor="#99181818" TintLuminosityOpacity="0.55"/>
+                    <!-- ドロップダウン・メニュー・フライアウト不透明ソリッド背景 (壁紙透過防止) -->
+                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#282828"/>
+                    <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#444444"/>
+                    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#282828"/>
+                    <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#444444"/>
+                    <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#282828"/>
+                    <SolidColorBrush x:Key="FlyoutPresenterBorderBrush" Color="#444444"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="#282828"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="#444444"/>
+
+                    <!-- ToolTip 共通リソース (角丸8px・すりガラス) -->
+                    <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
+                    <Thickness x:Key="ToolTipBorderThemeThickness">1</Thickness>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#242424" TintOpacity="0.80" FallbackColor="#F0242424" TintLuminosityOpacity="0.90"/>
                     <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
-                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
-                    <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#4DFFFFFF"/>
+                    <SolidColorBrush x:Key="ToolTipForeground" Color="#FFFFFF"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
@@ -43,15 +51,23 @@
                     <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#28FFFFFF"/>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#FFFFFF" TintOpacity="0.35" FallbackColor="#B3FFFFFF" TintLuminosityOpacity="0.65"/>
+                    <!-- ドロップダウン・メニュー・フライアウト不透明ソリッド背景 (壁紙透過防止) -->
+                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#FDFDFD"/>
+                    <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#E5E5E5"/>
+                    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#FDFDFD"/>
+                    <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#E5E5E5"/>
+                    <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#FDFDFD"/>
+                    <SolidColorBrush x:Key="FlyoutPresenterBorderBrush" Color="#E5E5E5"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="#FDFDFD"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="#E5E5E5"/>
+
+                    <!-- ToolTip 共通リソース (角丸8px・すりガラス) -->
+                    <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
+                    <Thickness x:Key="ToolTipBorderThemeThickness">1</Thickness>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#FAFAFA" TintOpacity="0.85" FallbackColor="#F0FAFAFA" TintLuminosityOpacity="0.95"/>
                     <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
-                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
-                    <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#26000000"/>
+                    <SolidColorBrush x:Key="ToolTipForeground" Color="#1C1C1C"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
@@ -69,15 +85,23 @@
                     <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#33000000"/>
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#181818" TintOpacity="0.30" FallbackColor="#99181818" TintLuminosityOpacity="0.55"/>
+                    <!-- ドロップダウン・メニュー・フライアウト不透明ソリッド背景 (壁紙透過防止) -->
+                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#282828"/>
+                    <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#444444"/>
+                    <SolidColorBrush x:Key="MenuFlyoutPresenterBackground" Color="#282828"/>
+                    <SolidColorBrush x:Key="MenuFlyoutPresenterBorderBrush" Color="#444444"/>
+                    <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="#282828"/>
+                    <SolidColorBrush x:Key="FlyoutPresenterBorderBrush" Color="#444444"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="#282828"/>
+                    <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="#444444"/>
+
+                    <!-- ToolTip 共通リソース (角丸8px・すりガラス) -->
+                    <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
+                    <Thickness x:Key="ToolTipBorderThemeThickness">1</Thickness>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#242424" TintOpacity="0.80" FallbackColor="#F0242424" TintLuminosityOpacity="0.90"/>
                     <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
-                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
-                    <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#4DFFFFFF"/>
+                    <SolidColorBrush x:Key="ToolTipForeground" Color="#FFFFFF"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
@@ -99,8 +123,8 @@
             <!-- モダンツールチップスタイル (角丸8px・アクリルすりガラスぼかし) -->
             <Style x:Key="DefaultToolTipStyle" TargetType="ToolTip">
                 <Setter Property="Background" Value="{ThemeResource ToolTipBackgroundBrush}"/>
-                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
-                <Setter Property="BorderBrush" Value="{ThemeResource SurfaceStrokeColorDefaultBrush}"/>
+                <Setter Property="Foreground" Value="{ThemeResource ToolTipForeground}"/>
+                <Setter Property="BorderBrush" Value="{ThemeResource ToolTipBorderBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
                 <Setter Property="Padding" Value="10,6"/>
                 <Setter Property="CornerRadius" Value="8"/>
@@ -108,16 +132,16 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="ToolTip">
-                            <ContentPresenter x:Name="LayoutRoot"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8"
-                                Padding="{TemplateBinding Padding}"
-                                MaxWidth="{TemplateBinding MaxWidth}"
-                                Content="{TemplateBinding Content}"
-                                ContentTransitions="{TemplateBinding ContentTransitions}"
-                                TextWrapping="Wrap"/>
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="8"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter Content="{TemplateBinding Content}"
+                                                  ContentTransitions="{TemplateBinding ContentTransitions}"
+                                                  MaxWidth="{TemplateBinding MaxWidth}"
+                                                  TextWrapping="Wrap"/>
+                            </Border>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>

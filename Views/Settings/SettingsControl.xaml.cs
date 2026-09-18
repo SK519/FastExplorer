@@ -489,42 +489,26 @@ namespace FastExplorer.Views.Settings
             ConfigService.Save();
         }
 
-        private async void BrowseEditorPath_Click(object sender, RoutedEventArgs e)
+        private void BrowseEditorPath_Click(object sender, RoutedEventArgs e)
         {
-            var picker = new Windows.Storage.Pickers.FileOpenPicker();
-            picker.FileTypeFilter.Add(".exe");
-            picker.FileTypeFilter.Add("*");
-
-            if (App.CurrentWindow is global::FastExplorer.MainWindow window)
+            nint hwnd = (App.CurrentWindow is global::FastExplorer.MainWindow window) ? window.WindowHandle : 0;
+            string? filePath = FastExplorer.Helpers.NativeFilePickerHelper.PickExecutable(hwnd, "テキストエディターの実行ファイルを選択");
+            if (!string.IsNullOrEmpty(filePath))
             {
-                WinRT.Interop.InitializeWithWindow.Initialize(picker, window.WindowHandle);
-            }
-
-            var file = await picker.PickSingleFileAsync();
-            if (file != null)
-            {
-                EditorPathBox.Text = file.Path;
-                ConfigService.Current.Editor.Path = file.Path;
+                EditorPathBox.Text = filePath;
+                ConfigService.Current.Editor.Path = filePath;
                 ConfigService.Save();
             }
         }
 
-        private async void BrowseTerminalPath_Click(object sender, RoutedEventArgs e)
+        private void BrowseTerminalPath_Click(object sender, RoutedEventArgs e)
         {
-            var picker = new Windows.Storage.Pickers.FileOpenPicker();
-            picker.FileTypeFilter.Add(".exe");
-            picker.FileTypeFilter.Add("*");
-
-            if (App.CurrentWindow is global::FastExplorer.MainWindow window)
+            nint hwnd = (App.CurrentWindow is global::FastExplorer.MainWindow window) ? window.WindowHandle : 0;
+            string? filePath = FastExplorer.Helpers.NativeFilePickerHelper.PickExecutable(hwnd, "ターミナルの実行ファイルを選択");
+            if (!string.IsNullOrEmpty(filePath))
             {
-                WinRT.Interop.InitializeWithWindow.Initialize(picker, window.WindowHandle);
-            }
-
-            var file = await picker.PickSingleFileAsync();
-            if (file != null)
-            {
-                TerminalPathBox.Text = file.Path;
-                ConfigService.Current.Terminal.Path = file.Path;
+                TerminalPathBox.Text = filePath;
+                ConfigService.Current.Terminal.Path = filePath;
                 ConfigService.Save();
             }
         }

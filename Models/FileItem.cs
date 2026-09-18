@@ -446,6 +446,7 @@ namespace FastExplorer
 
         public Visibility EmojiIconVisibility => !string.IsNullOrEmpty(_emojiIcon) ? Visibility.Visible : Visibility.Collapsed;
 
+        public static Action<FileItem, bool>? ItemSelectionChanged;
         public static Action? SelectionVisualsCallback;
 
         private bool _isSelected;
@@ -456,6 +457,7 @@ namespace FastExplorer
             {
                 if (SetField(ref _isSelected, value))
                 {
+                    ItemSelectionChanged?.Invoke(this, value);
                     SelectionVisualsCallback?.Invoke();
                 }
             }

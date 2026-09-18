@@ -9,29 +9,16 @@ namespace FastExplorer.Views.Settings
     {
         #region 壁紙・背景設定
 
-        private async void BrowseWallpaper_Click(object sender, RoutedEventArgs e)
+        private void BrowseWallpaper_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                var picker = new Windows.Storage.Pickers.FileOpenPicker();
-                picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary;
-                picker.FileTypeFilter.Add(".png");
-                picker.FileTypeFilter.Add(".jpg");
-                picker.FileTypeFilter.Add(".jpeg");
-                picker.FileTypeFilter.Add(".bmp");
-                picker.FileTypeFilter.Add(".webp");
-                picker.FileTypeFilter.Add(".gif");
-
-                if (App.CurrentWindow is global::FastExplorer.MainWindow window)
+                nint hwnd = (App.CurrentWindow is global::FastExplorer.MainWindow window) ? window.WindowHandle : 0;
+                string? filePath = FastExplorer.Helpers.NativeFilePickerHelper.PickWallpaperImage(hwnd);
+                if (!string.IsNullOrEmpty(filePath))
                 {
-                    WinRT.Interop.InitializeWithWindow.Initialize(picker, window.WindowHandle);
-                }
-
-                var file = await picker.PickSingleFileAsync();
-                if (file != null)
-                {
-                    WallpaperPathTextBox.Text = file.Path;
-                    ConfigService.Current.Ui.BackgroundImagePath = file.Path;
+                    WallpaperPathTextBox.Text = filePath;
+                    ConfigService.Current.Ui.BackgroundImagePath = filePath;
                     ConfigService.Save();
 
                     WallpaperOptionsPanel.Opacity = 1.0;

@@ -33,7 +33,7 @@ namespace FastExplorer
             if (_isSelectionVisualsUpdatePending) return;
             _isSelectionVisualsUpdatePending = true;
 
-            this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
             {
                 _isSelectionVisualsUpdatePending = false;
                 UpdateSelectionVisuals();
@@ -44,6 +44,10 @@ namespace FastExplorer
         {
             InitializeMarqueeSelection();
             FileOperationService.ClipboardStateChanged += OnClipboardStateChanged;
+            FileItem.ItemSelectionChanged = (item, isSelected) =>
+            {
+                SyncItemSelection(item, isSelected);
+            };
             FileItem.SelectionVisualsCallback = () =>
             {
                 RequestSelectionVisualsUpdate();
@@ -222,8 +226,17 @@ namespace FastExplorer
                 }
                 else if (listViewItem.Content is FileItem item)
                 {
-                    // CheckBox や RenameBox (TextBox) のクリック時は個別の動作に任せる
-                    if (dep.FindParent<CheckBox>() == null && dep.FindParent<TextBox>() == null)
+                    var cb = dep.FindParent<CheckBox>();
+                    if (cb != null)
+                    {
+                        // CheckBox 直接クリック時: 選択状態を確定し、SelectedItems と即時同期
+                        bool isChecked = cb.IsChecked == true;
+                        item.IsSelected = isChecked;
+                        SyncItemSelection(item, isChecked);
+                        return;
+                    }
+
+                    if (dep.FindParent<TextBox>() == null)
                     {
                         if (!IsCtrlPressed() && !IsShiftPressed())
                         {
@@ -259,8 +272,16 @@ namespace FastExplorer
                 }
                 else if (gridViewItem.Content is FileItem item)
                 {
-                    // CheckBox や RenameBox (TextBox) のクリック時は個別の動作に任せる
-                    if (dep.FindParent<CheckBox>() == null && dep.FindParent<TextBox>() == null)
+                    var cb = dep.FindParent<CheckBox>();
+                    if (cb != null)
+                    {
+                        bool isChecked = cb.IsChecked == true;
+                        item.IsSelected = isChecked;
+                        SyncItemSelection(item, isChecked);
+                        return;
+                    }
+
+                    if (dep.FindParent<TextBox>() == null)
                     {
                         if (!IsCtrlPressed() && !IsShiftPressed())
                         {
@@ -318,6 +339,10 @@ namespace FastExplorer
                 }
                 else if (listViewItem.Content is FileItem item)
                 {
+                    if (depLeft.FindParent<CheckBox>() != null)
+                    {
+                        return;
+                    }
                     _itemOnPointerPressed = item;
                     _wasSelectedOnPointerPressed = item.IsSelected;
                     _selectionCountOnPointerPressed = ActiveListControl?.SelectedItems?.Count ?? 0;
@@ -358,6 +383,10 @@ namespace FastExplorer
                 }
                 else if (gridViewItem.Content is FileItem item)
                 {
+                    if (depLeft.FindParent<CheckBox>() != null)
+                    {
+                        return;
+                    }
                     _itemOnPointerPressed = item;
                     _wasSelectedOnPointerPressed = item.IsSelected;
                     _selectionCountOnPointerPressed = ActiveListControl?.SelectedItems?.Count ?? 0;
@@ -446,43 +475,48 @@ namespace FastExplorer
             RequestSelectionVisualsUpdate();
         }
 
+        public void SyncItemSelection(FileItem item, bool isSelected)
+        {
+            if (_isSynchronizingSelection) return;
+            var list = ActiveListControl;
+            if (list == null) return;
+
+            try
+            {
+                _isSynchronizingSelection = true;
+                if (isSelected)
+                {
+                    if (!list.SelectedItems.Contains(item))
+                    {
+                        list.SelectedItems.Add(item);
+                    }
+                }
+                else
+                {
+                    if (list.SelectedItems.Contains(item))
+                    {
+                        list.SelectedItems.Remove(item);
+                    }
+                }
+            }
+            finally
+            {
+                _isSynchronizingSelection = false;
+            }
+
+            RequestSelectionVisualsUpdate();
+        }
+
         private void ItemCheckBox_Click(object sender, RoutedEventArgs e)
         {
             if (sender is CheckBox cb && cb.DataContext is FileItem item)
             {
                 bool isChecked = cb.IsChecked == true;
                 item.IsSelected = isChecked;
-
-                var list = ActiveListControl;
-                if (list != null)
-                {
-                    _isSynchronizingSelection = true;
-                    try
-                    {
-                        if (isChecked)
-                        {
-                            if (!list.SelectedItems.Contains(item))
-                            {
-                                list.SelectedItems.Add(item);
-                            }
-                        }
-                        else
-                        {
-                            if (list.SelectedItems.Contains(item))
-                            {
-                                list.SelectedItems.Remove(item);
-                            }
-                        }
-                    }
-                    finally
-                    {
-                        _isSynchronizingSelection = false;
-                    }
-                }
-
-                RequestSelectionVisualsUpdate();
+                SyncItemSelection(item, isChecked);
             }
         }
+
 
         public List<FileItem> GetCurrentlySelectedItems()
         {
