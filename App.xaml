@@ -22,7 +22,7 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#202020" TintOpacity="0.75" FallbackColor="#E6202020" TintLuminosityOpacity="0.85"/>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#181818" TintOpacity="0.30" FallbackColor="#99181818" TintLuminosityOpacity="0.55"/>
                     <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
                     <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
@@ -48,7 +48,7 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#FCFCFC" TintOpacity="0.75" FallbackColor="#E6F3F3F3" TintLuminosityOpacity="0.85"/>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#FFFFFF" TintOpacity="0.35" FallbackColor="#B3FFFFFF" TintLuminosityOpacity="0.65"/>
                     <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
                     <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
@@ -74,7 +74,7 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#202020" TintOpacity="0.75" FallbackColor="#E6202020" TintLuminosityOpacity="0.85"/>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#181818" TintOpacity="0.30" FallbackColor="#99181818" TintLuminosityOpacity="0.55"/>
                     <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
                     <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
