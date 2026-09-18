@@ -53,7 +53,7 @@ namespace FastExplorer.Services
         public static SoftwareBitmap? DefaultRecycleBinBitmap => _defaultRecycleBinBitmap ??= GetRecycleBinSoftwareBitmap(true);
         public static SoftwareBitmap? DefaultNetworkBitmap => _defaultNetworkBitmap ??= GetNetworkSoftwareBitmap(true);
         public static SoftwareBitmap? DefaultWslBitmap => _defaultWslBitmap ??= GetWslSoftwareBitmap(96);
-        public static SoftwareBitmap? DefaultDriveBitmap => _defaultDriveBitmap ??= GetDriveSoftwareBitmap("C:\\", true);
+        public static SoftwareBitmap? DefaultDriveBitmap => _defaultDriveBitmap ??= GetDriveSoftwareBitmap("C:\\", false);
 
         public static Microsoft.UI.Xaml.Media.ImageSource? DefaultFolderSource => _defaultFolderSource;
         public static Microsoft.UI.Xaml.Media.ImageSource? DefaultFileSource => _defaultFileSource;
@@ -116,7 +116,7 @@ namespace FastExplorer.Services
                     var pcBmp = GetPcSoftwareBitmap(true);
                     var netBmp = GetNetworkSoftwareBitmap(true);
                     var wslBmp = GetWslSoftwareBitmap(96);
-                    var driveBmp = GetDriveSoftwareBitmap("C:\\", true);
+                    var driveBmp = GetDriveSoftwareBitmap("C:\\", false);
 
                     _defaultFolderBitmap = folderBmp;
                     _defaultFileBitmap = fileBmp;

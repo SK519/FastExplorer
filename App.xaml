@@ -22,6 +22,9 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                    <SolidColorBrush x:Key="ToolTipBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource CardStrokeColorDefault}"/>
+                    <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
@@ -44,6 +47,9 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                    <SolidColorBrush x:Key="ToolTipBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource CardStrokeColorDefault}"/>
+                    <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
@@ -66,6 +72,9 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                    <SolidColorBrush x:Key="ToolTipBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource CardStrokeColorDefault}"/>
+                    <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
@@ -83,6 +92,17 @@
                     <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#30FFFFFF"/>
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+
+            <!-- ツールチップ背景透過防止スタイル -->
+            <Style TargetType="ToolTip">
+                <Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorBaseBrush}"/>
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
+                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="8,4"/>
+                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="FontSize" Value="12"/>
+            </Style>
 
             <Style x:Key="ContextMenuItemButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="Transparent"/>

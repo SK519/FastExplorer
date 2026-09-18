@@ -209,9 +209,11 @@ namespace FastExplorer.Services
                 }
 
                 // 2. 大アイコン・中アイコン等のサムネイル有効モード時：
-                // メディア以外の通常ファイル（.toml, .txt等）、.exe、フォルダー、ドライブに対して
+                // メディア以外の通常ファイル（.toml, .txt等）、.exe、フォルダーに対して
                 // IShellItemImageFactory からネイティブ高解像度アイコン (96x96〜128x128) を最優先で取得
-                if (item.AllowThumbnail && !string.IsNullOrEmpty(item.FullPath) && !item.FullPath.StartsWith("::"))
+                // ※ ドライブ（C:\, G:\ 等）は IShellItemImageFactory だとクラウドドライブ（Google Drive等）で画質劣化が生じるため除外
+                bool isDriveRoot = item.IsDrive || (item.FullPath.Length <= 3 && item.FullPath.Contains(':'));
+                if (!isDriveRoot && item.AllowThumbnail && !string.IsNullOrEmpty(item.FullPath) && !item.FullPath.StartsWith("::"))
                 {
                     try
                     {

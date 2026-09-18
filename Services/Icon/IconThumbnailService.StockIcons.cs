@@ -244,13 +244,6 @@ namespace FastExplorer.Services
                 string target = string.IsNullOrEmpty(drivePath) ? "C:\\" : drivePath;
                 if (!target.EndsWith('\\') && !target.EndsWith('/')) target += "\\";
 
-                if (large)
-                {
-                    var highRes = ExtractThumbnailViaShellItem(target, 96, Win32Interop.SIIGBF.SIIGBF_ICONONLY | Win32Interop.SIIGBF.SIIGBF_BIGGERSIZEOK)
-                               ?? ExtractThumbnailViaShellItem(target, 96);
-                    if (highRes != null) return highRes;
-                }
-
                 // Windows 標準エクスプローラーと全く同一の 16x16 / 32x32 ピクセル完全一致アイコンを取得
                 var shinfo = new Win32Interop.SHFILEINFOW();
                 uint flags = Win32Interop.SHGFI_ICON | (large ? Win32Interop.SHGFI_LARGEICON : Win32Interop.SHGFI_SMALLICON);
