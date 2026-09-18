@@ -22,8 +22,9 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <SolidColorBrush x:Key="ToolTipBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource CardStrokeColorDefault}"/>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#242424" TintOpacity="0.78" FallbackColor="#282828" TintLuminosityOpacity="0.92"/>
+                    <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
@@ -47,8 +48,9 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <SolidColorBrush x:Key="ToolTipBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource CardStrokeColorDefault}"/>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#F8F8F8" TintOpacity="0.82" FallbackColor="#F3F3F3" TintLuminosityOpacity="0.9"/>
+                    <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
@@ -72,8 +74,9 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <SolidColorBrush x:Key="ToolTipBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
-                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource CardStrokeColorDefault}"/>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#242424" TintOpacity="0.78" FallbackColor="#282828" TintLuminosityOpacity="0.92"/>
+                    <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
@@ -93,14 +96,14 @@
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 
-            <!-- ツールチップ背景透過防止スタイル -->
+            <!-- モダンツールチップスタイル (角丸8px・アクリルすりガラスぼかし) -->
             <Style TargetType="ToolTip">
-                <Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorBaseBrush}"/>
+                <Setter Property="Background" Value="{ThemeResource ToolTipBackgroundBrush}"/>
                 <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
-                <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}"/>
+                <Setter Property="BorderBrush" Value="{ThemeResource SurfaceStrokeColorDefaultBrush}"/>
                 <Setter Property="BorderThickness" Value="1"/>
-                <Setter Property="Padding" Value="8,4"/>
-                <Setter Property="CornerRadius" Value="4"/>
+                <Setter Property="Padding" Value="10,6"/>
+                <Setter Property="CornerRadius" Value="8"/>
                 <Setter Property="FontSize" Value="12"/>
             </Style>
 
