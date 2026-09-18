@@ -330,7 +330,7 @@
                 <!-- プレビュー & 簡易プロパティペイン (PreviewPaneControl) -->
                 <preview:PreviewPaneControl x:Name="PreviewPane" Grid.Column="4" Visibility="Collapsed"/>
             </Grid>
-            <Grid x:Name="SettingsTabHostGrid" Visibility="Collapsed"/>
+            <Grid x:Name="SettingsTabHostGrid" Visibility="Collapsed" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"/>
         </Grid>
 
         <!-- [Row 3] ステータスバー (StatusBarControl) -->

@@ -112,7 +112,7 @@ namespace FastExplorer.Services
 
         public static SoftwareBitmap? GetPcSoftwareBitmap(bool large = false)
         {
-            int size = large ? 32 : 16;
+            int size = large ? 96 : 16;
             string sysDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
             // 1. imageres.dll,-109 (Windows 11 本物の PC / This PC アイコン)
             var bmp = ExtractIconFromResource(Path.Combine(sysDir, "imageres.dll"), -109, size);
@@ -131,7 +131,7 @@ namespace FastExplorer.Services
 
         public static SoftwareBitmap? GetNetworkSoftwareBitmap(bool large = false)
         {
-            int size = large ? 32 : 16;
+            int size = large ? 96 : 16;
             string sysDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
             // 1. imageres.dll,-25 (Windows 11 本物の ネットワーク アイコン: 地球儀 + PC)
             var bmp = ExtractIconFromResource(Path.Combine(sysDir, "imageres.dll"), -25, size);
@@ -146,6 +146,30 @@ namespace FastExplorer.Services
             if (bmp != null) return bmp;
 
             return GetStockIconSoftwareBitmap(Win32Interop.SHSTOCKICONID.SIID_MYNETWORK, large) ?? DefaultFolderBitmap;
+        }
+
+        public static SoftwareBitmap? GetFolderSoftwareBitmap(bool large = false)
+        {
+            int size = large ? 96 : 16;
+            string sysDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
+            var bmp = ExtractIconFromResource(Path.Combine(sysDir, "imageres.dll"), -3, size);
+            if (bmp != null) return bmp;
+            bmp = ExtractIconFromResource(Path.Combine(sysDir, "imageres.dll"), -4, size);
+            if (bmp != null) return bmp;
+            bmp = ExtractIconFromResource(Path.Combine(sysDir, "shell32.dll"), -4, size);
+            if (bmp != null) return bmp;
+            return GetStockIconSoftwareBitmap(Win32Interop.SHSTOCKICONID.SIID_FOLDER, large);
+        }
+
+        public static SoftwareBitmap? GetFileSoftwareBitmap(bool large = false)
+        {
+            int size = large ? 96 : 16;
+            string sysDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
+            var bmp = ExtractIconFromResource(Path.Combine(sysDir, "imageres.dll"), -2, size);
+            if (bmp != null) return bmp;
+            bmp = ExtractIconFromResource(Path.Combine(sysDir, "shell32.dll"), -1, size);
+            if (bmp != null) return bmp;
+            return GetStockIconSoftwareBitmap(Win32Interop.SHSTOCKICONID.SIID_DOCNOTASSOC, large);
         }
 
         public static SoftwareBitmap? GetWslSoftwareBitmap(int size = 16)
@@ -178,7 +202,7 @@ namespace FastExplorer.Services
             try
             {
                 var shinfo = new Win32Interop.SHFILEINFOW();
-                uint flags = Win32Interop.SHGFI_USEFILEATTRIBUTES | Win32Interop.SHGFI_ICON | Win32Interop.SHGFI_SMALLICON;
+                uint flags = Win32Interop.SHGFI_USEFILEATTRIBUTES | Win32Interop.SHGFI_ICON | Win32Interop.SHGFI_LARGEICON;
                 nint hr = Win32Interop.SHGetFileInfoW(
                     extension,
                     Win32Interop.FILE_ATTRIBUTE_NORMAL,
@@ -219,6 +243,13 @@ namespace FastExplorer.Services
             {
                 string target = string.IsNullOrEmpty(drivePath) ? "C:\\" : drivePath;
                 if (!target.EndsWith('\\') && !target.EndsWith('/')) target += "\\";
+
+                if (large)
+                {
+                    var highRes = ExtractThumbnailViaShellItem(target, 96, Win32Interop.SIIGBF.SIIGBF_ICONONLY | Win32Interop.SIIGBF.SIIGBF_BIGGERSIZEOK)
+                               ?? ExtractThumbnailViaShellItem(target, 96);
+                    if (highRes != null) return highRes;
+                }
 
                 // Windows 標準エクスプローラーと全く同一の 16x16 / 32x32 ピクセル完全一致アイコンを取得
                 var shinfo = new Win32Interop.SHFILEINFOW();

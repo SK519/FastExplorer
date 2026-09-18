@@ -261,6 +261,25 @@ namespace FastExplorer
                 return;
             }
 
+            // 親フォルダーの個別設定が存在する場合はそれを継承
+            string? parent = Path.GetDirectoryName(normPath);
+            while (!string.IsNullOrEmpty(parent))
+            {
+                string parentNorm = FastExplorer.Helpers.PathHelper.NormalizeFolderPath(parent);
+                if (ConfigService.Current.FolderViewSettings.TryGetValue(parentNorm, out var parentSetting) ||
+                    ConfigService.Current.FolderViewSettings.TryGetValue(parent, out parentSetting))
+                {
+                    if (Enum.TryParse<FolderViewMode>(parentSetting.ViewMode, true, out var mode))
+                    {
+                        _viewMode = mode;
+                    }
+                    _viewScale = (ViewScaleLevel)Math.Clamp(parentSetting.ViewScale, 0, 3);
+                    _customSize = parentSetting.CustomSize > 0 ? parentSetting.CustomSize : 48;
+                    return;
+                }
+                parent = Path.GetDirectoryName(parent);
+            }
+
             // 画像フォルダー（パスやフォルダー名にピクチャ・写真・イラスト等が含まれる）の場合は大アイコンを初期値に
             if (FastExplorer.Helpers.FolderTypeHelper.IsImageFolderByPath(path))
             {
@@ -270,7 +289,13 @@ namespace FastExplorer
                 return;
             }
 
-            // それ以外は全体デフォルト設定
+            // 移動前のパスが存在する場合（タブ内でのナビゲーション中）は、現在の表示モードとスケールを維持
+            if (!string.IsNullOrEmpty(_currentPath))
+            {
+                return;
+            }
+
+            // 初回起動・新規タブ時は全体デフォルト設定
             if (Enum.TryParse<FolderViewMode>(ConfigService.Current.Ui.DefaultViewMode, true, out var defaultMode))
             {
                 _viewMode = defaultMode;

@@ -46,13 +46,13 @@ namespace FastExplorer.Services
         private static Microsoft.UI.Xaml.Media.ImageSource? _defaultDriveSource;
         private static readonly ConcurrentDictionary<string, Microsoft.UI.Xaml.Media.ImageSource> _extensionSourceCache = new(StringComparer.OrdinalIgnoreCase);
 
-        public static SoftwareBitmap? DefaultFolderBitmap => _defaultFolderBitmap ??= GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_FOLDER);
-        public static SoftwareBitmap? DefaultFileBitmap => _defaultFileBitmap ??= GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_DOCNOTASSOC);
+        public static SoftwareBitmap? DefaultFolderBitmap => _defaultFolderBitmap ??= GetFolderSoftwareBitmap(true);
+        public static SoftwareBitmap? DefaultFileBitmap => _defaultFileBitmap ??= GetFileSoftwareBitmap(true);
         public static SoftwareBitmap? DefaultPcBitmap => _defaultPcBitmap ??= GetPcSoftwareBitmap(true);
-        public static SoftwareBitmap? DefaultHomeBitmap => _defaultHomeBitmap ??= GetHomeSoftwareBitmap(32);
+        public static SoftwareBitmap? DefaultHomeBitmap => _defaultHomeBitmap ??= GetHomeSoftwareBitmap(96);
         public static SoftwareBitmap? DefaultRecycleBinBitmap => _defaultRecycleBinBitmap ??= GetRecycleBinSoftwareBitmap(true);
         public static SoftwareBitmap? DefaultNetworkBitmap => _defaultNetworkBitmap ??= GetNetworkSoftwareBitmap(true);
-        public static SoftwareBitmap? DefaultWslBitmap => _defaultWslBitmap ??= GetWslSoftwareBitmap(32);
+        public static SoftwareBitmap? DefaultWslBitmap => _defaultWslBitmap ??= GetWslSoftwareBitmap(96);
         public static SoftwareBitmap? DefaultDriveBitmap => _defaultDriveBitmap ??= GetDriveSoftwareBitmap("C:\\", true);
 
         public static Microsoft.UI.Xaml.Media.ImageSource? DefaultFolderSource => _defaultFolderSource;
@@ -109,14 +109,14 @@ namespace FastExplorer.Services
                 try
                 {
                     // 1. 最重要基本アイコンのビットマップをバックグラウンドで事前抽出
-                    var folderBmp = GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_FOLDER);
-                    var fileBmp = GetStockIconSoftwareBitmap(Core.Win32Interop.SHSTOCKICONID.SIID_DOCNOTASSOC);
-                    var homeBmp = GetHomeSoftwareBitmap(32);
+                    var folderBmp = GetFolderSoftwareBitmap(true);
+                    var fileBmp = GetFileSoftwareBitmap(true);
+                    var homeBmp = GetHomeSoftwareBitmap(96);
                     var recycleBmp = GetRecycleBinSoftwareBitmap(true);
                     var pcBmp = GetPcSoftwareBitmap(true);
                     var netBmp = GetNetworkSoftwareBitmap(true);
-                    var wslBmp = GetWslSoftwareBitmap(32);
-                    var driveBmp = GetDriveSoftwareBitmap("C:\\", false);
+                    var wslBmp = GetWslSoftwareBitmap(96);
+                    var driveBmp = GetDriveSoftwareBitmap("C:\\", true);
 
                     _defaultFolderBitmap = folderBmp;
                     _defaultFileBitmap = fileBmp;
@@ -410,15 +410,16 @@ namespace FastExplorer.Services
             // 読み込み待ちのチラつきを防ぐため、即座に事前作成済みデフォルトアイコン/拡張子別アイコンを同期適用
             ApplyImmediateDefaultIcon(item);
 
-            // 一般ファイル（サムネイル対象外、かつ固有アイコン不要）で既に拡張子アイコンが当たっている場合は重い抽出をスキップ
-            bool isThumbnailTarget = item.AllowThumbnail && (string.IsNullOrEmpty(item.Extension) || MediaPreviewExtensions.Contains(item.Extension));
-            bool isCustomIconTarget = item.IsDirectory || (item.FullPath.Length <= 3 && item.FullPath.Contains(':')) || string.IsNullOrEmpty(item.Extension) || CustomIconExtensions.Contains(item.Extension);
-
-            if (!force && !isThumbnailTarget && !isCustomIconTarget)
+            // サムネイル無効モード（詳細・一覧・小アイコン）で、既に拡張子アイコンが当たっている場合は重い抽出をスキップ
+            if (!force && !item.AllowThumbnail)
             {
-                if (item.Icon != null && item.Icon != _defaultFolderSource && item.Icon != _defaultFileSource)
+                bool isCustomIconTarget = item.IsDirectory || (item.FullPath.Length <= 3 && item.FullPath.Contains(':')) || string.IsNullOrEmpty(item.Extension) || CustomIconExtensions.Contains(item.Extension);
+                if (!isCustomIconTarget)
                 {
-                    return;
+                    if (item.Icon != null && item.Icon != _defaultFolderSource && item.Icon != _defaultFileSource)
+                    {
+                        return;
+                    }
                 }
             }
 

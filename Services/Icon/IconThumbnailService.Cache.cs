@@ -28,55 +28,57 @@ namespace FastExplorer.Services
 
         private static string GetCacheKey(FileItem item)
         {
+            string sizePrefix = item.AllowThumbnail ? "large::" : "small::";
+
             if (item.FullPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
             {
-                return "special::home";
+                return "special::" + sizePrefix + "home";
             }
             if (RecycleBinService.IsRecycleBinPath(item.FullPath))
             {
-                return "special::recyclebin";
+                return "special::" + sizePrefix + "recyclebin";
             }
             if (item.FullPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
             {
-                return "special::thispc";
+                return "special::" + sizePrefix + "thispc";
             }
             if (item.FullPath.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || item.FullPath.Equals("Network", StringComparison.OrdinalIgnoreCase))
             {
-                return "special::network";
+                return "special::" + sizePrefix + "network";
             }
             if (IsWslRootPath(item.FullPath, item.Name))
             {
-                return "special::wsl::" + item.FullPath.ToLowerInvariant();
+                return "special::wsl::" + sizePrefix + item.FullPath.ToLowerInvariant();
             }
 
             if (item.FullPath.StartsWith("::") || item.FullPath.StartsWith("shell:") || item.FullPath.StartsWith("urn:"))
             {
-                return "shellitem::" + item.FullPath.ToLowerInvariant();
+                return "shellitem::" + sizePrefix + item.FullPath.ToLowerInvariant();
             }
 
             // ドライブ
             if (item.FullPath.Length <= 3 && item.FullPath.Contains(':'))
             {
-                return "drive::" + item.FullPath.ToUpperInvariant();
+                return "drive::" + sizePrefix + item.FullPath.ToUpperInvariant();
             }
 
             // フォルダーはそれぞれの固有パスをキーにしてキャッシュ
             if (item.IsDirectory)
             {
-                return "folder::" + item.FullPath.ToLowerInvariant();
+                return "folder::" + sizePrefix + item.FullPath.ToLowerInvariant();
             }
 
             // ファイル
             string ext = item.Extension;
-            if (item.AllowThumbnail && (string.IsNullOrEmpty(ext) || MediaPreviewExtensions.Contains(ext) || CustomIconExtensions.Contains(ext)))
+            if (item.AllowThumbnail)
             {
-                return item.FullPath.ToLowerInvariant();
+                return "file::" + sizePrefix + item.FullPath.ToLowerInvariant();
             }
-            if (!item.AllowThumbnail && (string.IsNullOrEmpty(ext) || CustomIconExtensions.Contains(ext)))
+            if (string.IsNullOrEmpty(ext) || CustomIconExtensions.Contains(ext))
             {
-                return item.FullPath.ToLowerInvariant();
+                return "file::" + sizePrefix + item.FullPath.ToLowerInvariant();
             }
-            return "ext::" + ext;
+            return "ext::" + sizePrefix + ext;
         }
 
         private void ProcessWorkQueue()

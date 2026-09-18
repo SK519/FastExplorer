@@ -8,11 +8,7 @@
     mc:Ignorable="d"
     Title="プロパティ">
 
-    <Window.SystemBackdrop>
-        <MicaBackdrop Kind="Base"/>
-    </Window.SystemBackdrop>
-
-    <Grid Background="{ThemeResource SolidBackgroundFillColorBaseBrush}">
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="34"/>
             <RowDefinition Height="Auto"/>
@@ -42,7 +38,7 @@
 
         <!-- 2. プロパティタブバー -->
         <Border Grid.Row="1"
-                Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="0,0,0,1"
                 Padding="14,4,14,0">
@@ -264,7 +260,7 @@
                         <ListView x:Name="SignaturesListView" SelectionMode="None">
                             <ListView.HeaderTemplate>
                                 <DataTemplate>
-                                    <Grid ColumnSpacing="8" Padding="8,6" Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}">
+                                    <Grid ColumnSpacing="8" Padding="8,6" Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="100"/>
@@ -411,7 +407,7 @@
 
         <!-- 4. 下部アクションバー (OK / キャンセル / 適用) -->
         <Border Grid.Row="3"
-                Background="{ThemeResource LayerOnAcrylicFillColorDefaultBrush}"
+                Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="16,10">

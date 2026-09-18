@@ -111,27 +111,27 @@ namespace FastExplorer.Services
             {
                 if (item.FullPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
                 {
-                    return GetHomeSoftwareBitmap(32);
+                    return GetHomeSoftwareBitmap(item.AllowThumbnail ? 96 : 32);
                 }
 
                 if (RecycleBinService.IsRecycleBinPath(item.FullPath))
                 {
-                    return GetRecycleBinSoftwareBitmap(true);
+                    return GetRecycleBinSoftwareBitmap(item.AllowThumbnail);
                 }
 
                 if (item.FullPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
                 {
-                    return GetPcSoftwareBitmap(true);
+                    return GetPcSoftwareBitmap(item.AllowThumbnail);
                 }
 
                 if (item.FullPath.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || item.FullPath.Equals("Network", StringComparison.OrdinalIgnoreCase))
                 {
-                    return GetNetworkSoftwareBitmap(true);
+                    return GetNetworkSoftwareBitmap(item.AllowThumbnail);
                 }
 
                 if (IsWslRootPath(item.FullPath, item.Name))
                 {
-                    return GetWslSoftwareBitmap(32);
+                    return GetWslSoftwareBitmap(item.AllowThumbnail ? 96 : 32);
                 }
 
                 if (item.FullPath.StartsWith("::") || item.FullPath.StartsWith("shell:") || item.FullPath.StartsWith("urn:"))
@@ -208,7 +208,32 @@ namespace FastExplorer.Services
                     }
                 }
 
-                // 2. 固有アイコン（フォルダー、ドライブ、.exe / .lnk / .ico 等）を SHGetFileInfo で抽出
+                // 2. 大アイコン・中アイコン等のサムネイル有効モード時：
+                // メディア以外の通常ファイル（.toml, .txt等）、.exe、フォルダー、ドライブに対して
+                // IShellItemImageFactory からネイティブ高解像度アイコン (96x96〜128x128) を最優先で取得
+                if (item.AllowThumbnail && !string.IsNullOrEmpty(item.FullPath) && !item.FullPath.StartsWith("::"))
+                {
+                    try
+                    {
+                        var highResShellIcon = ExtractThumbnailViaShellItem(
+                            item.FullPath,
+                            96,
+                            Win32Interop.SIIGBF.SIIGBF_ICONONLY | Win32Interop.SIIGBF.SIIGBF_BIGGERSIZEOK);
+                        if (highResShellIcon != null)
+                        {
+                            return highResShellIcon;
+                        }
+
+                        highResShellIcon = ExtractThumbnailViaShellItem(item.FullPath, 96);
+                        if (highResShellIcon != null)
+                        {
+                            return highResShellIcon;
+                        }
+                    }
+                    catch { }
+                }
+
+                // 3. 固有アイコン（フォルダー、ドライブ、.exe / .lnk / .ico 等）を SHGetFileInfo で抽出
                 bool isSpecialOrCustomIcon = item.IsDirectory ||
                                             (item.FullPath.Length <= 3 && item.FullPath.Contains(':')) ||
                                             string.IsNullOrEmpty(item.Extension) ||
