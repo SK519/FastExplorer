@@ -22,7 +22,7 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#242424" TintOpacity="0.78" FallbackColor="#282828" TintLuminosityOpacity="0.92"/>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#202020" TintOpacity="0.75" FallbackColor="#E6202020" TintLuminosityOpacity="0.85"/>
                     <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
                     <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
@@ -48,7 +48,7 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#F8F8F8" TintOpacity="0.82" FallbackColor="#F3F3F3" TintLuminosityOpacity="0.9"/>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#FCFCFC" TintOpacity="0.75" FallbackColor="#E6F3F3F3" TintLuminosityOpacity="0.85"/>
                     <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
                     <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
@@ -74,7 +74,7 @@
                     <SolidColorBrush x:Key="FlyoutPresenterBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="{ThemeResource SolidBackgroundFillColorBase}"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="{ThemeResource CardStrokeColorDefaultBrush}"/>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#242424" TintOpacity="0.78" FallbackColor="#282828" TintLuminosityOpacity="0.92"/>
+                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#202020" TintOpacity="0.75" FallbackColor="#E6202020" TintLuminosityOpacity="0.85"/>
                     <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
                     <SolidColorBrush x:Key="ToolTipBorderBrush" Color="{ThemeResource SurfaceStrokeColorDefault}"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="{ThemeResource TextFillColorPrimary}"/>
@@ -97,7 +97,7 @@
             </ResourceDictionary.ThemeDictionaries>
 
             <!-- モダンツールチップスタイル (角丸8px・アクリルすりガラスぼかし) -->
-            <Style TargetType="ToolTip">
+            <Style x:Key="DefaultToolTipStyle" TargetType="ToolTip">
                 <Setter Property="Background" Value="{ThemeResource ToolTipBackgroundBrush}"/>
                 <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}"/>
                 <Setter Property="BorderBrush" Value="{ThemeResource SurfaceStrokeColorDefaultBrush}"/>
@@ -105,7 +105,24 @@
                 <Setter Property="Padding" Value="10,6"/>
                 <Setter Property="CornerRadius" Value="8"/>
                 <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToolTip">
+                            <ContentPresenter x:Name="LayoutRoot"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}"
+                                MaxWidth="{TemplateBinding MaxWidth}"
+                                Content="{TemplateBinding Content}"
+                                ContentTransitions="{TemplateBinding ContentTransitions}"
+                                TextWrapping="Wrap"/>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
+            <Style TargetType="ToolTip" BasedOn="{StaticResource DefaultToolTipStyle}"/>
 
             <Style x:Key="ContextMenuItemButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="Transparent"/>
