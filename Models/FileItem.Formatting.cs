@@ -58,6 +58,12 @@ namespace FastExplorer
             OnPropertyChanged(nameof(RowWidth));
         }
 
+        public void RefreshColumnWidth(string columnName)
+        {
+            OnPropertyChanged(columnName);
+            OnPropertyChanged(nameof(RowWidth));
+        }
+
         public void RefreshCheckBoxVisibility()
         {
             OnPropertyChanged(nameof(CheckBoxVisibility));

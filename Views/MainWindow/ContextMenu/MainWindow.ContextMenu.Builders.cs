@@ -219,6 +219,21 @@ namespace FastExplorer
                 }
             };
 
+            bool isPopulated = false;
+            void PopulateItems()
+            {
+                if (isPopulated) return;
+                isPopulated = true;
+                PopulateOpenWithSubFlyoutItems(flyout, level, targetPath, targetPaths, itemStyle);
+            }
+
+            flyout.Opening += (s, e) => PopulateItems();
+
+            return flyout;
+        }
+
+        private void PopulateOpenWithSubFlyoutItems(MenuFlyout flyout, int level, string targetPath, IReadOnlyList<string>? targetPaths = null, Style? itemStyle = null)
+        {
             var paths = (targetPaths != null && targetPaths.Count > 0) ? targetPaths : new[] { targetPath };
             var apps = OpenWithService.GetOpenWithApps(targetPath);
 
@@ -307,8 +322,6 @@ namespace FastExplorer
             };
 
             flyout.Items.Add(chooseOtherItem);
-
-            return flyout;
         }
 
         private async void SetOpenWithItemIcon(MenuFlyoutItem menuItem, OpenWithAppInfo app)

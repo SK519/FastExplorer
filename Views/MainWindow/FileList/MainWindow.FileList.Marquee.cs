@@ -16,7 +16,17 @@ namespace FastExplorer
 
         private bool _isMarqueeSelecting = false;
         private Windows.Foundation.Point _marqueeStartPoint;
+        private Windows.Foundation.Point _marqueeCurrentPoint;
+        private double _marqueeStartVerticalOffset;
+        private double _marqueeStartHorizontalOffset;
+        private double _marqueeAutoScrollSpeed;
+        private DispatcherTimer? _marqueeAutoScrollTimer;
         private HashSet<FileItem> _marqueeInitialSelection = [];
+
+        private ScrollViewer? GetActiveScrollViewer()
+        {
+            return ActiveListControl?.FindDescendant<ScrollViewer>();
+        }
 
         private void InitializeMarqueeSelection()
         {
@@ -61,14 +71,27 @@ namespace FastExplorer
                     ClearAllSelections();
                 }
 
+                var sv = GetActiveScrollViewer();
+                _marqueeStartVerticalOffset = sv?.VerticalOffset ?? 0;
+                _marqueeStartHorizontalOffset = sv?.HorizontalOffset ?? 0;
+
                 _isMarqueeSelecting = true;
                 _marqueeStartPoint = e.GetCurrentPoint(SelectionCanvas).Position;
+                _marqueeCurrentPoint = _marqueeStartPoint;
+                _marqueeAutoScrollSpeed = 0;
                 _marqueeInitialSelection = isCtrl ? ActiveListControl.SelectedItems.OfType<FileItem>().ToHashSet() : [];
-                FileListContainer.CapturePointer(e.Pointer);
+
+                try
+                {
+                    FileListContainer.CapturePointer(e.Pointer);
+                }
+                catch { }
 
                 SelectionBox.Width = 0;
                 SelectionBox.Height = 0;
                 SelectionBox.Visibility = Visibility.Collapsed;
+
+                StartMarqueeAutoScrollTimer();
             }
         }
 
@@ -76,26 +99,129 @@ namespace FastExplorer
         {
             if (!_isMarqueeSelecting || CurrentTab == null) return;
 
-            var curPt = e.GetCurrentPoint(SelectionCanvas).Position;
-            double x = Math.Min(_marqueeStartPoint.X, curPt.X);
-            double y = Math.Min(_marqueeStartPoint.Y, curPt.Y);
-            double w = Math.Abs(curPt.X - _marqueeStartPoint.X);
-            double h = Math.Abs(curPt.Y - _marqueeStartPoint.Y);
+            var props = e.GetCurrentPoint(FileListContainer).Properties;
+            if (!props.IsLeftButtonPressed)
+            {
+                EndMarqueeSelection(e.Pointer);
+                return;
+            }
+
+            _marqueeCurrentPoint = e.GetCurrentPoint(SelectionCanvas).Position;
+
+            // 上下端にポインターが近づいたときの自動スクロール速度計算
+            var containerPt = e.GetCurrentPoint(FileListContainer).Position;
+            double height = FileListContainer.ActualHeight;
+            double scrollZone = 44.0;
+
+            if (containerPt.Y < scrollZone)
+            {
+                double ratio = Math.Clamp((scrollZone - containerPt.Y) / scrollZone, 0.1, 3.0);
+                _marqueeAutoScrollSpeed = -Math.Max(5.0, ratio * 22.0);
+            }
+            else if (containerPt.Y > height - scrollZone && height > 0)
+            {
+                double ratio = Math.Clamp((containerPt.Y - (height - scrollZone)) / scrollZone, 0.1, 3.0);
+                _marqueeAutoScrollSpeed = Math.Max(5.0, ratio * 22.0);
+            }
+            else
+            {
+                _marqueeAutoScrollSpeed = 0;
+            }
+
+            UpdateMarqueeSelection();
+        }
+
+        private void StartMarqueeAutoScrollTimer()
+        {
+            if (_marqueeAutoScrollTimer == null)
+            {
+                _marqueeAutoScrollTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(16) // ~60fps
+                };
+                _marqueeAutoScrollTimer.Tick += MarqueeAutoScrollTimer_Tick;
+            }
+            _marqueeAutoScrollTimer.Start();
+        }
+
+        private void StopMarqueeAutoScrollTimer()
+        {
+            _marqueeAutoScrollTimer?.Stop();
+            _marqueeAutoScrollSpeed = 0;
+        }
+
+        private void MarqueeAutoScrollTimer_Tick(object? sender, object e)
+        {
+            if (!_isMarqueeSelecting)
+            {
+                StopMarqueeAutoScrollTimer();
+                return;
+            }
+
+            if (Math.Abs(_marqueeAutoScrollSpeed) > 0.1)
+            {
+                var sv = GetActiveScrollViewer();
+                if (sv != null && sv.ScrollableHeight > 0)
+                {
+                    double targetOffset = Math.Clamp(sv.VerticalOffset + _marqueeAutoScrollSpeed, 0, sv.ScrollableHeight);
+                    if (Math.Abs(targetOffset - sv.VerticalOffset) > 0.1)
+                    {
+                        sv.ChangeView(null, targetOffset, null, true);
+                        UpdateMarqueeSelection();
+                    }
+                }
+            }
+        }
+
+        public void UpdateMarqueeSelection()
+        {
+            if (!_isMarqueeSelecting || CurrentTab == null) return;
+
+            var sv = GetActiveScrollViewer();
+            double currentVOffset = sv?.VerticalOffset ?? 0;
+            double currentHOffset = sv?.HorizontalOffset ?? 0;
+
+            // スクロールに追従して始点の Canvas 座標をリアルタイム補正
+            double adjustedStartX = _marqueeStartPoint.X - (currentHOffset - _marqueeStartHorizontalOffset);
+            double adjustedStartY = _marqueeStartPoint.Y - (currentVOffset - _marqueeStartVerticalOffset);
+
+            double curX = _marqueeCurrentPoint.X;
+            double curY = _marqueeCurrentPoint.Y;
+
+            double x = Math.Min(adjustedStartX, curX);
+            double y = Math.Min(adjustedStartY, curY);
+            double w = Math.Abs(curX - adjustedStartX);
+            double h = Math.Abs(curY - adjustedStartY);
 
             if (w > 3 || h > 3)
             {
                 SelectionBox.Visibility = Visibility.Visible;
-                Canvas.SetLeft(SelectionBox, x);
-                Canvas.SetTop(SelectionBox, y);
+                Canvas.SetLeft(SelectionBox, Math.Max(0, x));
+                Canvas.SetTop(SelectionBox, Math.Max(0, y));
                 SelectionBox.Width = w;
                 SelectionBox.Height = h;
 
-                var marqueeRect = new Windows.Foundation.Rect(x, y, w, h);
+                var marqueeRect = new Windows.Foundation.Rect(Math.Max(0, x), Math.Max(0, y), w, h);
                 var activeList = ActiveListControl;
+                if (activeList == null || CurrentTab?.Items == null || CurrentTab.Items.Count == 0) return;
 
-                foreach (var item in CurrentTab.Items)
+                int firstIdx = 0;
+                int lastIdx = CurrentTab.Items.Count - 1;
+                if (activeList.ItemsPanelRoot is ItemsStackPanel stackPanel && stackPanel.FirstVisibleIndex >= 0)
                 {
-                    if (activeList.ContainerFromItem(item) is FrameworkElement container && container.ActualHeight > 0)
+                    firstIdx = Math.Max(0, stackPanel.FirstVisibleIndex - 2);
+                    lastIdx = Math.Min(CurrentTab.Items.Count - 1, stackPanel.LastVisibleIndex + 2);
+                }
+                else if (activeList.ItemsPanelRoot is ItemsWrapGrid wrapGrid && wrapGrid.FirstVisibleIndex >= 0)
+                {
+                    firstIdx = Math.Max(0, wrapGrid.FirstVisibleIndex - 4);
+                    lastIdx = Math.Min(CurrentTab.Items.Count - 1, wrapGrid.LastVisibleIndex + 4);
+                }
+
+                for (int i = firstIdx; i <= lastIdx; i++)
+                {
+                    var item = CurrentTab.Items[i];
+                    if (activeList.ContainerFromIndex(i) is FrameworkElement container && container.ActualHeight > 0)
                     {
                         try
                         {
@@ -126,7 +252,12 @@ namespace FastExplorer
                     }
                 }
 
-                UpdateActionToolbarButtons();
+                // ドラッグ中はステータスバーのみ軽量更新し、プレビューや全ボタンの再描画はドラッグ終了時 (EndMarqueeSelection) に集約
+                int selCount = activeList.SelectedItems.Count;
+                if (StatusBar != null)
+                {
+                    StatusBar.StatusText = selCount > 0 ? $"{selCount} 個の項目を選択" : (CurrentTab?.StatusText ?? "");
+                }
             }
         }
 
@@ -142,7 +273,12 @@ namespace FastExplorer
 
         private void FileListContainer_PointerCaptureLost(object sender, PointerRoutedEventArgs e)
         {
-            EndMarqueeSelection(e.Pointer);
+            // ポインターキャプチャが子要素（ListViewItem等）へ移動しても、マウス左ボタンが押下されている間は選択を継続
+            var pt = e.GetCurrentPoint(FileListContainer);
+            if (!pt.Properties.IsLeftButtonPressed)
+            {
+                EndMarqueeSelection(e.Pointer);
+            }
         }
 
         private void EndMarqueeSelection(Pointer? pointer)
@@ -150,6 +286,8 @@ namespace FastExplorer
             if (_isMarqueeSelecting)
             {
                 _isMarqueeSelecting = false;
+                StopMarqueeAutoScrollTimer();
+
                 SelectionBox.Visibility = Visibility.Collapsed;
                 SelectionBox.Width = 0;
                 SelectionBox.Height = 0;

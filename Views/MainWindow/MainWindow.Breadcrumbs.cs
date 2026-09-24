@@ -332,7 +332,18 @@ namespace FastExplorer
 
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            CurrentTab?.Refresh();
+            if (CurrentTab != null)
+            {
+                if (CurrentTab.CurrentPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
+                {
+                    RefreshHomeView();
+                }
+                else
+                {
+                    CurrentTab.Reload();
+                }
+            }
+            RefreshSidebar();
             UpdateToolbarState();
         }
 

@@ -118,7 +118,7 @@ namespace FastExplorer
             }
             else if (ShortcutService.Matches("Refresh", e.Key, isCtrl, isShift, isAlt))
             {
-                CurrentTab.Refresh();
+                RefreshButton_Click(this, new RoutedEventArgs());
                 e.Handled = true;
             }
             else if (ShortcutService.Matches("Copy", e.Key, isCtrl, isShift, isAlt))
@@ -269,6 +269,7 @@ namespace FastExplorer
         private void OpenFileItem(FileItem item)
         {
             if (item == null || CurrentTab == null) return;
+            CurrentTab.RecordSelectedItem(CurrentTab.CurrentPath, item.Name);
 
             // 1. UNC ネットワークパス (\\Server\Share 等)
             if (item.FullPath.StartsWith(@"\\") && (item.IsDirectory || !item.FullPath.Contains('.')))

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using FastExplorer.Core;
@@ -26,29 +27,43 @@ namespace FastExplorer
 
         public void BeginRename(FileItem item)
         {
+            _renameStartedTimestamp = Stopwatch.GetTimestamp();
+            _isRenameImeComposing = false;
+            item.RenameText = item.Name;
             item.IsRenaming = true;
-            this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+
+            void TryFocus()
             {
-                var container = ActiveListControl.ContainerFromItem(item) as FrameworkElement;
+                if (!item.IsRenaming) return;
+                var list = ActiveListControl;
+                if (list == null) return;
+                try
+                {
+                    list.ScrollIntoView(item);
+                    list.UpdateLayout();
+                }
+                catch { }
+
+                var container = list.ContainerFromItem(item) as FrameworkElement;
                 if (container != null)
                 {
                     var tb = container.FindDescendant<TextBox>();
                     if (tb != null)
                     {
                         AttachRenameBoxEvents(tb);
-                        tb.Focus(FocusState.Programmatic);
-                        string text = tb.Text;
-                        int dot = text.LastIndexOf('.');
-                        if (dot > 0 && !item.IsDirectory)
-                        {
-                            tb.Select(0, dot);
-                        }
-                        else
-                        {
-                            tb.SelectAll();
-                        }
+                        FocusAndSelectRenameBox(tb, item);
                     }
                 }
+            }
+
+            // 即時実行 + メニュー/ツールバーのFlyoutクローズ完了を待って確実にフォーカスを名前欄へ
+            this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, TryFocus);
+            this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                System.Threading.Tasks.Task.Delay(50).ContinueWith(_ =>
+                {
+                    this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, TryFocus);
+                });
             });
         }
 

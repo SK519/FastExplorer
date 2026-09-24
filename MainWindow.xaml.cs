@@ -150,12 +150,15 @@ namespace FastExplorer
 
         private void TriggerBackgroundWarmup()
         {
-            Task.Run(async () =>
+            var warmupThread = new System.Threading.Thread(() =>
             {
                 try
                 {
                     // UIと初期タブの初回レンダリングを最優先するため少し待機
-                    await Task.Delay(1000);
+                    System.Threading.Thread.Sleep(800);
+
+                    // COM STA 環境を初期化
+                    Win32Interop.OleInitialize(nint.Zero);
 
                     // 1. 新規作成テンプレートの一覧走査とアイコン事前キャッシュ
                     var templates = ShellNewService.GetShellNewTemplates();
@@ -169,28 +172,83 @@ namespace FastExplorer
                     IconThumbnailService.GetSoftwareBitmapForExtension(".txt");
 
                     // 2. 主要な拡張子アイコンの事前キャッシュ
-                    string[] commonExts = [".docx", ".xlsx", ".pptx", ".pdf", ".zip", ".jpg", ".png", ".mp4", ".exe"];
+                    string[] commonExts = [".docx", ".xlsx", ".pptx", ".pdf", ".zip", ".jpg", ".png", ".mp4", ".exe", ".txt", ".json", ".md"];
                     foreach (var ext in commonExts)
                     {
                         IconThumbnailService.GetSoftwareBitmapForExtension(ext);
                     }
 
                     // 3. Shell コンテキストメニューの COM 基盤の事前初期化
-                    string tempPath = Path.GetTempPath();
-                    if (Directory.Exists(tempPath))
+                    // ファイル用およびフォルダ用の Shell Extension DLL をプロセス空間に事前ロード
+                    string tempDir = Path.GetTempPath();
+                    string tempFile = Path.Combine(tempDir, "fe_warmup.tmp");
+                    try
+                    {
+                        if (!File.Exists(tempFile))
+                        {
+                            File.WriteAllText(tempFile, "warmup");
+                        }
+
+                        // ファイル向けシェルメニューのセッション構築 (VSCode, Git, 7-zip等のDLLロード)
+                        using (var fileSession = new ActiveShellMenuSession(WindowHandle))
+                        {
+                            fileSession.Build(new[] { tempFile });
+                        }
+
+                        // フォルダ向けシェルメニューのセッション構築
+                        if (Directory.Exists(tempDir))
+                        {
+                            using (var dirSession = new ActiveShellMenuSession(WindowHandle))
+                            {
+                                dirSession.Build(new[] { tempDir });
+                            }
+                        }
+
+                        // 主要拡張子の「プログラムから開く」事前キャッシュ
+                        OpenWithService.GetOpenWithApps(tempFile);
+                        OpenWithService.GetOpenWithApps("dummy.txt");
+                        OpenWithService.GetOpenWithApps("dummy.png");
+                        OpenWithService.GetOpenWithApps("dummy.zip");
+                    }
+                    finally
                     {
                         try
                         {
-                            ShellContextMenuService.ExtractMatchingShellItems(WindowHandle, new[] { tempPath });
+                            if (File.Exists(tempFile))
+                            {
+                                File.Delete(tempFile);
+                            }
                         }
                         catch { }
+
+                        Win32Interop.OleUninitialize();
                     }
+
+                    // 4. UIスレッド側で ContextMenu のスタイルリソースや Flyout コントロールを事前ウォームアップ
+                    this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                    {
+                        try
+                        {
+                            if (this.Content?.XamlRoot != null && ItemContextMenu != null)
+                            {
+                                ItemContextMenu.XamlRoot = this.Content.XamlRoot;
+                            }
+                            _ = Application.Current.Resources.TryGetValue("ContextMenuItemButtonStyle", out _);
+                        }
+                        catch { }
+                    });
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"[WarmUp] Background warmup error: {ex.Message}");
                 }
-            });
+            })
+            {
+                IsBackground = true,
+                Name = "ShellContextMenuWarmupThread"
+            };
+            warmupThread.SetApartmentState(System.Threading.ApartmentState.STA);
+            warmupThread.Start();
         }
 
         private async Task<(Views.Dialogs.ConflictResolution Resolution, bool ApplyToAll)> ShowFileConflictDialogAsync(string sourcePath, string destPath)

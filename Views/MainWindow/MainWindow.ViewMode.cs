@@ -439,10 +439,23 @@ namespace FastExplorer
 
         private void FileListContainer_PointerWheelChanged(object sender, PointerRoutedEventArgs e)
         {
-            if (!IsCtrlPressed() || CurrentTab == null) return;
-
             var properties = e.GetCurrentPoint(sender as UIElement).Properties;
             int delta = properties.MouseWheelDelta;
+
+            if (_isMarqueeSelecting)
+            {
+                var sv = GetActiveScrollViewer();
+                if (sv != null && delta != 0)
+                {
+                    double targetOffset = Math.Clamp(sv.VerticalOffset - (delta > 0 ? 48 : -48), 0, sv.ScrollableHeight);
+                    sv.ChangeView(null, targetOffset, null, true);
+                    UpdateMarqueeSelection();
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            if (!IsCtrlPressed() || CurrentTab == null) return;
 
             if (delta == 0) return;
 

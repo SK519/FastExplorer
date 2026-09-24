@@ -115,18 +115,6 @@ namespace FastExplorer.Services
                 {
                     // アイコン抽出エラーはスキップ
                 }
-
-                if (_workQueue.Count == 0)
-                {
-                    // キュー消化完了時に一時メモリを解放し、未使用物理メモリをOSに返却
-                    GC.Collect(2, GCCollectionMode.Optimized, false, false);
-                    try
-                    {
-                        using var curProcess = System.Diagnostics.Process.GetCurrentProcess();
-                        Core.Win32Interop.SetProcessWorkingSetSize(curProcess.Handle, (nint)(-1), (nint)(-1));
-                    }
-                    catch { }
-                }
             }
         }
 

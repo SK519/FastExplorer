@@ -430,6 +430,12 @@ namespace FastExplorer.Services
             }
         }
 
+        public void ClearQueue()
+        {
+            while (_workQueue.TryTake(out _)) { }
+            _queuedPaths.Clear();
+        }
+
         public static bool IsImageOrientedMode(FolderViewMode mode)
         {
             return mode is FolderViewMode.ExtraLargeIcons

@@ -38,6 +38,7 @@ namespace FastExplorer
         #region Inline Renaming
 
         private long _lastRenameCommittedTimestamp;
+        private long _renameStartedTimestamp;
         private bool _isRenameImeComposing;
         private long _lastImeCompositionEndedTimestamp;
 
@@ -75,7 +76,7 @@ namespace FastExplorer
             }
         }
 
-        private static void FocusAndSelectRenameBox(TextBox tb, FileItem item)
+        private void FocusAndSelectRenameBox(TextBox tb, FileItem item)
         {
             tb.Focus(FocusState.Programmatic);
             string text = tb.Text;
@@ -94,22 +95,24 @@ namespace FastExplorer
         {
             if (sender is TextBox tb && tb.DataContext is FileItem item && item.IsRenaming)
             {
-                // IME変換中またはIME確定直後(350ms以内)のEnterは、変換確定操作であるためリネームコミットしない
+                // IME変換中またはIME変換確定自体のEnter (VK_PROCESSKEY=229 または 直後70ms以内) の場合はリネームコミットしない
                 if (_isRenameImeComposing ||
-                    Stopwatch.GetElapsedTime(_lastImeCompositionEndedTimestamp).TotalMilliseconds < 350 ||
-                    (int)e.Key == 229 || (int)e.OriginalKey == 229)
+                    (int)e.Key == 229 || (int)e.OriginalKey == 229 || (int)e.Key == 0 ||
+                    Stopwatch.GetElapsedTime(_lastImeCompositionEndedTimestamp).TotalMilliseconds < 70)
                 {
                     return;
                 }
 
                 if (e.Key == VirtualKey.Enter)
                 {
+                    _isRenameImeComposing = false;
                     _lastRenameCommittedTimestamp = Stopwatch.GetTimestamp();
                     CommitRename(item, tb.Text.Trim());
                     e.Handled = true;
                 }
                 else if (e.Key == VirtualKey.Escape)
                 {
+                    _isRenameImeComposing = false;
                     _lastRenameCommittedTimestamp = Stopwatch.GetTimestamp();
                     CancelRename(item);
                     e.Handled = true;
@@ -121,22 +124,24 @@ namespace FastExplorer
         {
             if (sender is TextBox tb && tb.DataContext is FileItem item && item.IsRenaming)
             {
-                // IME変換中またはIME確定直後(350ms以内)のEnterは、変換確定操作であるためリネームコミットしない
+                // IME変換中またはIME変換確定自体のEnter (VK_PROCESSKEY=229 または 直後70ms以内) の場合はリネームコミットしない
                 if (_isRenameImeComposing ||
-                    Stopwatch.GetElapsedTime(_lastImeCompositionEndedTimestamp).TotalMilliseconds < 350 ||
-                    (int)e.Key == 229 || (int)e.OriginalKey == 229)
+                    (int)e.Key == 229 || (int)e.OriginalKey == 229 || (int)e.Key == 0 ||
+                    Stopwatch.GetElapsedTime(_lastImeCompositionEndedTimestamp).TotalMilliseconds < 70)
                 {
                     return;
                 }
 
                 if (e.Key == VirtualKey.Enter)
                 {
+                    _isRenameImeComposing = false;
                     _lastRenameCommittedTimestamp = Stopwatch.GetTimestamp();
                     CommitRename(item, tb.Text.Trim());
                     e.Handled = true;
                 }
                 else if (e.Key == VirtualKey.Escape)
                 {
+                    _isRenameImeComposing = false;
                     _lastRenameCommittedTimestamp = Stopwatch.GetTimestamp();
                     CancelRename(item);
                     e.Handled = true;
@@ -146,6 +151,13 @@ namespace FastExplorer
 
         private void RenameBox_LostFocus(object sender, RoutedEventArgs e)
         {
+            // 名前変更開始直後（Flyoutやメニューが閉じる際のフォーカス遷移時など）の誤検出を無視
+            if (Stopwatch.GetElapsedTime(_renameStartedTimestamp).TotalMilliseconds < 250)
+            {
+                return;
+            }
+
+            _isRenameImeComposing = false;
             if (sender is TextBox tb && tb.DataContext is FileItem item && item.IsRenaming)
             {
                 // フォーカスが外れたときは入力内容で確定（Windows Explorer 準拠）
@@ -155,6 +167,7 @@ namespace FastExplorer
 
         private void CancelRename(FileItem item)
         {
+            _isRenameImeComposing = false;
             _lastRenameCommittedTimestamp = Stopwatch.GetTimestamp();
             item.RenameText = item.Name;
             item.IsRenaming = false;
@@ -163,6 +176,7 @@ namespace FastExplorer
 
         private void CommitRename(FileItem item, string newName)
         {
+            _isRenameImeComposing = false;
             _lastRenameCommittedTimestamp = Stopwatch.GetTimestamp();
             if (string.IsNullOrWhiteSpace(newName) || newName == item.Name)
             {

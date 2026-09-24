@@ -51,9 +51,14 @@ namespace FastExplorer
                     if (existingLookup.TryGetValue(newItem.FullPath, out var existingItem))
                     {
                         existingItem.IsCut = newItem.IsCut;
+                        if (!string.Equals(existingItem.Name, newItem.Name, StringComparison.Ordinal))
+                        {
+                            existingItem.Name = newItem.Name;
+                        }
                         if (existingItem.DateModified != newItem.DateModified)
                         {
                             existingItem.DateModified = newItem.DateModified;
+                            if (allowThumb) IconThumbnailService.Instance.Enqueue(existingItem);
                         }
                         if (existingItem.SizeInBytes != newItem.SizeInBytes)
                         {
@@ -317,6 +322,7 @@ namespace FastExplorer
         private void LoadItems()
         {
             int currentGen = System.Threading.Interlocked.Increment(ref _loadGeneration);
+            IconThumbnailService.Instance.ClearQueue();
             IsLoading = true;
             _allItems.Clear();
             Items.Clear();
@@ -384,11 +390,13 @@ namespace FastExplorer
 
                     if (!string.IsNullOrEmpty(selectTargetName))
                     {
-                        var targetItem = Items.FirstOrDefault(i => i.Name.Equals(selectTargetName, StringComparison.OrdinalIgnoreCase));
+                        var targetItem = Items.FirstOrDefault(i => 
+                            i.Name.Equals(selectTargetName, StringComparison.OrdinalIgnoreCase) ||
+                            (i.IsDrive && i.FullPath.StartsWith(selectTargetName, StringComparison.OrdinalIgnoreCase)));
                         if (targetItem != null)
                         {
                             targetItem.IsSelected = true;
-                            ItemSelectionRequested?.Invoke(this, selectTargetName);
+                            ItemSelectionRequested?.Invoke(this, targetItem.Name);
                         }
                     }
 

@@ -145,20 +145,21 @@ namespace FastExplorer
             try
             {
                 _isSynchronizingSelection = true;
-                foreach (var item in CurrentTab.Items)
-                {
-                    bool isTarget = (item == target);
-                    if (item.IsSelected != isTarget)
-                    {
-                        item.SetIsSelectedSilently(isTarget);
-                    }
-                }
                 var list = ActiveListControl;
                 if (list != null)
                 {
+                    // 以前選択されていたアイテムのみ解除 (全件ループを完全排除)
+                    foreach (var obj in list.SelectedItems)
+                    {
+                        if (obj is FileItem prevItem && prevItem != target)
+                        {
+                            prevItem.SetIsSelectedSilently(false);
+                        }
+                    }
                     list.SelectedItems.Clear();
                     if (target != null)
                     {
+                        target.SetIsSelectedSilently(true);
                         list.SelectedItems.Add(target);
                     }
                 }
@@ -175,17 +176,18 @@ namespace FastExplorer
             try
             {
                 _isSynchronizingSelection = true;
-                if (CurrentTab?.Items != null)
+                var list = ActiveListControl;
+                if (list?.SelectedItems != null)
                 {
-                    foreach (var item in CurrentTab.Items)
+                    foreach (var obj in list.SelectedItems)
                     {
-                        if (item.IsSelected)
+                        if (obj is FileItem item)
                         {
                             item.SetIsSelectedSilently(false);
                         }
                     }
+                    list.SelectedItems.Clear();
                 }
-                ActiveListControl?.SelectedItems?.Clear();
             }
             finally
             {
@@ -436,17 +438,17 @@ namespace FastExplorer
 
         private void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            HandleSelectionChanged();
+            HandleSelectionChanged(e);
         }
 
         private void FileGridView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            HandleSelectionChanged();
+            HandleSelectionChanged(e);
         }
 
         private bool _isSynchronizingSelection = false;
 
-        private void HandleSelectionChanged()
+        private void HandleSelectionChanged(SelectionChangedEventArgs? e = null)
         {
             if (CurrentTab == null || _isSynchronizingSelection) return;
 
@@ -454,15 +456,36 @@ namespace FastExplorer
             {
                 _isSynchronizingSelection = true;
                 var list = ActiveListControl;
-                if (list != null && CurrentTab.Items != null)
+                if (list != null)
                 {
-                    var selectedSet = new HashSet<FileItem>(list.SelectedItems.OfType<FileItem>());
-                    foreach (var item in CurrentTab.Items)
+                    if (e != null && (e.AddedItems.Count > 0 || e.RemovedItems.Count > 0))
                     {
-                        bool shouldBeSelected = selectedSet.Contains(item);
-                        if (item.IsSelected != shouldBeSelected)
+                        // O(k): 変更のあったアイテムのみ同期（全件ループを完全排除）
+                        foreach (var obj in e.AddedItems)
                         {
-                            item.SetIsSelectedSilently(shouldBeSelected);
+                            if (obj is FileItem addedItem)
+                            {
+                                addedItem.SetIsSelectedSilently(true);
+                            }
+                        }
+                        foreach (var obj in e.RemovedItems)
+                        {
+                            if (obj is FileItem removedItem)
+                            {
+                                removedItem.SetIsSelectedSilently(false);
+                            }
+                        }
+                    }
+                    else if (CurrentTab.Items != null)
+                    {
+                        var selectedSet = new HashSet<FileItem>(list.SelectedItems.OfType<FileItem>());
+                        foreach (var item in CurrentTab.Items)
+                        {
+                            bool shouldBeSelected = selectedSet.Contains(item);
+                            if (item.IsSelected != shouldBeSelected)
+                            {
+                                item.SetIsSelectedSilently(shouldBeSelected);
+                            }
                         }
                     }
                 }
@@ -520,12 +543,23 @@ namespace FastExplorer
 
         public List<FileItem> GetCurrentlySelectedItems()
         {
+            var list = ActiveListControl;
+            if (list?.SelectedItems != null && list.SelectedItems.Count > 0)
+            {
+                var result = new List<FileItem>(list.SelectedItems.Count);
+                foreach (var obj in list.SelectedItems)
+                {
+                    if (obj is FileItem fi) result.Add(fi);
+                }
+                return result;
+            }
+
             if (CurrentTab?.Items != null)
             {
                 var selected = CurrentTab.Items.Where(i => i.IsSelected).ToList();
                 if (selected.Count > 0) return selected;
             }
-            return ActiveListControl?.SelectedItems?.OfType<FileItem>()?.ToList() ?? [];
+            return [];
         }
 
         private void UpdateSelectionVisuals()
@@ -557,7 +591,7 @@ namespace FastExplorer
             FileListHeader?.UpdateHeaderForRecycleBin(isRecycleBin);
             FileListHeader?.UpdateSelectAllCheckBox(selectedCount, CurrentTab.Items?.Count ?? 0);
 
-            if (PreviewPane != null && IsPreviewPaneVisible)
+            if (PreviewPane != null && IsPreviewPaneVisible && !_isMarqueeSelecting)
             {
                 PreviewPane.UpdatePreview(selected, CurrentTab.CurrentPath);
             }

@@ -145,16 +145,24 @@ namespace FastExplorer
                 {
                     this.DispatcherQueue.TryEnqueue(() =>
                     {
-                        var targetItem = navTab.Items.FirstOrDefault(i => i.Name.Equals(selectName, StringComparison.OrdinalIgnoreCase));
+                        var targetItem = navTab.Items.FirstOrDefault(i => 
+                            i.Name.Equals(selectName, StringComparison.OrdinalIgnoreCase) ||
+                            (i.IsDrive && i.FullPath.StartsWith(selectName, StringComparison.OrdinalIgnoreCase)));
                         if (targetItem != null)
                         {
-                            FileListView?.SelectedItems.Clear();
-                            FileListView?.SelectedItems.Add(targetItem);
-                            FileListView?.ScrollIntoView(targetItem);
+                            SelectSingleItem(targetItem);
 
-                            FileGridView?.SelectedItems.Clear();
-                            FileGridView?.SelectedItems.Add(targetItem);
-                            FileGridView?.ScrollIntoView(targetItem);
+                            var list = ActiveListControl;
+                            if (list != null)
+                            {
+                                list.UpdateLayout();
+                                list.ScrollIntoView(targetItem);
+                                this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                                {
+                                    list.UpdateLayout();
+                                    list.ScrollIntoView(targetItem);
+                                });
+                            }
 
                             UpdateSelectionVisuals();
                             UpdatePreviewPane();

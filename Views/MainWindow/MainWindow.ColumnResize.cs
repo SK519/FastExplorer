@@ -20,6 +20,7 @@ namespace FastExplorer
         private ResizeColumnTarget _resizingColumn = ResizeColumnTarget.None;
         private double _resizeStartX;
         private double _resizeStartWidth;
+        private long _lastColumnWidthsRefreshTimestamp;
 
         private PointerEventHandler? _globalResizeMovedHandler;
         private PointerEventHandler? _globalResizeReleasedHandler;
@@ -146,7 +147,13 @@ namespace FastExplorer
             }
 
             ColumnLayout.NotifyChanged();
-            RefreshAllItemsColumnWidths();
+
+            long now = Environment.TickCount64;
+            if (now - _lastColumnWidthsRefreshTimestamp >= 30) // 約33fpsで間引き更新し、UIメッセージキューの飽和を防止
+            {
+                _lastColumnWidthsRefreshTimestamp = now;
+                RefreshItemsColumnWidth(_resizingColumn);
+            }
             e.Handled = true;
         }
 
@@ -159,6 +166,9 @@ namespace FastExplorer
         {
             if (_resizingColumn != ResizeColumnTarget.None)
             {
+                // ドラッグ完了時に最終幅を確実に全アイテムへ同期
+                RefreshItemsColumnWidth(_resizingColumn);
+
                 if (senderElement(_resizingColumn) is UIElement el)
                 {
                     try { el.ReleasePointerCapture(e.Pointer); } catch { }
@@ -174,6 +184,30 @@ namespace FastExplorer
                 }
                 _resizingColumn = ResizeColumnTarget.None;
                 e.Handled = true;
+            }
+        }
+
+        private void RefreshItemsColumnWidth(ResizeColumnTarget target)
+        {
+            if (CurrentTab?.Items == null) return;
+            string propName = target switch
+            {
+                ResizeColumnTarget.Name => nameof(FileItem.ColNameWidth),
+                ResizeColumnTarget.Date => nameof(FileItem.ColDateWidth),
+                ResizeColumnTarget.Type => nameof(FileItem.ColTypeWidth),
+                ResizeColumnTarget.Size => nameof(FileItem.ColSizeWidth),
+                _ => string.Empty
+            };
+
+            if (string.IsNullOrEmpty(propName))
+            {
+                RefreshAllItemsColumnWidths();
+                return;
+            }
+
+            foreach (var item in CurrentTab.Items)
+            {
+                item.RefreshColumnWidth(propName);
             }
         }
 
@@ -197,7 +231,8 @@ namespace FastExplorer
             double autoWidth = Math.Clamp(maxLen * 8.5 + 40, 120, 800);
             ColumnLayout.NameWidth = autoWidth;
             FileListHeader.ContainerName.Width = autoWidth;
-            RefreshAllItemsColumnWidths();
+            ColumnLayout.NotifyChanged();
+            RefreshItemsColumnWidth(ResizeColumnTarget.Name);
             e.Handled = true;
         }
 
@@ -206,7 +241,8 @@ namespace FastExplorer
             if (FileListHeader == null) return;
             ColumnLayout.DateWidth = 170;
             FileListHeader.ContainerDate.Width = 170;
-            RefreshAllItemsColumnWidths();
+            ColumnLayout.NotifyChanged();
+            RefreshItemsColumnWidth(ResizeColumnTarget.Date);
             e.Handled = true;
         }
 
@@ -215,7 +251,8 @@ namespace FastExplorer
             if (FileListHeader == null) return;
             ColumnLayout.TypeWidth = 140;
             FileListHeader.ContainerType.Width = 140;
-            RefreshAllItemsColumnWidths();
+            ColumnLayout.NotifyChanged();
+            RefreshItemsColumnWidth(ResizeColumnTarget.Type);
             e.Handled = true;
         }
 
@@ -224,7 +261,8 @@ namespace FastExplorer
             if (FileListHeader == null) return;
             ColumnLayout.SizeWidth = 100;
             FileListHeader.ContainerSize.Width = 100;
-            RefreshAllItemsColumnWidths();
+            ColumnLayout.NotifyChanged();
+            RefreshItemsColumnWidth(ResizeColumnTarget.Size);
             e.Handled = true;
         }
 

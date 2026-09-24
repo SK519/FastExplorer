@@ -6,6 +6,8 @@ namespace FastExplorer
 {
     public partial class NavigationTabItem
     {
+        private readonly object _watcherLock = new();
+
         private void SetupWatcher(string path)
         {
             DisposeWatcher();
@@ -21,19 +23,21 @@ namespace FastExplorer
 
             try
             {
-                _watcher = new FileSystemWatcher(path)
+                var watcher = new FileSystemWatcher(path)
                 {
                     NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.Attributes,
                     IncludeSubdirectories = false,
-                    InternalBufferSize = 65536,
-                    EnableRaisingEvents = true
+                    InternalBufferSize = 65536
                 };
 
-                _watcher.Created += OnFolderChanged;
-                _watcher.Deleted += OnFolderChanged;
-                _watcher.Renamed += OnFolderChanged;
-                _watcher.Changed += OnFolderChanged;
-                _watcher.Error += OnWatcherError;
+                watcher.Created += OnFolderChanged;
+                watcher.Deleted += OnFolderChanged;
+                watcher.Renamed += OnFolderChanged;
+                watcher.Changed += OnFolderChanged;
+                watcher.Error += OnWatcherError;
+                watcher.EnableRaisingEvents = true;
+
+                _watcher = watcher;
             }
             catch (Exception ex)
             {
@@ -44,7 +48,8 @@ namespace FastExplorer
         private void OnWatcherError(object sender, ErrorEventArgs e)
         {
             // バッファオーバーフロー等のエラー時はウォッチャーを再起動して手動リフレッシュ
-            DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+            var dq = DispatcherQueue;
+            dq?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
             {
                 SetupWatcher(CurrentPath);
                 Refresh();
@@ -53,28 +58,44 @@ namespace FastExplorer
 
         private void OnFolderChanged(object sender, FileSystemEventArgs e)
         {
-            if (_debounceTimer == null)
+            lock (_watcherLock)
             {
-                _debounceTimer = new System.Threading.Timer(_ =>
+                if (_debounceTimer == null)
                 {
-                    DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+                    _debounceTimer = new System.Threading.Timer(OnDebounceTimerElapsed, null, 150, System.Threading.Timeout.Infinite);
+                }
+                else
+                {
+                    try
                     {
-                        Refresh();
-                    });
-                }, null, 150, System.Threading.Timeout.Infinite);
+                        _debounceTimer.Change(150, System.Threading.Timeout.Infinite);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        _debounceTimer = new System.Threading.Timer(OnDebounceTimerElapsed, null, 150, System.Threading.Timeout.Infinite);
+                    }
+                }
             }
-            else
+        }
+
+        private void OnDebounceTimerElapsed(object? state)
+        {
+            var dq = DispatcherQueue;
+            dq?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
             {
-                _debounceTimer.Change(150, System.Threading.Timeout.Infinite);
-            }
+                Refresh();
+            });
         }
 
         public void DisposeWatcher()
         {
-            if (_debounceTimer != null)
+            lock (_watcherLock)
             {
-                try { _debounceTimer.Dispose(); } catch { }
-                _debounceTimer = null;
+                if (_debounceTimer != null)
+                {
+                    try { _debounceTimer.Dispose(); } catch { }
+                    _debounceTimer = null;
+                }
             }
 
             if (_watcher != null)

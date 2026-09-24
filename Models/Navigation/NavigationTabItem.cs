@@ -47,6 +47,16 @@ namespace FastExplorer
         public string? PendingSelectedItemName { get; set; }
         public event Action<NavigationTabItem, string>? ItemSelectionRequested;
 
+        private readonly Dictionary<string, string> _folderLastSelectedItem = new(StringComparer.OrdinalIgnoreCase);
+
+        public void RecordSelectedItem(string folderPath, string itemName)
+        {
+            if (!string.IsNullOrEmpty(folderPath) && !string.IsNullOrEmpty(itemName))
+            {
+                _folderLastSelectedItem[folderPath] = itemName;
+            }
+        }
+
         public string Header
         {
             get => _header;
@@ -134,12 +144,20 @@ namespace FastExplorer
 
         public NavigationTabItem()
         {
+            _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+
             if (Enum.TryParse<FolderViewMode>(ConfigService.Current.Ui.DefaultViewMode, true, out var defaultMode))
             {
                 _viewMode = defaultMode;
             }
 
             QuickAccessService.PinnedItemsChanged += OnQuickAccessPinnedChanged;
+        }
+
+        public void Reload()
+        {
+            SetupWatcher(CurrentPath);
+            LoadItems();
         }
 
         private void OnQuickAccessPinnedChanged()
@@ -217,6 +235,15 @@ namespace FastExplorer
                 {
                     normalizedPath = path;
                     Header = path;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(_currentPath))
+            {
+                var selected = Items.FirstOrDefault(i => i.IsSelected);
+                if (selected != null)
+                {
+                    RecordSelectedItem(_currentPath, selected.Name);
                 }
             }
 

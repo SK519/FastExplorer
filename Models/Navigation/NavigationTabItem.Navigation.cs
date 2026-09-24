@@ -12,10 +12,18 @@ namespace FastExplorer
             if (_backStack.Count == 0) return;
             string prev = _backStack[^1];
             _backStack.RemoveAt(_backStack.Count - 1);
+            string leavingPath = _currentPath;
             if (!string.IsNullOrEmpty(_currentPath))
             {
                 _forwardStack.Add(_currentPath);
             }
+
+            string? selectTarget = DetermineChildOrLastSelectedItem(prev, leavingPath);
+            if (!string.IsNullOrEmpty(selectTarget))
+            {
+                PendingSelectedItemName = selectTarget;
+            }
+
             NavigateTo(prev, false);
         }
 
@@ -28,6 +36,12 @@ namespace FastExplorer
             {
                 _backStack.Add(_currentPath);
             }
+
+            if (_folderLastSelectedItem.TryGetValue(next, out string? lastSel) && !string.IsNullOrEmpty(lastSel))
+            {
+                PendingSelectedItemName = lastSel;
+            }
+
             NavigateTo(next, false);
         }
 
@@ -37,6 +51,7 @@ namespace FastExplorer
 
             if (RecycleBinService.IsRecycleBinPath(CurrentPath))
             {
+                PendingSelectedItemName = "ごみ箱";
                 NavigateTo("ThisPC");
                 return;
             }
@@ -46,11 +61,14 @@ namespace FastExplorer
                 if (string.IsNullOrEmpty(internalSubPath))
                 {
                     string? parent = Path.GetDirectoryName(archiveFile);
+                    PendingSelectedItemName = Path.GetFileName(archiveFile);
                     NavigateTo(string.IsNullOrEmpty(parent) ? "ThisPC" : parent);
                 }
                 else
                 {
                     string? parentSub = Path.GetDirectoryName(CurrentPath);
+                    string targetName = Path.GetFileName(internalSubPath.TrimEnd('/', '\\'));
+                    PendingSelectedItemName = targetName;
                     NavigateTo(string.IsNullOrEmpty(parentSub) ? archiveFile : parentSub);
                 }
                 return;
@@ -61,6 +79,8 @@ namespace FastExplorer
                 int lastSlash = CurrentPath.LastIndexOf('\\');
                 if (lastSlash > 2)
                 {
+                    string childName = CurrentPath[(lastSlash + 1)..];
+                    PendingSelectedItemName = childName;
                     NavigateTo(CurrentPath[..lastSlash]);
                 }
                 else
@@ -75,10 +95,14 @@ namespace FastExplorer
                 var parent = Directory.GetParent(CurrentPath);
                 if (parent != null)
                 {
+                    string childName = Path.GetFileName(CurrentPath.TrimEnd('\\', '/'));
+                    PendingSelectedItemName = childName;
                     NavigateTo(parent.FullName);
                 }
                 else
                 {
+                    string driveLetter = CurrentPath.TrimEnd('\\', '/');
+                    PendingSelectedItemName = driveLetter;
                     NavigateTo("ThisPC");
                 }
             }
@@ -86,6 +110,48 @@ namespace FastExplorer
             {
                 NavigateTo("ThisPC");
             }
+        }
+
+        private string? DetermineChildOrLastSelectedItem(string targetFolder, string leavingPath)
+        {
+            if (string.IsNullOrEmpty(targetFolder) || string.IsNullOrEmpty(leavingPath)) return null;
+
+            // 1. 直前のパスが戻り先フォルダ配下のディレクトリだった場合、その直下のサブフォルダ名を特定
+            try
+            {
+                if (!targetFolder.Equals("ThisPC", StringComparison.OrdinalIgnoreCase) &&
+                    !targetFolder.Equals("Home", StringComparison.OrdinalIgnoreCase))
+                {
+                    string rel = Path.GetRelativePath(targetFolder, leavingPath);
+                    if (!rel.StartsWith("..") && !Path.IsPathRooted(rel))
+                    {
+                        string topChild = rel.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries)[0];
+                        if (!string.IsNullOrEmpty(topChild))
+                        {
+                            return topChild;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // 2. ドライブから ThisPC に戻る場合
+            if (targetFolder.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
+            {
+                string? root = Path.GetPathRoot(leavingPath);
+                if (!string.IsNullOrEmpty(root))
+                {
+                    return root.TrimEnd('\\', '/');
+                }
+            }
+
+            // 3. 過去にそのフォルダで選択していたアイテムがあれば復元
+            if (_folderLastSelectedItem.TryGetValue(targetFolder, out string? lastSelected) && !string.IsNullOrEmpty(lastSelected))
+            {
+                return lastSelected;
+            }
+
+            return null;
         }
 
         private void UpdateBreadcrumbs(string path)

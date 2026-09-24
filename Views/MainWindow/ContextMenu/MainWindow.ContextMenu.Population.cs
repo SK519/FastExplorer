@@ -16,6 +16,7 @@ namespace FastExplorer
         #region Context Menu Population & Opening Events
 
         private ActiveShellMenuSession? _activeShellSession;
+        private static Style? _cachedContextMenuItemButtonStyle;
 
         private void ItemContextMenu_Closed(object? sender, object e)
         {
@@ -61,15 +62,19 @@ namespace FastExplorer
 
                 ContextMenuItemsPanel.Children.Clear();
 
-                Style? itemStyle = null;
-                try
+                Style? itemStyle = _cachedContextMenuItemButtonStyle;
+                if (itemStyle == null)
                 {
-                    if (Application.Current.Resources.TryGetValue("ContextMenuItemButtonStyle", out var styleObj))
+                    try
                     {
-                        itemStyle = styleObj as Style;
+                        if (Application.Current.Resources.TryGetValue("ContextMenuItemButtonStyle", out var styleObj))
+                        {
+                            _cachedContextMenuItemButtonStyle = styleObj as Style;
+                            itemStyle = _cachedContextMenuItemButtonStyle;
+                        }
                     }
+                    catch { }
                 }
-                catch { }
 
                 // ==========================================
                 // エリア 1: 標準機能項目 (上部)
