@@ -18,6 +18,8 @@ namespace FastExplorer
                 RecycleBinService.IsRecycleBinPath(path) ||
                 path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase) ||
                 path.StartsWith("::", StringComparison.OrdinalIgnoreCase) ||
+                // WSL UNC パスは FileSystemWatcher 非対応かつ Directory.Exists で数分ブロックするためスキップ
+                path.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase) ||
                 !Directory.Exists(path))
                 return;
 

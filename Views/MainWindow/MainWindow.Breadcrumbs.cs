@@ -57,6 +57,29 @@ namespace FastExplorer
                     flyout.Items.Add(menuItem);
                 }
             }
+            else if (IconThumbnailService.IsWslRootPath(item.FullPath))
+            {
+                // WSL ルートパス (\\wsl.localhost) → ディストリビューション一覧を表示
+                var distros = GetWslDistros();
+                if (distros.Count == 0)
+                {
+                    flyout.Items.Add(new MenuFlyoutItem { Text = "(WSL ディストリビューションなし)", IsEnabled = false });
+                }
+                else
+                {
+                    foreach (var distro in distros)
+                    {
+                        string distroPath = $@"\\wsl.localhost\{distro}";
+                        var menuItem = new MenuFlyoutItem
+                        {
+                            Text = distro,
+                            Icon = new FontIcon { Glyph = "\uE74C" }
+                        };
+                        menuItem.Click += (s, args) => CurrentTab.NavigateTo(distroPath);
+                        flyout.Items.Add(menuItem);
+                    }
+                }
+            }
             else
             {
                 try

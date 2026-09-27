@@ -5,7 +5,7 @@
 
     <!-- 3. 特大アイコン表示テンプレート (GridView 用) -->
     <DataTemplate x:Key="ExtraLargeIconsItemTemplate">
-        <Grid Width="180" Height="190" Padding="8,8" Opacity="{Binding Opacity}">
+        <Grid Width="180" Height="190" Padding="8,8" Background="Transparent" Opacity="{Binding Opacity}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
@@ -49,7 +49,7 @@
 
     <!-- 4. 大アイコン表示テンプレート (GridView 用) -->
     <DataTemplate x:Key="LargeIconsItemTemplate">
-        <Grid Width="120" Height="130" Padding="6,6" Opacity="{Binding Opacity}">
+        <Grid Width="120" Height="130" Padding="6,6" Background="Transparent" Opacity="{Binding Opacity}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
@@ -93,7 +93,7 @@
 
     <!-- 5. 中アイコン表示テンプレート (GridView 用) -->
     <DataTemplate x:Key="MediumIconsItemTemplate">
-        <Grid Width="96" Height="104" Padding="4,4" Opacity="{Binding Opacity}">
+        <Grid Width="96" Height="104" Padding="4,4" Background="Transparent" Opacity="{Binding Opacity}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
@@ -137,7 +137,7 @@
 
     <!-- 6. 小アイコン表示テンプレート (GridView 用) -->
     <DataTemplate x:Key="SmallIconsItemTemplate">
-        <Grid Width="160" Height="34" Padding="4,4,6,4" ColumnSpacing="6" Opacity="{Binding Opacity}">
+        <Grid Width="160" Height="34" Padding="4,4,6,4" ColumnSpacing="6" Background="Transparent" Opacity="{Binding Opacity}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
@@ -174,7 +174,7 @@
 
     <!-- 7. 一覧表示テンプレート (GridView 用) -->
     <DataTemplate x:Key="ListItemTemplate">
-        <Grid Width="180" Height="32" Padding="4,4,6,4" ColumnSpacing="6" Opacity="{Binding Opacity}">
+        <Grid Width="180" Height="32" Padding="4,4,6,4" ColumnSpacing="6" Background="Transparent" Opacity="{Binding Opacity}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
@@ -211,7 +211,7 @@
 
     <!-- 8. タイル表示テンプレート (GridView 用) -->
     <DataTemplate x:Key="TilesItemTemplate">
-        <Grid Width="270" Height="62" Padding="6,4,8,4" ColumnSpacing="10" Opacity="{Binding Opacity}">
+        <Grid Width="270" Height="62" Padding="6,4,8,4" ColumnSpacing="10" Background="Transparent" Opacity="{Binding Opacity}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>

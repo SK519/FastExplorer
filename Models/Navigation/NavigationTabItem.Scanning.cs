@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using FastExplorer.Core;
+using FastExplorer.Models;
 using FastExplorer.Services;
 
 namespace FastExplorer
@@ -117,38 +118,15 @@ namespace FastExplorer
                 else
                 {
                     bool showHidden = ConfigService.Current.Ui.ShowHiddenFiles;
-                    scanned.AddRange(NativeFileScanner.ScanDirectory(CurrentPath, showHidden));
 
-                    // WSL ルート走査時のフォールバック (レジストリからディストリビューション取得)
-                    if (scanned.Count == 0 && (CurrentPath.Equals(@"\\wsl.localhost", StringComparison.OrdinalIgnoreCase) || CurrentPath.Equals(@"\\wsl$", StringComparison.OrdinalIgnoreCase) || CurrentPath.Equals("Linux", StringComparison.OrdinalIgnoreCase)))
+                    // WSL パスは wsl.exe 経由でスキャン (UNC パスの直接スキャンは数分かかる場合があるため)
+                    if (CurrentPath.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase))
                     {
-                        try
-                        {
-                            using var lxssKey = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Lxss");
-                            if (lxssKey != null)
-                            {
-                                foreach (var subKeyName in lxssKey.GetSubKeyNames())
-                                {
-                                    using var distroKey = lxssKey.OpenSubKey(subKeyName);
-                                    if (distroKey != null)
-                                    {
-                                        string? distroName = distroKey.GetValue("DistributionName") as string;
-                                        if (!string.IsNullOrWhiteSpace(distroName))
-                                        {
-                                            scanned.Add(new FileItem
-                                            {
-                                                Name = distroName,
-                                                FullPath = $@"\\wsl.localhost\{distroName}",
-                                                GlyphIcon = "\uE74C",
-                                                FileType = "Linux ディストリビューション",
-                                                IsDirectory = true
-                                            });
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        catch { }
+                        scanned.AddRange(WslScanner.ScanWslPath(CurrentPath, showHidden));
+                    }
+                    else
+                    {
+                        scanned.AddRange(NativeFileScanner.ScanDirectory(CurrentPath, showHidden));
                     }
                 }
             }

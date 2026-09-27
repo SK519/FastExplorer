@@ -271,6 +271,13 @@ namespace FastExplorer
             if (item == null || CurrentTab == null) return;
             CurrentTab.RecordSelectedItem(CurrentTab.CurrentPath, item.Name);
 
+            // 0. WSL パス (\\wsl.localhost や \\wsl$)
+            if (QuickAccessService.IsWslPath(item.FullPath))
+            {
+                CurrentTab.NavigateTo(item.FullPath);
+                return;
+            }
+
             // 1. UNC ネットワークパス (\\Server\Share 等)
             if (item.FullPath.StartsWith(@"\\") && (item.IsDirectory || !item.FullPath.Contains('.')))
             {

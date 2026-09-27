@@ -117,6 +117,16 @@ namespace FastExplorer
                     OpenFileItem(item);
                     return;
                 }
+                if (dep is FrameworkElement fe && fe.DataContext is FileItem dcItem)
+                {
+                    OpenFileItem(dcItem);
+                    return;
+                }
+            }
+            if (_itemOnPointerPressed != null)
+            {
+                OpenFileItem(_itemOnPointerPressed);
+                return;
             }
             OpenSelectedItem();
         }
@@ -131,6 +141,16 @@ namespace FastExplorer
                     OpenFileItem(item);
                     return;
                 }
+                if (dep is FrameworkElement fe && fe.DataContext is FileItem dcItem)
+                {
+                    OpenFileItem(dcItem);
+                    return;
+                }
+            }
+            if (_itemOnPointerPressed != null)
+            {
+                OpenFileItem(_itemOnPointerPressed);
+                return;
             }
             OpenSelectedItem();
         }
