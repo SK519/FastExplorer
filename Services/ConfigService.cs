@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using FastExplorer.Models;
@@ -52,6 +53,14 @@ namespace FastExplorer.Services
             }
 
             _current ??= new AppConfig();
+            if (_current.FolderViewSettings != null)
+            {
+                _current.FolderViewSettings = new Dictionary<string, FolderViewSetting>(_current.FolderViewSettings, StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                _current.FolderViewSettings = new Dictionary<string, FolderViewSetting>(StringComparer.OrdinalIgnoreCase);
+            }
         }
 
         public static void Save()

@@ -68,5 +68,93 @@ namespace FastExplorer
         }
 
         #endregion
+
+        #region Splitters Drag Resize (Preview & Sidebar)
+
+        private bool _isResizingPreviewPane = false;
+        private double _previewResizeStartPointX;
+        private double _previewResizeStartWidth;
+
+        private void PreviewSplitter_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (sender is UIElement el)
+            {
+                _isResizingPreviewPane = true;
+                el.CapturePointer(e.Pointer);
+                var pt = e.GetCurrentPoint(this.Content);
+                _previewResizeStartPointX = pt.Position.X;
+                _previewResizeStartWidth = PreviewPaneColumn.ActualWidth > 0 ? PreviewPaneColumn.ActualWidth : 280;
+                e.Handled = true;
+            }
+        }
+
+        private void PreviewSplitter_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (_isResizingPreviewPane)
+            {
+                var pt = e.GetCurrentPoint(this.Content);
+                double delta = _previewResizeStartPointX - pt.Position.X;
+                double newWidth = Math.Clamp(_previewResizeStartWidth + delta, 180, 600);
+                PreviewPaneColumn.Width = new GridLength(newWidth, GridUnitType.Pixel);
+                e.Handled = true;
+            }
+        }
+
+        private void PreviewSplitter_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (_isResizingPreviewPane)
+            {
+                _isResizingPreviewPane = false;
+                if (sender is UIElement el)
+                {
+                    el.ReleasePointerCapture(e.Pointer);
+                }
+                e.Handled = true;
+            }
+        }
+
+        private bool _isResizingSidebar = false;
+        private double _sidebarResizeStartPointX;
+        private double _sidebarResizeStartWidth;
+
+        private void SidebarSplitter_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (sender is UIElement el)
+            {
+                _isResizingSidebar = true;
+                el.CapturePointer(e.Pointer);
+                var pt = e.GetCurrentPoint(this.Content);
+                _sidebarResizeStartPointX = pt.Position.X;
+                _sidebarResizeStartWidth = SidebarColumn.ActualWidth > 0 ? SidebarColumn.ActualWidth : 220;
+                e.Handled = true;
+            }
+        }
+
+        private void SidebarSplitter_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (_isResizingSidebar)
+            {
+                var pt = e.GetCurrentPoint(this.Content);
+                double delta = pt.Position.X - _sidebarResizeStartPointX;
+                double newWidth = Math.Clamp(_sidebarResizeStartWidth + delta, 140, 500);
+                SidebarColumn.Width = new GridLength(newWidth, GridUnitType.Pixel);
+                e.Handled = true;
+            }
+        }
+
+        private void SidebarSplitter_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (_isResizingSidebar)
+            {
+                _isResizingSidebar = false;
+                if (sender is UIElement el)
+                {
+                    el.ReleasePointerCapture(e.Pointer);
+                }
+                e.Handled = true;
+            }
+        }
+
+        #endregion
     }
 }

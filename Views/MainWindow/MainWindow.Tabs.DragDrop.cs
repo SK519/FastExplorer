@@ -17,10 +17,43 @@ namespace FastExplorer
     {
         #region Tab Drag, Move, Tear-off & Docking
 
+        private DispatcherTimer? _tabHoverSwitchTimer;
+        private TabViewItem? _hoveredTabViewItem;
+
+        private void ResetTabHoverTimer()
+        {
+            if (_tabHoverSwitchTimer != null)
+            {
+                _tabHoverSwitchTimer.Stop();
+                _tabHoverSwitchTimer = null;
+            }
+            _hoveredTabViewItem = null;
+        }
+
+        private void StartTabHoverTimer(TabViewItem tabItem)
+        {
+            if (_hoveredTabViewItem == tabItem) return;
+            ResetTabHoverTimer();
+
+            _hoveredTabViewItem = tabItem;
+            _tabHoverSwitchTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(450)
+            };
+            _tabHoverSwitchTimer.Tick += (s, args) =>
+            {
+                _tabHoverSwitchTimer?.Stop();
+                if (_hoveredTabViewItem != null && (MainTabView.SelectedItem as TabViewItem) != _hoveredTabViewItem)
+                {
+                    MainTabView.SelectedItem = _hoveredTabViewItem;
+                }
+            };
+            _tabHoverSwitchTimer.Start();
+        }
+
         private void MainTabView_TabDragStarting(TabView sender, TabViewTabDragStartingEventArgs args)
         {
             var tabItem = _lastPressedTabViewItem
-                          ?? TabDragDropService.DraggedTabViewItem
                           ?? (MainTabView.SelectedItem as TabViewItem)
                           ?? args.Tab
                           ?? (args.Item as TabViewItem);
@@ -33,10 +66,18 @@ namespace FastExplorer
             }
         }
 
+        private void MainTabView_TabStripDragLeave(object sender, Microsoft.UI.Xaml.DragEventArgs e)
+        {
+            ResetTabHoverTimer();
+        }
+
         private void MainTabView_TabStripDragOver(object sender, Microsoft.UI.Xaml.DragEventArgs e)
         {
-            if (TabDragDropService.IsDragging)
+            bool isTabDrag = TabDragDropService.IsDragging && e.DataView.Contains(TabDragDropService.TabDataFormat);
+
+            if (isTabDrag)
             {
+                ResetTabHoverTimer();
                 e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
                 e.DragUIOverride.IsCaptionVisible = false;
                 e.DragUIOverride.IsGlyphVisible = false;
@@ -47,6 +88,8 @@ namespace FastExplorer
                 var tabItem = GetTabViewItemAtPosition(e.GetPosition(MainTabView), e);
                 if (tabItem?.DataContext is NavigationTabItem navTab && Directory.Exists(navTab.CurrentPath))
                 {
+                    StartTabHoverTimer(tabItem);
+
                     bool isCtrl = e.Modifiers.HasFlag(DragDropModifiers.Control);
                     var op = isCtrl ? Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy : Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
                     e.AcceptedOperation = op;
@@ -56,8 +99,14 @@ namespace FastExplorer
                 }
                 else
                 {
+                    ResetTabHoverTimer();
                     e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.None;
                 }
+            }
+            else
+            {
+                ResetTabHoverTimer();
+                e.AcceptedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.None;
             }
         }
 
@@ -77,7 +126,11 @@ namespace FastExplorer
 
         private async void MainTabView_TabStripDrop(object sender, Microsoft.UI.Xaml.DragEventArgs e)
         {
-            if (TabDragDropService.IsDragging)
+            ResetTabHoverTimer();
+
+            bool isTabDrag = TabDragDropService.IsDragging && e.DataView.Contains(TabDragDropService.TabDataFormat);
+
+            if (isTabDrag)
             {
                 var draggedItem = TabDragDropService.DraggedTabViewItem;
                 var sourceWindow = TabDragDropService.SourceWindow;
@@ -133,9 +186,13 @@ namespace FastExplorer
                                           e.Modifiers.HasFlag(DragDropModifiers.Shift);
 
                             bool success = await PerformFileTransferWithDialogAsync(paths, navTab.CurrentPath, isMove);
-                            if (success && (CurrentTab == navTab || CurrentTab?.CurrentPath.Equals(navTab.CurrentPath, StringComparison.OrdinalIgnoreCase) == true))
+                            if (success)
                             {
-                                CurrentTab.Refresh();
+                                navTab.Refresh();
+                                if (CurrentTab != null && CurrentTab != navTab && CurrentTab.CurrentPath.Equals(navTab.CurrentPath, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    CurrentTab.Refresh();
+                                }
                             }
                         }
                     }
@@ -157,7 +214,7 @@ namespace FastExplorer
             {
                 try
                 {
-                    var hitElements = VisualTreeHelper.FindElementsInHostCoordinates(e.GetPosition(null), MainTabView);
+                    var hitElements = VisualTreeHelper.FindElementsInHostCoordinates(e.GetPosition(this.Content), MainTabView);
                     foreach (var el in hitElements)
                     {
                         if (el is DependencyObject dep)
@@ -176,7 +233,7 @@ namespace FastExplorer
             for (int i = 0; i < MainTabView.TabItems.Count; i++)
             {
                 var tabItem = (MainTabView.TabItems[i] as TabViewItem) ?? (MainTabView.ContainerFromIndex(i) as TabViewItem);
-                if (tabItem != null)
+                if (tabItem != null && tabItem.Visibility == Visibility.Visible)
                 {
                     try
                     {

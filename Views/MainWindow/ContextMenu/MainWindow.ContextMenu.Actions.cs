@@ -73,7 +73,7 @@ namespace FastExplorer
 
         private List<FileItem> GetContextTargetItems()
         {
-            if (ItemContextMenu.IsOpen && _contextTargetItemsOverride != null && _contextTargetItemsOverride.Count > 0)
+            if (_contextTargetItemsOverride != null && _contextTargetItemsOverride.Count > 0)
             {
                 return _contextTargetItemsOverride;
             }
@@ -232,13 +232,7 @@ namespace FastExplorer
             if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
             if (paths.Count == 0) return;
 
-            string? resultPath = format switch
-            {
-                ArchiveFormat.Zip => await ArchiveService.CompressToZipAsync(paths, CurrentTab.CurrentPath, level),
-                ArchiveFormat.SevenZip => await ArchiveService.CompressTo7zAsync(paths, CurrentTab.CurrentPath, level),
-                _ => null
-            };
-
+            string? resultPath = await PerformCompressWithDialogAsync(paths, CurrentTab.CurrentPath, format, level);
             if (resultPath != null)
             {
                 CurrentTab.Refresh();
@@ -259,30 +253,52 @@ namespace FastExplorer
 
         private async void ContextMenuExtractHere_Click(object sender, RoutedEventArgs e)
         {
-            var item = GetContextTargetItem();
+            var paths = GetSelectedPaths().Where(ArchiveService.IsSupportedArchive).ToList();
+            if (paths.Count == 0)
+            {
+                var item = GetContextTargetItem();
+                if (item != null && ArchiveService.IsSupportedArchive(item.FullPath))
+                {
+                    paths.Add(item.FullPath);
+                }
+            }
+
             ItemContextMenu.Hide();
             CloseAllSubmenus();
-            if (CurrentTab == null || item == null || string.IsNullOrEmpty(item.FullPath)) return;
+            if (CurrentTab == null || paths.Count == 0 || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
 
-            bool success = await ArchiveService.ExtractAsync(item.FullPath, CurrentTab.CurrentPath, createSubFolder: false);
-            if (success)
+            foreach (var path in paths)
             {
-                CurrentTab.Refresh();
+                bool success = await PerformExtractWithDialogAsync(path, CurrentTab.CurrentPath, createSubFolder: false);
+                if (!success) break; // ユーザーがキャンセルした場合は後続のアーカイブ展開も中止
             }
+
+            CurrentTab.Refresh();
         }
 
         private async void ContextMenuExtractToFolder_Click(object sender, RoutedEventArgs e)
         {
-            var item = GetContextTargetItem();
+            var paths = GetSelectedPaths().Where(ArchiveService.IsSupportedArchive).ToList();
+            if (paths.Count == 0)
+            {
+                var item = GetContextTargetItem();
+                if (item != null && ArchiveService.IsSupportedArchive(item.FullPath))
+                {
+                    paths.Add(item.FullPath);
+                }
+            }
+
             ItemContextMenu.Hide();
             CloseAllSubmenus();
-            if (CurrentTab == null || item == null || string.IsNullOrEmpty(item.FullPath)) return;
+            if (CurrentTab == null || paths.Count == 0 || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
 
-            bool success = await ArchiveService.ExtractAsync(item.FullPath, CurrentTab.CurrentPath, createSubFolder: true);
-            if (success)
+            foreach (var path in paths)
             {
-                CurrentTab.Refresh();
+                bool success = await PerformExtractWithDialogAsync(path, CurrentTab.CurrentPath, createSubFolder: true);
+                if (!success) break; // ユーザーがキャンセルした場合は後続のアーカイブ展開も中止
             }
+
+            CurrentTab.Refresh();
         }
 
         private async void ContextMenuExtractZip_Click(object sender, RoutedEventArgs e)

@@ -33,6 +33,7 @@ namespace FastExplorer.Views.MainWindow.Toolbar
         public event Action<bool>? ShowCheckBoxesChanged;
         public event Action<bool>? ShowHiddenFilesChanged;
         public event Action<System.Collections.Generic.IList<MenuFlyoutItemBase>>? NewMenuOpening;
+        public event Action? ViewMenuOpening;
 
         public ActionToolbarControl()
         {
@@ -155,6 +156,7 @@ namespace FastExplorer.Views.MainWindow.Toolbar
 
         private void ViewMenuFlyout_Opening(object? sender, object e)
         {
+            ViewMenuOpening?.Invoke();
             UpdateViewMenuState(_currentMode, _currentScale, ConfigService.Current.Ui.ShowItemCheckBoxes, ConfigService.Current.Ui.ShowHiddenFiles, _isPreviewPaneVisible);
         }
 

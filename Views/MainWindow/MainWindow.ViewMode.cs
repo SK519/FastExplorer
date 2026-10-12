@@ -23,6 +23,9 @@ namespace FastExplorer
             return null;
         }
 
+        private FolderViewMode? _appliedUiViewMode;
+        private ViewScaleLevel? _appliedUiViewScale;
+
         public void ApplyViewMode(FolderViewMode mode, ViewScaleLevel? scale = null, bool saveConfig = true)
         {
             if (CurrentTab == null) return;
@@ -40,8 +43,10 @@ namespace FastExplorer
             bool isCurrentGrid = FileGridView != null && FileGridView.Visibility == Visibility.Visible;
             bool shouldBeGrid = mode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons or FolderViewMode.List or FolderViewMode.Tiles;
 
-            // 変更がなく、かつUIの表示状態も一致している場合は何もしない
-            if (oldMode == mode && oldScale == scaleLevel && !saveConfig && isCurrentGrid == shouldBeGrid)
+            // UI に実際に適用されているモード・スケールと表示形式が完全に一致している場合のみ早期リターン
+            bool isCurrentList = FileListView != null && FileListView.Visibility == Visibility.Visible;
+            bool isContainerMatched = shouldBeGrid ? isCurrentGrid : isCurrentList;
+            if (_appliedUiViewMode == mode && _appliedUiViewScale == scaleLevel && isContainerMatched && !saveConfig)
             {
                 UpdateViewMenuCheckStates();
                 UpdateActionToolbarButtons();
@@ -203,13 +208,16 @@ namespace FastExplorer
                 }
             }
 
+            _appliedUiViewMode = mode;
+            _appliedUiViewScale = scaleLevel;
+
             UpdateViewMenuCheckStates();
             UpdateActionToolbarButtons();
 
             if (saveConfig && CurrentTab != null)
             {
                 string normPath = FastExplorer.Helpers.PathHelper.NormalizeFolderPath(CurrentTab.CurrentPath);
-                if (!string.IsNullOrEmpty(normPath) && !normPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase) && !normPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
+                if (!string.IsNullOrEmpty(normPath) && !normPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
                 {
                     ConfigService.Current.FolderViewSettings[normPath] = new FolderViewSetting
                     {
@@ -228,7 +236,7 @@ namespace FastExplorer
         private void ViewModeSmall_Click(object sender, RoutedEventArgs e) => ApplyViewMode(FolderViewMode.SmallIcons);
         private void ViewModeList_Click(object sender, RoutedEventArgs e) => ApplyViewMode(FolderViewMode.List);
         private void ViewModeDetails_Click(object sender, RoutedEventArgs e) => ApplyViewMode(FolderViewMode.Details);
-        private void ViewModeTiles_Click(object sender, RoutedEventArgs e) => ApplyViewMode(FolderViewMode.Tiles);
+        private void ViewModeTiles_Click(object sender, RoutedEventArgs e) => ApplyViewMode(FolderViewMode.Tiles, CurrentTab?.ViewScale);
         private void ViewModeContent_Click(object sender, RoutedEventArgs e) => ApplyViewMode(FolderViewMode.Content);
 
         private void ViewZoomIn_Click(object sender, RoutedEventArgs e)
@@ -297,15 +305,15 @@ namespace FastExplorer
         private void ViewModeGrid_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null) return;
-            // アイコン（イラスト）表示へ切り替え
-            if (CurrentTab.ViewMode is FolderViewMode.MediumIcons)
+            // 現在のスケールに応じたアイコン表示へ確実に切り替え
+            var targetMode = CurrentTab.ViewScale switch
             {
-                ApplyViewMode(FolderViewMode.LargeIcons);
-            }
-            else
-            {
-                ApplyViewMode(FolderViewMode.MediumIcons);
-            }
+                ViewScaleLevel.Compact => FolderViewMode.SmallIcons,
+                ViewScaleLevel.Large => FolderViewMode.LargeIcons,
+                ViewScaleLevel.ExtraLarge => FolderViewMode.ExtraLargeIcons,
+                _ => FolderViewMode.MediumIcons
+            };
+            ApplyViewMode(targetMode, CurrentTab.ViewScale);
         }
 
         private void ViewSizeSmall_Click(object sender, RoutedEventArgs e)

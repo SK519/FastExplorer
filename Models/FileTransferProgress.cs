@@ -18,6 +18,7 @@ namespace FastExplorer.Models
         public bool IsCancelled { get; set; }
         public bool IsMove { get; set; }
         public bool IsSizeCalculating { get; set; }
+        public string? CustomTitle { get; set; }
 
         public double ProgressPercentage
         {

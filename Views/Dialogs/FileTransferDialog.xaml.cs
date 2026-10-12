@@ -23,7 +23,7 @@ namespace FastExplorer.Views.Dialogs
             this.InitializeComponent();
         }
 
-        public void ResetState(string title)
+        public void ResetState(string title, bool allowPause = true)
         {
             DialogTitleText.Text = title;
             PercentText.Text = "0%";
@@ -34,6 +34,7 @@ namespace FastExplorer.Views.Dialogs
             PathInfoText.Text = string.Empty;
             TransferProgressBar.IsIndeterminate = true;
             TransferProgressBar.Value = 0;
+            BtnPauseResume.Visibility = allowPause ? Visibility.Visible : Visibility.Collapsed;
             IconPauseResume.Glyph = "\uE769"; // Pause icon
 
             _speedHistory.Clear();
@@ -44,7 +45,9 @@ namespace FastExplorer.Views.Dialogs
 
         public void UpdateProgress(FileTransferProgress p)
         {
-            DialogTitleText.Text = p.IsMove ? "アイテムを移動中" : "アイテムをコピー中";
+            DialogTitleText.Text = !string.IsNullOrEmpty(p.CustomTitle)
+                ? p.CustomTitle
+                : (p.IsMove ? "アイテムを移動中" : "アイテムをコピー中");
 
             if (p.IsPaused)
             {

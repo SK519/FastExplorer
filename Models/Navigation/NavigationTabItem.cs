@@ -123,10 +123,18 @@ namespace FastExplorer
             set => SetField(ref _isSortAscending, value);
         }
 
+        public event Action<NavigationTabItem>? ViewModeChanged;
+
         public FolderViewMode ViewMode
         {
             get => _viewMode;
-            set => SetField(ref _viewMode, value);
+            set
+            {
+                if (SetField(ref _viewMode, value))
+                {
+                    ViewModeChanged?.Invoke(this);
+                }
+            }
         }
 
         public ViewScaleLevel ViewScale

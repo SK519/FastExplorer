@@ -158,9 +158,10 @@ namespace FastExplorer
             var targetElement = sender as FrameworkElement ?? ActiveListControl;
 
             bool isShift = IsShiftPressed();
-            if (isShift)
+            // マウス操作（hasPoint == true）での Shift + 右クリック時のみ OS 標準メニューを開く
+            // キーボード（Shift + F10 など、hasPoint == false）時は自作コンテキストメニューを表示する
+            if (isShift && hasPoint)
             {
-                // Shift + 右クリック時は別スレッド (STA) で OS 標準メニューを開く
                 args.Handled = true;
                 Win32Interop.GetCursorPos(out var pt);
                 var screenPoint = new Windows.Foundation.Point(pt.X, pt.Y);
@@ -188,7 +189,10 @@ namespace FastExplorer
                 }
                 else
                 {
-                    ItemContextMenu.ShowAt(targetElement);
+                    // キーボードからのコンテキストメニュー起動: 選択されているアイテムの位置にポップアップ
+                    var selectedItem = ActiveListControl.SelectedItem;
+                    var container = (selectedItem != null ? ActiveListControl.ContainerFromItem(selectedItem) as FrameworkElement : null) ?? targetElement;
+                    ItemContextMenu.ShowAt(container);
                 }
             }
             else

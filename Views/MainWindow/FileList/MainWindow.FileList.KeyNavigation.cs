@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using FastExplorer.Core;
 using FastExplorer.Models;
 using FastExplorer.Services;
@@ -90,6 +91,9 @@ namespace FastExplorer
                 }
             }
 
+            // 特殊操作: コンテキストメニュー起動 (Appsキー または Shift + F10) は
+            // WinUI 3 の ContextRequested イベントに一任（KeyDownでの二重起動・誤発火を防止）
+
             // ショートカット判定 (ShortcutService 連携)
             if (ShortcutService.Matches("Properties", e.Key, isCtrl, isShift, isAlt))
             {
@@ -147,6 +151,11 @@ namespace FastExplorer
                 {
                     CloseTab(current);
                 }
+                e.Handled = true;
+            }
+            else if (ShortcutService.Matches("ReopenClosedTab", e.Key, isCtrl, isShift, isAlt))
+            {
+                RestoreRecentlyClosedTab();
                 e.Handled = true;
             }
             else if (ShortcutService.Matches("NextTab", e.Key, isCtrl, isShift, isAlt))
@@ -285,22 +294,36 @@ namespace FastExplorer
                 return;
             }
 
-            // 2. ディレクトリ / 特殊フォルダー
-            if (item.IsDirectory && (Directory.Exists(item.FullPath) || item.FullPath.StartsWith("shell:")))
+            // 2. ディレクトリ / 特殊フォルダー / アーカイブ内仮想ディレクトリ
+            if (item.IsDirectory)
             {
-                CurrentTab.NavigateTo(item.FullPath);
-                return;
+                if (Directory.Exists(item.FullPath) || item.FullPath.StartsWith("shell:") || ArchiveService.IsArchiveOrSubPath(item.FullPath, out _, out _))
+                {
+                    CurrentTab.NavigateTo(item.FullPath);
+                    return;
+                }
             }
 
-            // 3. アーカイブ
+            // 3. アーカイブファイル本体
             if (ArchiveService.IsSupportedArchive(item.FullPath))
             {
                 CurrentTab.NavigateTo(item.FullPath);
                 return;
             }
 
-            if (ArchiveService.IsArchiveOrSubPath(item.FullPath, out _, out _))
+            // 4. アーカイブ内アイテム (ファイル・フォルダー)
+            if (ArchiveService.IsArchiveOrSubPath(item.FullPath, out string archiveFile, out string internalSubPath))
             {
+                if (item.IsDirectory)
+                {
+                    CurrentTab.NavigateTo(item.FullPath);
+                    return;
+                }
+                else if (!string.IsNullOrEmpty(internalSubPath))
+                {
+                    _ = OpenArchiveEntryAsync(archiveFile, internalSubPath);
+                    return;
+                }
                 return;
             }
 
@@ -381,6 +404,41 @@ namespace FastExplorer
                 {
                     // ignored
                 }
+            }
+        }
+
+        private async Task OpenArchiveEntryAsync(string archivePath, string internalSubPath)
+        {
+            try
+            {
+                string? tempFile = await ArchiveService.ExtractEntryToTempAsync(archivePath, internalSubPath);
+                if (!string.IsNullOrEmpty(tempFile) && File.Exists(tempFile))
+                {
+                    this.DispatcherQueue.TryEnqueue(() =>
+                    {
+                        LaunchFile(tempFile);
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[OpenArchiveEntryAsync] Error: {ex.Message}");
+            }
+        }
+
+        public void ShowContextMenuFromKeyboard()
+        {
+            var selectedItems = ActiveListControl?.SelectedItems?.OfType<FileItem>().ToList() ?? [];
+            if (selectedItems.Count > 0 && ActiveListControl != null)
+            {
+                var selectedItem = ActiveListControl.SelectedItem;
+                var container = (selectedItem != null ? ActiveListControl.ContainerFromItem(selectedItem) as FrameworkElement : null) ?? ActiveListControl;
+                _contextTargetItemsOverride = selectedItems;
+                ItemContextMenu.ShowAt(container);
+            }
+            else if (ActiveListControl != null)
+            {
+                BackgroundContextMenu.ShowAt(ActiveListControl);
             }
         }
 

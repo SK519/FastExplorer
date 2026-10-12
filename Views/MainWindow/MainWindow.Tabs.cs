@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -42,6 +43,15 @@ namespace FastExplorer
         }
 
         private TabViewItem? _lastPressedTabViewItem;
+        private readonly Stack<string> _recentlyClosedTabs = new();
+
+        public void RestoreRecentlyClosedTab()
+        {
+            if (_recentlyClosedTabs.TryPop(out string? path) && !string.IsNullOrEmpty(path))
+            {
+                CreateNewTab(path);
+            }
+        }
 
         public void AttachTab(TabViewItem tabViewItem, NavigationTabItem? navTab = null, int insertIndex = -1)
         {
@@ -54,10 +64,19 @@ namespace FastExplorer
             {
                 if (s is TabViewItem tvi)
                 {
+                    var ptr = e.GetCurrentPoint(tvi);
+                    if (ptr.Properties.IsMiddleButtonPressed)
+                    {
+                        CloseTab(tvi);
+                        e.Handled = true;
+                        return;
+                    }
+
                     _lastPressedTabViewItem = tvi;
-                    TabDragDropService.SetDraggingTab(this, tvi);
                 }
             }), true);
+
+            AttachTabContextMenu(tabViewItem);
 
             if (navTab != null)
             {
@@ -136,6 +155,14 @@ namespace FastExplorer
                     UpdateToolbarState();
                     UpdateSelectionVisuals();
                     UpdatePreviewPane();
+                }
+            };
+
+            tab.ViewModeChanged += (navTab) =>
+            {
+                if (CurrentTab == navTab)
+                {
+                    ApplyViewMode(navTab.ViewMode, navTab.ViewScale, saveConfig: false);
                 }
             };
 
@@ -267,6 +294,11 @@ namespace FastExplorer
 
         private void CloseTab(TabViewItem tabViewItem)
         {
+            if (tabViewItem.DataContext is NavigationTabItem navTab && !string.IsNullOrEmpty(navTab.CurrentPath))
+            {
+                _recentlyClosedTabs.Push(navTab.CurrentPath);
+            }
+
             if (MainTabView.TabItems.Count <= 1)
             {
                 this.Close();
@@ -338,6 +370,7 @@ namespace FastExplorer
                     AddressBar?.SwitchToBreadcrumbs();
                     AddressBar?.SetBreadcrumbs(tab.Breadcrumbs);
                     AddressBar?.SetSearchFilterText(tab.FilterText);
+                    _appliedUiViewMode = null;
                     ApplyViewMode(tab.ViewMode, tab.ViewScale, saveConfig: false);
                     UpdateHomeViewVisibility();
                     UpdateCutVisuals();
@@ -354,6 +387,92 @@ namespace FastExplorer
             AddressBar?.UpdateNavigationButtons(CurrentTab.CanGoBack, CurrentTab.CanGoForward, CurrentTab.CanGoUp);
             if (StatusBar != null) StatusBar.StatusText = CurrentTab.StatusText;
             UpdateActionToolbarButtons();
+        }
+
+        private void AttachTabContextMenu(TabViewItem tabViewItem)
+        {
+            var menu = new MenuFlyout();
+
+            var menuNewTab = new MenuFlyoutItem { Text = "新しいタブ (Ctrl+T)", Icon = new FontIcon { Glyph = "\uE710" } };
+            menuNewTab.Click += (s, e) => CreateNewTab();
+
+            var menuDuplicate = new MenuFlyoutItem { Text = "タブを複製", Icon = new FontIcon { Glyph = "\uE8C8" } };
+            menuDuplicate.Click += (s, e) =>
+            {
+                if (tabViewItem.DataContext is NavigationTabItem navTab)
+                {
+                    CreateNewTab(navTab.CurrentPath);
+                }
+            };
+
+            var menuCloseOthers = new MenuFlyoutItem { Text = "他のタブを閉じる", Icon = new FontIcon { Glyph = "\uE74D" } };
+            menuCloseOthers.Click += (s, e) => CloseOtherTabs(tabViewItem);
+
+            var menuCloseRight = new MenuFlyoutItem { Text = "右側のタブを閉じる", Icon = new FontIcon { Glyph = "\uE74D" } };
+            menuCloseRight.Click += (s, e) => CloseTabsToTheRight(tabViewItem);
+
+            var menuReopenClosed = new MenuFlyoutItem { Text = "閉じたタブを再度開く (Ctrl+Shift+T)", Icon = new FontIcon { Glyph = "\uE777" } };
+            menuReopenClosed.Click += (s, e) => RestoreRecentlyClosedTab();
+
+            var menuCopyPath = new MenuFlyoutItem { Text = "パスのコピー", Icon = new FontIcon { Glyph = "\uE8C8" } };
+            menuCopyPath.Click += (s, e) =>
+            {
+                if (tabViewItem.DataContext is NavigationTabItem navTab && !string.IsNullOrEmpty(navTab.CurrentPath))
+                {
+                    var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+                    package.SetText(navTab.CurrentPath);
+                    Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+                }
+            };
+
+            var menuClose = new MenuFlyoutItem { Text = "タブを閉じる (Ctrl+W)", Icon = new FontIcon { Glyph = "\uE711" } };
+            menuClose.Click += (s, e) => CloseTab(tabViewItem);
+
+            menu.Items.Add(menuNewTab);
+            menu.Items.Add(menuDuplicate);
+            menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(menuCloseOthers);
+            menu.Items.Add(menuCloseRight);
+            menu.Items.Add(menuReopenClosed);
+            menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(menuCopyPath);
+            menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(menuClose);
+
+            menu.Opening += (s, e) =>
+            {
+                int idx = MainTabView.TabItems.IndexOf(tabViewItem);
+                menuCloseOthers.IsEnabled = MainTabView.TabItems.Count > 1;
+                menuCloseRight.IsEnabled = idx >= 0 && idx < MainTabView.TabItems.Count - 1;
+                menuReopenClosed.IsEnabled = _recentlyClosedTabs.Count > 0;
+            };
+
+            tabViewItem.ContextFlyout = menu;
+        }
+
+        private void CloseOtherTabs(TabViewItem keepTab)
+        {
+            var tabsToClose = MainTabView.TabItems.OfType<TabViewItem>().Where(t => t != keepTab).ToList();
+            foreach (var t in tabsToClose)
+            {
+                DetachTab(t, disposeModel: true);
+            }
+            MainTabView.SelectedItem = keepTab;
+            BindCurrentTabToUi();
+        }
+
+        private void CloseTabsToTheRight(TabViewItem tabViewItem)
+        {
+            int idx = MainTabView.TabItems.IndexOf(tabViewItem);
+            if (idx < 0) return;
+
+            var tabsToClose = MainTabView.TabItems.OfType<TabViewItem>().Skip(idx + 1).ToList();
+            foreach (var t in tabsToClose)
+            {
+                DetachTab(t, disposeModel: true);
+            }
+            MainTabView.SelectedItem = tabViewItem;
+            BindCurrentTabToUi();
         }
 
         #endregion

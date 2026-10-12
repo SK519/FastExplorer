@@ -47,6 +47,7 @@ namespace FastExplorer.Services
             // タブ・ウィンドウ
             new() { Id = "NewTab", Category = CategoryTabs, Name = "新規タブを開く", Description = "新しいタブを追加します", DefaultKey = "Ctrl+T" },
             new() { Id = "CloseTab", Category = CategoryTabs, Name = "タブを閉じる", Description = "現在のタブを閉じます", DefaultKey = "Ctrl+W" },
+            new() { Id = "ReopenClosedTab", Category = CategoryTabs, Name = "閉じたタブを再度開く", Description = "直前に閉じたタブを復元します", DefaultKey = "Ctrl+Shift+T" },
             new() { Id = "NextTab", Category = CategoryTabs, Name = "次のタブへ切替", Description = "右隣のタブに切り替えます", DefaultKey = "Ctrl+Tab" },
             new() { Id = "PrevTab", Category = CategoryTabs, Name = "前のタブへ切替", Description = "左隣のタブに切り替えます", DefaultKey = "Ctrl+Shift+Tab" },
 

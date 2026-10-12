@@ -459,6 +459,7 @@ namespace FastExplorer
             ActionToolbar.ViewSizeMediumRequested += (s, e) => ViewSizeMedium_Click(s, e);
             ActionToolbar.ViewSizeLargeRequested += (s, e) => ViewSizeLarge_Click(s, e);
             ActionToolbar.ViewSizeExtraLargeRequested += (s, e) => ViewSizeExtraLarge_Click(s, e);
+            ActionToolbar.ViewMenuOpening += () => UpdateViewMenuCheckStates();
 
             ActionToolbar.ShowPreviewPaneChanged += isOn =>
             {

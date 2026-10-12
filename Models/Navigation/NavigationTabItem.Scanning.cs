@@ -19,7 +19,19 @@ namespace FastExplorer
         {
             try
             {
-                var newScanned = ScanCurrentPath();
+                var newScanned = ScanCurrentPath()
+                    .DistinctBy(x => x.FullPath, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                // 既存の _allItems 内に重複があれば事前に除去
+                var seenExisting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                for (int i = _allItems.Count - 1; i >= 0; i--)
+                {
+                    if (!seenExisting.Add(_allItems[i].FullPath))
+                    {
+                        _allItems.RemoveAt(i);
+                    }
+                }
 
                 // 1. _allItems のインプレース差分同期
                 var newLookup = new Dictionary<string, FileItem>(newScanned.Count, StringComparer.OrdinalIgnoreCase);
@@ -75,6 +87,7 @@ namespace FastExplorer
                         newItem.AllowThumbnail = allowThumb;
                         IconThumbnailService.Instance.ApplyImmediateDefaultIcon(newItem);
                         _allItems.Add(newItem);
+                        existingLookup[newItem.FullPath] = newItem;
                         IconThumbnailService.Instance.Enqueue(newItem);
                     }
                 }
@@ -228,18 +241,20 @@ namespace FastExplorer
 
         private void SynchronizeItemsCollection(List<FileItem> targetList)
         {
+            var uniqueTargetList = targetList.DistinctBy(x => x.FullPath, StringComparer.OrdinalIgnoreCase).ToList();
+
             // Items コレクションの同期 (初回読み込み時は一括、差分時は最小の変更でスクロール位置・選択状態を維持)
             if (Items.Count == 0)
             {
-                foreach (var item in targetList)
+                foreach (var item in uniqueTargetList)
                 {
                     Items.Add(item);
                 }
             }
             else
             {
-                var targetPathSet = new HashSet<string>(targetList.Count, StringComparer.OrdinalIgnoreCase);
-                foreach (var item in targetList)
+                var targetPathSet = new HashSet<string>(uniqueTargetList.Count, StringComparer.OrdinalIgnoreCase);
+                foreach (var item in uniqueTargetList)
                 {
                     targetPathSet.Add(item.FullPath);
                 }
@@ -259,9 +274,9 @@ namespace FastExplorer
                     currentIndices[Items[i].FullPath] = i;
                 }
 
-                for (int targetIndex = 0; targetIndex < targetList.Count; targetIndex++)
+                for (int targetIndex = 0; targetIndex < uniqueTargetList.Count; targetIndex++)
                 {
-                    var targetItem = targetList[targetIndex];
+                    var targetItem = uniqueTargetList[targetIndex];
                     if (targetIndex < Items.Count)
                     {
                         if (string.Equals(Items[targetIndex].FullPath, targetItem.FullPath, StringComparison.OrdinalIgnoreCase))
@@ -323,10 +338,11 @@ namespace FastExplorer
 
                 if (currentGen != _loadGeneration) return;
 
-                // ユーザーによる個別保存設定がない場合、フォルダー内のコンテンツ構成から最適な表示モードを自動検出
+                // ユーザーによる個別保存設定がない場合、フォルダー内のコンテンツ構成から最適な表示モードを自動検出 (ThisPC/PC は除外)
                 string normPath = FastExplorer.Helpers.PathHelper.NormalizeFolderPath(targetPath);
                 FolderViewMode? detectedMode = null;
-                if (!ConfigService.Current.FolderViewSettings.ContainsKey(normPath) &&
+                if (!targetPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase) &&
+                    !ConfigService.Current.FolderViewSettings.ContainsKey(normPath) &&
                     !ConfigService.Current.FolderViewSettings.ContainsKey(targetPath))
                 {
                     detectedMode = FastExplorer.Helpers.FolderTypeHelper.DetectViewModeFromContent(scanned);
@@ -345,11 +361,13 @@ namespace FastExplorer
                 {
                     if (currentGen != _loadGeneration) return;
 
-                    _allItems.AddRange(scanned);
+                    _allItems.Clear();
+                    var distinctScanned = scanned.DistinctBy(x => x.FullPath, StringComparer.OrdinalIgnoreCase).ToList();
+                    _allItems.AddRange(distinctScanned);
 
                     if (detectedMode.HasValue)
                     {
-                        _viewMode = detectedMode.Value;
+                        ViewMode = detectedMode.Value;
                         if (_viewMode == FolderViewMode.LargeIcons)
                         {
                             _customSize = 80;

@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using FastExplorer.Views.Settings;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.System;
 
 namespace FastExplorer
 {
@@ -171,6 +174,8 @@ namespace FastExplorer
             grid.Children.Add(marqueeContainer);
             btn.Content = grid;
 
+            btn.UseSystemFocusVisuals = true;
+
             // 通常項目にカーソルが来たら、未オープンの予約をキャンセル
             btn.PointerEntered += (s, args) =>
             {
@@ -179,6 +184,16 @@ namespace FastExplorer
             };
 
             btn.PointerExited += (s, args) =>
+            {
+                marqueeExit();
+            };
+
+            btn.GotFocus += (s, args) =>
+            {
+                marqueeEnter();
+            };
+
+            btn.LostFocus += (s, args) =>
             {
                 marqueeExit();
             };
@@ -224,11 +239,22 @@ namespace FastExplorer
             grid.Children.Add(marqueeContainer);
             grid.Children.Add(arrow);
             btn.Content = grid;
+            btn.UseSystemFocusVisuals = true;
 
             btn.PointerEntered += (s, args) =>
             {
                 ScheduleSubmenuOpen(1, btn, subFlyout);
                 marqueeEnter();
+            };
+
+            btn.GotFocus += (s, args) =>
+            {
+                marqueeEnter();
+            };
+
+            btn.LostFocus += (s, args) =>
+            {
+                marqueeExit();
             };
 
             btn.PointerExited += (s, args) =>
@@ -298,6 +324,185 @@ namespace FastExplorer
             catch
             {
                 return 315;
+            }
+        }
+
+        #endregion
+
+        #region Context Menu Keyboard Arrow Navigation
+
+        private void ItemContextMenu_Opened(object? sender, object e)
+        {
+            this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+            {
+                var menuItems = GetVisibleMenuItemButtons();
+                if (menuItems.Count > 0)
+                {
+                    menuItems[0].Focus(FocusState.Keyboard);
+                    menuItems[0].StartBringIntoView();
+                }
+                else
+                {
+                    var headerButtons = GetVisibleHeaderButtons();
+                    if (headerButtons.Count > 0)
+                    {
+                        headerButtons[0].Focus(FocusState.Keyboard);
+                    }
+                }
+            });
+        }
+
+        private List<Button> GetVisibleHeaderButtons()
+        {
+            var list = new List<Button>();
+            if (ContextMenuHeaderButtonsPanel != null)
+            {
+                foreach (var child in ContextMenuHeaderButtonsPanel.Children)
+                {
+                    if (child is Button btn && btn.Visibility == Visibility.Visible && btn.IsEnabled)
+                    {
+                        list.Add(btn);
+                    }
+                }
+            }
+            return list;
+        }
+
+        private List<Button> GetVisibleMenuItemButtons()
+        {
+            var list = new List<Button>();
+            if (ContextMenuItemsPanel != null)
+            {
+                foreach (var child in ContextMenuItemsPanel.Children)
+                {
+                    if (child is Button btn && btn.Visibility == Visibility.Visible && btn.IsEnabled)
+                    {
+                        list.Add(btn);
+                    }
+                }
+            }
+            return list;
+        }
+
+        private void ContextMenuRootPanel_KeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            var headerButtons = GetVisibleHeaderButtons();
+            var menuButtons = GetVisibleMenuItemButtons();
+
+            var focusedElement = FocusManager.GetFocusedElement(this.Content.XamlRoot) as Button;
+
+            int headerIndex = focusedElement != null ? headerButtons.IndexOf(focusedElement) : -1;
+            int menuIndex = focusedElement != null ? menuButtons.IndexOf(focusedElement) : -1;
+
+            switch (e.Key)
+            {
+                case VirtualKey.Down:
+                    e.Handled = true;
+                    if (headerIndex >= 0)
+                    {
+                        if (menuButtons.Count > 0)
+                        {
+                            menuButtons[0].Focus(FocusState.Keyboard);
+                            menuButtons[0].StartBringIntoView();
+                        }
+                    }
+                    else if (menuIndex >= 0)
+                    {
+                        if (menuIndex + 1 < menuButtons.Count)
+                        {
+                            menuButtons[menuIndex + 1].Focus(FocusState.Keyboard);
+                            menuButtons[menuIndex + 1].StartBringIntoView();
+                        }
+                        else
+                        {
+                            if (headerButtons.Count > 0)
+                            {
+                                headerButtons[0].Focus(FocusState.Keyboard);
+                            }
+                            else if (menuButtons.Count > 0)
+                            {
+                                menuButtons[0].Focus(FocusState.Keyboard);
+                                menuButtons[0].StartBringIntoView();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (menuButtons.Count > 0)
+                        {
+                            menuButtons[0].Focus(FocusState.Keyboard);
+                            menuButtons[0].StartBringIntoView();
+                        }
+                    }
+                    break;
+
+                case VirtualKey.Up:
+                    e.Handled = true;
+                    if (headerIndex >= 0)
+                    {
+                        if (menuButtons.Count > 0)
+                        {
+                            menuButtons[^1].Focus(FocusState.Keyboard);
+                            menuButtons[^1].StartBringIntoView();
+                        }
+                    }
+                    else if (menuIndex >= 0)
+                    {
+                        if (menuIndex > 0)
+                        {
+                            menuButtons[menuIndex - 1].Focus(FocusState.Keyboard);
+                            menuButtons[menuIndex - 1].StartBringIntoView();
+                        }
+                        else
+                        {
+                            if (headerButtons.Count > 0)
+                            {
+                                headerButtons[0].Focus(FocusState.Keyboard);
+                            }
+                            else if (menuButtons.Count > 0)
+                            {
+                                menuButtons[^1].Focus(FocusState.Keyboard);
+                                menuButtons[^1].StartBringIntoView();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (menuButtons.Count > 0)
+                        {
+                            menuButtons[^1].Focus(FocusState.Keyboard);
+                            menuButtons[^1].StartBringIntoView();
+                        }
+                    }
+                    break;
+
+                case VirtualKey.Right:
+                    if (headerIndex >= 0)
+                    {
+                        e.Handled = true;
+                        int nextHeader = (headerIndex + 1) % headerButtons.Count;
+                        headerButtons[nextHeader].Focus(FocusState.Keyboard);
+                    }
+                    else if (menuIndex >= 0 && menuButtons[menuIndex].Tag is MenuFlyout subFlyout)
+                    {
+                        e.Handled = true;
+                        ShowSubmenuImmediateInternal(1, menuButtons[menuIndex], subFlyout);
+                    }
+                    break;
+
+                case VirtualKey.Left:
+                    if (headerIndex >= 0)
+                    {
+                        e.Handled = true;
+                        int prevHeader = (headerIndex - 1 + headerButtons.Count) % headerButtons.Count;
+                        headerButtons[prevHeader].Focus(FocusState.Keyboard);
+                    }
+                    break;
+
+                case VirtualKey.Escape:
+                    e.Handled = true;
+                    ItemContextMenu.Hide();
+                    break;
             }
         }
 

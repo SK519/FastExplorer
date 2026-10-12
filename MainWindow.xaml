@@ -11,6 +11,7 @@
     xmlns:home="using:FastExplorer.Views.MainWindow.Home"
     xmlns:preview="using:FastExplorer.Views.MainWindow.Preview"
     xmlns:status="using:FastExplorer.Views.MainWindow.StatusBar"
+    xmlns:controls="using:FastExplorer.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
@@ -24,21 +25,21 @@
         <Grid.Resources>
             <ResourceDictionary>
                 <!-- 選択アイテム用 Win11 風コンテキストメニュー -->
-                <Flyout x:Key="ItemContextMenu" x:Name="ItemContextMenu" Placement="BottomEdgeAlignedLeft" Opening="ItemContextMenu_Opening" Closed="ItemContextMenu_Closed">
+                <Flyout x:Key="ItemContextMenu" x:Name="ItemContextMenu" Placement="BottomEdgeAlignedLeft" Opening="ItemContextMenu_Opening" Opened="ItemContextMenu_Opened" Closed="ItemContextMenu_Closed">
                     <Flyout.FlyoutPresenterStyle>
                         <Style TargetType="FlyoutPresenter">
                             <Setter Property="Padding" Value="4"/><Setter Property="CornerRadius" Value="8"/><Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorBaseBrush}"/><Setter Property="BorderBrush" Value="{ThemeResource SurfaceStrokeColorDefaultBrush}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="MaxHeight" Value="520"/>
                         </Style>
                     </Flyout.FlyoutPresenterStyle>
-                    <StackPanel x:Name="ContextMenuRootPanel" Spacing="3" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" PointerWheelChanged="ContextMenuScrollViewer_PointerWheelChanged">
+                    <StackPanel x:Name="ContextMenuRootPanel" Spacing="3" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}" PointerWheelChanged="ContextMenuScrollViewer_PointerWheelChanged" KeyDown="ContextMenuRootPanel_KeyDown">
                         <Border x:Name="ContextMenuHeaderBorder" Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="6" Padding="2" Margin="2,0,2,2" PointerEntered="ContextMenuHeader_PointerEntered">
-                            <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Center">
-                                <Button Style="{StaticResource HeaderIconButtonStyle}" Click="ContextMenuCut_Click" ToolTipService.ToolTip="切り取り (Ctrl+X)"><FontIcon Glyph="&#xE8C6;" FontSize="14"/></Button>
-                                <Button Style="{StaticResource HeaderIconButtonStyle}" Click="ContextMenuCopy_Click" ToolTipService.ToolTip="コピー (Ctrl+C)"><FontIcon Glyph="&#xE8C8;" FontSize="14"/></Button>
+                            <StackPanel x:Name="ContextMenuHeaderButtonsPanel" Orientation="Horizontal" Spacing="2" HorizontalAlignment="Center">
+                                <Button x:Name="HeaderBtnCut" Style="{StaticResource HeaderIconButtonStyle}" Click="ContextMenuCut_Click" ToolTipService.ToolTip="切り取り (Ctrl+X)"><FontIcon Glyph="&#xE8C6;" FontSize="14"/></Button>
+                                <Button x:Name="HeaderBtnCopy" Style="{StaticResource HeaderIconButtonStyle}" Click="ContextMenuCopy_Click" ToolTipService.ToolTip="コピー (Ctrl+C)"><FontIcon Glyph="&#xE8C8;" FontSize="14"/></Button>
                                 <Button x:Name="HeaderBtnPaste" Style="{StaticResource HeaderIconButtonStyle}" Click="ContextMenuPaste_Click" ToolTipService.ToolTip="貼り付け (Ctrl+V)"><FontIcon Glyph="&#xE77F;" FontSize="14"/></Button>
-                                <Button Style="{StaticResource HeaderIconButtonStyle}" Click="ContextMenuRename_Click" ToolTipService.ToolTip="名前の変更 (F2)"><FontIcon Glyph="&#xE8AC;" FontSize="14"/></Button>
-                                <Button Style="{StaticResource HeaderIconButtonStyle}" Click="ContextMenuDelete_Click" ToolTipService.ToolTip="削除 (ゴミ箱へ)"><FontIcon Glyph="&#xE74D;" FontSize="14"/></Button>
-                                <Button Style="{StaticResource HeaderIconButtonStyle}" Click="ContextMenuProperties_Click" ToolTipService.ToolTip="プロパティ (Alt+Enter)"><FontIcon Glyph="&#xE90F;" FontSize="14"/></Button>
+                                <Button x:Name="HeaderBtnRename" Style="{StaticResource HeaderIconButtonStyle}" Click="ContextMenuRename_Click" ToolTipService.ToolTip="名前の変更 (F2)"><FontIcon Glyph="&#xE8AC;" FontSize="14"/></Button>
+                                <Button x:Name="HeaderBtnDelete" Style="{StaticResource HeaderIconButtonStyle}" Click="ContextMenuDelete_Click" ToolTipService.ToolTip="削除 (ゴミ箱へ)"><FontIcon Glyph="&#xE74D;" FontSize="14"/></Button>
+                                <Button x:Name="HeaderBtnProperties" Style="{StaticResource HeaderIconButtonStyle}" Click="ContextMenuProperties_Click" ToolTipService.ToolTip="プロパティ (Alt+Enter)"><FontIcon Glyph="&#xE90F;" FontSize="14"/></Button>
                             </StackPanel>
                         </Border>
                         <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" Margin="4,2"/>
@@ -151,6 +152,7 @@
                      TabStripDragOver="MainTabView_TabStripDragOver"
                      TabStripDrop="MainTabView_TabStripDrop"
                      DragOver="MainTabView_TabStripDragOver"
+                     DragLeave="MainTabView_TabStripDragLeave"
                      Drop="MainTabView_TabStripDrop"
                      TabDroppedOutside="MainTabView_TabDroppedOutside"
                      TabDragCompleted="MainTabView_TabDragCompleted">
@@ -261,7 +263,10 @@
                     </ListView>
                 </Grid>
 
-                <Rectangle Grid.Column="1" Width="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Stretch"/>
+                <controls:SplitterHandle x:Name="SidebarSplitter" Grid.Column="1" Width="7" Background="Transparent" VerticalAlignment="Stretch"
+                                         PointerPressed="SidebarSplitter_PointerPressed" PointerMoved="SidebarSplitter_PointerMoved" PointerReleased="SidebarSplitter_PointerReleased">
+                    <Rectangle Width="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" HorizontalAlignment="Center" VerticalAlignment="Stretch"/>
+                </controls:SplitterHandle>
 
                 <!-- 中央コンテンツ (ツールバー + 列ヘッダー + 一覧/ホーム) -->
                 <Grid Grid.Column="2">
@@ -324,8 +329,11 @@
                     </Grid>
                 </Grid>
 
-                <!-- プレビュー境界線 -->
-                <Rectangle x:Name="PreviewSplitter" Grid.Column="3" Width="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" VerticalAlignment="Stretch" Visibility="Collapsed"/>
+                <!-- プレビュー境界線 (ドラッグリサイズ対応) -->
+                <controls:SplitterHandle x:Name="PreviewSplitter" Grid.Column="3" Width="7" Background="Transparent" VerticalAlignment="Stretch" Visibility="Collapsed"
+                                         PointerPressed="PreviewSplitter_PointerPressed" PointerMoved="PreviewSplitter_PointerMoved" PointerReleased="PreviewSplitter_PointerReleased">
+                    <Rectangle Width="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}" HorizontalAlignment="Center" VerticalAlignment="Stretch"/>
+                </controls:SplitterHandle>
 
                 <!-- プレビュー & 簡易プロパティペイン (PreviewPaneControl) -->
                 <preview:PreviewPaneControl x:Name="PreviewPane" Grid.Column="4" Visibility="Collapsed"/>

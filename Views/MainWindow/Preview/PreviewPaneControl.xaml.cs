@@ -105,6 +105,10 @@ namespace FastExplorer.Views.MainWindow.Preview
                 {
                     LoadTextPreviewAsync(item.FullPath, ct);
                 }
+                else if (ArchiveService.IsSupportedArchive(item.FullPath))
+                {
+                    LoadArchivePreviewAsync(item.FullPath, ct);
+                }
                 else
                 {
                     LoadGenericFilePreviewAsync(item, ct);
@@ -452,6 +456,36 @@ namespace FastExplorer.Views.MainWindow.Preview
                     PreviewLargeIconGrid.Visibility = Visibility.Visible;
                     PreviewLargeFontIcon.Visibility = Visibility.Visible;
                     PreviewLargeFontIcon.Glyph = "\uE8C8";
+                }
+            }
+        }
+
+        private async void LoadArchivePreviewAsync(string filePath, CancellationToken ct)
+        {
+            try
+            {
+                await Task.Delay(40, ct);
+                if (ct.IsCancellationRequested) return;
+
+                string? archiveText = await ArchiveService.GetArchivePreviewTextAsync(filePath, maxEntries: 100);
+                if (ct.IsCancellationRequested) return;
+
+                if (!string.IsNullOrEmpty(archiveText))
+                {
+                    PreviewTextBlock.Text = archiveText;
+                    PreviewTextScrollViewer.Visibility = Visibility.Visible;
+                    PreviewLargeIconGrid.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    LoadGenericFilePreviewAsync(new FileItem { FullPath = filePath, Name = Path.GetFileName(filePath) }, ct);
+                }
+            }
+            catch
+            {
+                if (!ct.IsCancellationRequested)
+                {
+                    LoadGenericFilePreviewAsync(new FileItem { FullPath = filePath, Name = Path.GetFileName(filePath) }, ct);
                 }
             }
         }

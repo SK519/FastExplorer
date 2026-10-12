@@ -85,6 +85,78 @@ namespace FastExplorer
             return success;
         }
 
+        public async Task<string?> PerformCompressWithDialogAsync(IEnumerable<string> sourcePaths, string destinationDirectory, ArchiveFormat format, ArchiveCompressionLevel level)
+        {
+            var pathList = sourcePaths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+            if (pathList.Count == 0 || !Directory.Exists(destinationDirectory)) return null;
+
+            string dialogTitle = format == ArchiveFormat.Zip ? "ZIPに圧縮中" : "7-Zipに圧縮中";
+            var controller = new FileTransferController();
+            TransferDialogControl.Controller = controller;
+            TransferDialogControl.ResetState(dialogTitle, allowPause: false);
+
+            FileTransferOverlayGrid.Visibility = Visibility.Visible;
+
+            var progress = new Progress<FileTransferProgress>(p =>
+            {
+                TransferDialogControl.UpdateProgress(p);
+            });
+
+            string? resultPath = null;
+            try
+            {
+                resultPath = format switch
+                {
+                    ArchiveFormat.Zip => await ArchiveService.CompressToZipAsync(pathList, destinationDirectory, level, progress, controller),
+                    ArchiveFormat.SevenZip => await ArchiveService.CompressTo7zAsync(pathList, destinationDirectory, level, progress, controller),
+                    _ => null
+                };
+
+                if (resultPath != null)
+                {
+                    await Task.Delay(150);
+                }
+            }
+            finally
+            {
+                FileTransferOverlayGrid.Visibility = Visibility.Collapsed;
+            }
+
+            return resultPath;
+        }
+
+        public async Task<bool> PerformExtractWithDialogAsync(string archivePath, string destinationDirectory, bool createSubFolder)
+        {
+            if (!File.Exists(archivePath) || !Directory.Exists(destinationDirectory)) return false;
+
+            var controller = new FileTransferController();
+            TransferDialogControl.Controller = controller;
+            TransferDialogControl.ResetState("アーカイブを展開中", allowPause: false);
+
+            FileTransferOverlayGrid.Visibility = Visibility.Visible;
+
+            var progress = new Progress<FileTransferProgress>(p =>
+            {
+                TransferDialogControl.UpdateProgress(p);
+            });
+
+            bool success = false;
+            try
+            {
+                success = await ArchiveService.ExtractAsync(archivePath, destinationDirectory, createSubFolder, progress, controller);
+                if (success)
+                {
+                    await Task.Delay(150);
+                }
+            }
+            finally
+            {
+                FileTransferOverlayGrid.Visibility = Visibility.Collapsed;
+            }
+
+            return success;
+        }
+
         #endregion
 
         #region Breadcrumbs Drag & Drop (Incoming)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using FastExplorer.Models;
@@ -171,11 +172,17 @@ namespace FastExplorer.Core
             if (length > 0)
             {
                 string rawDrives = new(buffer, 0, (int)length);
-                string[] driveRoots = rawDrives.Split('\0', StringSplitOptions.RemoveEmptyEntries);
+                string[] driveRoots = rawDrives.Split('\0', StringSplitOptions.RemoveEmptyEntries)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
                 Array.Sort(driveRoots, StringComparer.OrdinalIgnoreCase);
 
+                var seenRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (string root in driveRoots)
                 {
+                    if (!seenRoots.Add(root))
+                        continue;
+
                     uint driveType = Win32Interop.GetDriveTypeW(root);
                     if (networkOnly && driveType != Win32Interop.DRIVE_REMOTE)
                         continue;
