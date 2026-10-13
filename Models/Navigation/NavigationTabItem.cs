@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using FastExplorer.Core;
+using FastExplorer.Models;
 using FastExplorer.Services;
 
 namespace FastExplorer
@@ -39,7 +40,7 @@ namespace FastExplorer
             set => _dispatcherQueue = value;
         }
 
-        public ObservableCollection<FileItem> Items { get; } = [];
+        public BulkObservableCollection<FileItem> Items { get; } = [];
         public ObservableCollection<BreadcrumbItem> Breadcrumbs { get; } = [];
         private readonly List<FileItem> _allItems = [];
         private long _allItemsTotalBytes;

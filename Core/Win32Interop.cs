@@ -107,6 +107,101 @@ namespace FastExplorer.Core
 
         #region Shell Execution & File Operations
 
+        #region Fast Kernel File Copy & Block Cloning
+
+        [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+        public delegate uint CopyProgressRoutine(
+            long totalFileSize,
+            long totalBytesTransferred,
+            long streamSize,
+            long streamBytesTransferred,
+            uint dwStreamNumber,
+            uint dwCallbackReason,
+            nint hSourceFile,
+            nint hDestinationFile,
+            nint lpData);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool CopyFileExW(
+            string lpExistingFileName,
+            string lpNewFileName,
+            CopyProgressRoutine? lpProgressRoutine,
+            nint lpData,
+            ref int pbCancel,
+            uint dwCopyFlags);
+
+        public const uint COPY_FILE_FAIL_IF_EXISTS = 0x00000001;
+        public const uint COPY_FILE_RESTARTABLE = 0x00000002;
+        public const uint COPY_FILE_OPEN_AND_COPY_REPARSE_POINT = 0x00000004;
+        public const uint COPY_FILE_ALLOW_DECRYPTED_DESTINATION = 0x00000008;
+        public const uint COPY_FILE_COPY_SYMLINK = 0x00000800;
+        public const uint COPY_FILE_NO_BUFFERING = 0x00001000;
+
+        public const uint PROGRESS_CONTINUE = 0;
+        public const uint PROGRESS_CANCEL = 1;
+        public const uint PROGRESS_STOP = 2;
+        public const uint PROGRESS_QUIET = 3;
+
+        public const uint CALLBACK_CHUNK_FINISHED = 0x00000000;
+        public const uint CALLBACK_STREAM_SWITCH = 0x00000001;
+
+        // ReFS / Dev Drive (Windows 11) Block Cloning (Copy-on-Write)
+        [StructLayout(LayoutKind.Sequential)]
+        public struct DUPLICATE_EXTENTS_DATA
+        {
+            public nint FileHandle;
+            public long SourceFileOffset;
+            public long TargetFileOffset;
+            public long ByteCount;
+        }
+
+        public const uint FSCTL_DUPLICATE_EXTENTS_TO_FILE = 0x00098344;
+        public const uint GENERIC_READ = 0x80000000;
+        public const uint GENERIC_WRITE = 0x40000000;
+        public const uint FILE_SHARE_READ = 0x00000001;
+        public const uint FILE_SHARE_WRITE = 0x00000002;
+        public const uint FILE_SHARE_DELETE = 0x00000004;
+        public const uint CREATE_ALWAYS = 2;
+        public const uint OPEN_EXISTING = 3;
+        public const uint FILE_BEGIN = 0;
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        public static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFileW(
+            string lpFileName,
+            uint dwDesiredAccess,
+            uint dwShareMode,
+            nint lpSecurityAttributes,
+            uint dwCreationDisposition,
+            uint dwFlagsAndAttributes,
+            nint hTemplateFile);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool DeviceIoControl(
+            Microsoft.Win32.SafeHandles.SafeFileHandle hDevice,
+            uint dwIoControlCode,
+            ref DUPLICATE_EXTENTS_DATA lpInBuffer,
+            uint nInBufferSize,
+            nint lpOutBuffer,
+            uint nOutBufferSize,
+            out uint lpBytesReturned,
+            nint lpOverlapped);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetEndOfFile(Microsoft.Win32.SafeHandles.SafeFileHandle hFile);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetFilePointerEx(
+            Microsoft.Win32.SafeHandles.SafeFileHandle hFile,
+            long liDistanceToMove,
+            out long lpNewFilePointer,
+            uint dwMoveMethod);
+
+        #endregion
+
         public const string CLSID_RecycleBin = "::{645FF040-5081-101B-9F08-00AA002F954E}";
         public const string Shell_RecycleBinFolder = "shell:RecycleBinFolder";
 

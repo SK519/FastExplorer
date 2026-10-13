@@ -246,10 +246,7 @@ namespace FastExplorer
             // Items コレクションの同期 (初回読み込み時は一括、差分時は最小の変更でスクロール位置・選択状態を維持)
             if (Items.Count == 0)
             {
-                foreach (var item in uniqueTargetList)
-                {
-                    Items.Add(item);
-                }
+                Items.AddRange(uniqueTargetList);
             }
             else
             {

@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
+using FastExplorer.Core;
 using FastExplorer.Models;
 using FastExplorer.Views.Dialogs;
 
@@ -183,7 +186,7 @@ namespace FastExplorer.Services
                     state.IsSizeCalculating = false;
                     state.FilesTransferred = Math.Max(state.FilesTransferred, state.TotalFiles);
                     state.BytesTransferred = Math.Max(state.BytesTransferred, state.TotalBytes);
-                    ReportCurrentProgress(progress, state, controller);
+                    ReportCurrentProgress(progress, state, controller, force: true);
                 }
 
                 return controller?.IsCancelled != true;
@@ -215,7 +218,7 @@ namespace FastExplorer.Services
             long fileLength = fileInfo.Length;
             state.CurrentFileName = fileInfo.Name;
 
-            ReportCurrentProgress(progress, state, controller);
+            ReportCurrentProgress(progress, state, controller, force: false);
 
             if (isMove)
             {
@@ -230,10 +233,10 @@ namespace FastExplorer.Services
                             File.Delete(destPath);
                         }
                         File.Move(src, destPath);
-                        state.BytesTransferred += fileLength;
-                        state.FilesTransferred++;
+                        Interlocked.Add(ref state.BytesTransferred, fileLength);
+                        Interlocked.Increment(ref state.FilesTransferred);
                         state.UpdateSpeed();
-                        ReportCurrentProgress(progress, state, controller);
+                        ReportCurrentProgress(progress, state, controller, force: true);
                         return;
                     }
                     catch
@@ -243,7 +246,222 @@ namespace FastExplorer.Services
                 }
             }
 
-            // チャンク単位のストリームコピー
+            // 1. ReFS / Dev Drive (Windows 11) Block Cloning (Copy-on-Write) の試行
+            // 同一ドライブ内のコピーであれば、実データ転送なしで 0 秒複製
+            if (!isMove && TryBlockCloneCopy(src, destPath, fileLength))
+            {
+                Interlocked.Add(ref state.BytesTransferred, fileLength);
+                Interlocked.Increment(ref state.FilesTransferred);
+                state.UpdateSpeed();
+                ReportCurrentProgress(progress, state, controller, force: true);
+                return;
+            }
+
+            // 2. Win32 CopyFileExW によるカーネルダイレクト高速転送 (DMA / ODX オフロード)
+            try
+            {
+                bool kernelCopied = await CopyFileExAsync(src, destPath, fileLength, progress, controller, state);
+                if (kernelCopied)
+                {
+                    if (isMove)
+                    {
+                        try { File.Delete(src); } catch { }
+                    }
+                    Interlocked.Increment(ref state.FilesTransferred);
+                    ReportCurrentProgress(progress, state, controller, force: true);
+                    return;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                try { if (File.Exists(destPath)) File.Delete(destPath); } catch { }
+                throw;
+            }
+            catch
+            {
+                // フォールバック: チャンク単位のストリームコピー
+            }
+
+            // 3. フォールバック: チャンク単位の非同期ストリームコピー
+            await CopyFileStreamAsync(src, destPath, fileLength, isMove, progress, controller, state);
+        }
+
+        private static bool TryBlockCloneCopy(string src, string destPath, long fileLength)
+        {
+            if (fileLength < 0) return false;
+
+            string? srcRoot = Path.GetPathRoot(src);
+            string? destRoot = Path.GetPathRoot(destPath);
+            if (string.IsNullOrEmpty(srcRoot) || string.IsNullOrEmpty(destRoot) ||
+                !srcRoot.Equals(destRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            try
+            {
+                using var hSrc = Win32Interop.CreateFileW(
+                    src,
+                    Win32Interop.GENERIC_READ,
+                    Win32Interop.FILE_SHARE_READ | Win32Interop.FILE_SHARE_WRITE | Win32Interop.FILE_SHARE_DELETE,
+                    nint.Zero,
+                    Win32Interop.OPEN_EXISTING,
+                    0,
+                    nint.Zero);
+
+                if (hSrc.IsInvalid) return false;
+
+                using var hDest = Win32Interop.CreateFileW(
+                    destPath,
+                    Win32Interop.GENERIC_READ | Win32Interop.GENERIC_WRITE,
+                    Win32Interop.FILE_SHARE_READ,
+                    nint.Zero,
+                    Win32Interop.CREATE_ALWAYS,
+                    0,
+                    nint.Zero);
+
+                if (hDest.IsInvalid) return false;
+
+                if (fileLength == 0)
+                {
+                    return true;
+                }
+
+                if (!Win32Interop.SetFilePointerEx(hDest, fileLength, out _, Win32Interop.FILE_BEGIN) ||
+                    !Win32Interop.SetEndOfFile(hDest) ||
+                    !Win32Interop.SetFilePointerEx(hDest, 0, out _, Win32Interop.FILE_BEGIN))
+                {
+                    return false;
+                }
+
+                var data = new Win32Interop.DUPLICATE_EXTENTS_DATA
+                {
+                    FileHandle = hSrc.DangerousGetHandle(),
+                    SourceFileOffset = 0,
+                    TargetFileOffset = 0,
+                    ByteCount = fileLength
+                };
+
+                uint dataSize = (uint)Marshal.SizeOf<Win32Interop.DUPLICATE_EXTENTS_DATA>();
+                bool success = Win32Interop.DeviceIoControl(
+                    hDest,
+                    Win32Interop.FSCTL_DUPLICATE_EXTENTS_TO_FILE,
+                    ref data,
+                    dataSize,
+                    nint.Zero,
+                    0,
+                    out _,
+                    nint.Zero);
+
+                if (success)
+                {
+                    try
+                    {
+                        File.SetCreationTimeUtc(destPath, File.GetCreationTimeUtc(src));
+                        File.SetLastWriteTimeUtc(destPath, File.GetLastWriteTimeUtc(src));
+                        File.SetAttributes(destPath, File.GetAttributes(src));
+                    }
+                    catch { }
+                    return true;
+                }
+            }
+            catch { }
+
+            try
+            {
+                if (File.Exists(destPath)) File.Delete(destPath);
+            }
+            catch { }
+
+            return false;
+        }
+
+        private static async Task<bool> CopyFileExAsync(
+            string src,
+            string destPath,
+            long fileLength,
+            IProgress<FileTransferProgress>? progress,
+            FileTransferController? controller,
+            FileTransferState state)
+        {
+            return await Task.Run(() =>
+            {
+                int pbCancel = 0;
+                long lastTransferred = 0;
+
+                Win32Interop.CopyProgressRoutine progressRoutine = (
+                    long totalFileSize,
+                    long totalBytesTransferred,
+                    long streamSize,
+                    long streamBytesTransferred,
+                    uint dwStreamNumber,
+                    uint dwCallbackReason,
+                    nint hSourceFile,
+                    nint hDestinationFile,
+                    nint lpData) =>
+                {
+                    controller?.WaitIfPaused();
+                    if (controller?.IsCancelled == true)
+                    {
+                        pbCancel = 1;
+                        return Win32Interop.PROGRESS_CANCEL;
+                    }
+
+                    long delta = totalBytesTransferred - lastTransferred;
+                    if (delta > 0)
+                    {
+                        Interlocked.Add(ref state.BytesTransferred, delta);
+                        lastTransferred = totalBytesTransferred;
+                        state.UpdateSpeed();
+                        ReportCurrentProgress(progress, state, controller, force: false);
+                    }
+
+                    return Win32Interop.PROGRESS_CONTINUE;
+                };
+
+                uint copyFlags = Win32Interop.COPY_FILE_ALLOW_DECRYPTED_DESTINATION | Win32Interop.COPY_FILE_OPEN_AND_COPY_REPARSE_POINT;
+
+                bool result = Win32Interop.CopyFileExW(
+                    src,
+                    destPath,
+                    progressRoutine,
+                    nint.Zero,
+                    ref pbCancel,
+                    copyFlags);
+
+                if (!result)
+                {
+                    if (lastTransferred > 0)
+                    {
+                        Interlocked.Add(ref state.BytesTransferred, -lastTransferred);
+                    }
+                    if (pbCancel != 0 || controller?.IsCancelled == true)
+                    {
+                        throw new OperationCanceledException();
+                    }
+                    return false;
+                }
+
+                long remaining = fileLength - lastTransferred;
+                if (remaining > 0)
+                {
+                    Interlocked.Add(ref state.BytesTransferred, remaining);
+                }
+
+                state.UpdateSpeed();
+                return true;
+            });
+        }
+
+        private static async Task CopyFileStreamAsync(
+            string src,
+            string destPath,
+            long fileLength,
+            bool isMove,
+            IProgress<FileTransferProgress>? progress,
+            FileTransferController? controller,
+            FileTransferState state)
+        {
             const int bufferSize = 1024 * 1024; // 1 MB
             byte[] buffer = new byte[bufferSize];
 
@@ -262,31 +480,23 @@ namespace FastExplorer.Services
                         }
 
                         await destStream.WriteAsync(buffer.AsMemory(0, bytesRead));
-                        state.BytesTransferred += bytesRead;
+                        Interlocked.Add(ref state.BytesTransferred, bytesRead);
                         state.UpdateSpeed();
-                        ReportCurrentProgress(progress, state, controller);
+                        ReportCurrentProgress(progress, state, controller, force: false);
                     }
                 }
 
                 if (isMove)
                 {
-                    try
-                    {
-                        File.Delete(src);
-                    }
-                    catch { }
+                    try { File.Delete(src); } catch { }
                 }
 
-                state.FilesTransferred++;
-                ReportCurrentProgress(progress, state, controller);
+                Interlocked.Increment(ref state.FilesTransferred);
+                ReportCurrentProgress(progress, state, controller, force: true);
             }
             catch (OperationCanceledException)
             {
-                try
-                {
-                    if (File.Exists(destPath)) File.Delete(destPath);
-                }
-                catch { }
+                try { if (File.Exists(destPath)) File.Delete(destPath); } catch { }
                 throw;
             }
         }
@@ -314,8 +524,8 @@ namespace FastExplorer.Services
                     {
                         state.CurrentFileName = new DirectoryInfo(sourceDir).Name;
                         Directory.Move(sourceDir, targetDir);
-                        state.FilesTransferred++;
-                        ReportCurrentProgress(progress, state, controller);
+                        Interlocked.Increment(ref state.FilesTransferred);
+                        ReportCurrentProgress(progress, state, controller, force: true);
                         return;
                     }
                     catch
@@ -327,13 +537,46 @@ namespace FastExplorer.Services
 
             Directory.CreateDirectory(targetDir);
 
-            foreach (string file in Directory.GetFiles(sourceDir))
+            var files = Directory.GetFiles(sourceDir);
+
+            // 小規模ファイル群の並行コピー (最大並行度 6) による I/O スループットの最大化
+            int maxConcurrency = Math.Clamp(Environment.ProcessorCount, 2, 8);
+            if (files.Length > 1)
+            {
+                using var semaphore = new SemaphoreSlim(maxConcurrency);
+                var tasks = new List<Task>(files.Length);
+
+                foreach (string file in files)
+                {
+                    controller?.WaitIfPaused();
+                    if (controller?.IsCancelled == true) throw new OperationCanceledException();
+
+                    string dest = Path.Combine(targetDir, Path.GetFileName(file));
+                    tasks.Add(Task.Run(async () =>
+                    {
+                        await semaphore.WaitAsync();
+                        try
+                        {
+                            controller?.WaitIfPaused();
+                            if (controller?.IsCancelled == true) throw new OperationCanceledException();
+                            await CopyOrMoveSingleFileAsync(file, dest, isMove, progress, controller, state);
+                        }
+                        finally
+                        {
+                            semaphore.Release();
+                        }
+                    }));
+                }
+
+                await Task.WhenAll(tasks);
+            }
+            else if (files.Length == 1)
             {
                 controller?.WaitIfPaused();
                 if (controller?.IsCancelled == true) throw new OperationCanceledException();
 
-                string dest = Path.Combine(targetDir, Path.GetFileName(file));
-                await CopyOrMoveSingleFileAsync(file, dest, isMove, progress, controller, state);
+                string dest = Path.Combine(targetDir, Path.GetFileName(files[0]));
+                await CopyOrMoveSingleFileAsync(files[0], dest, isMove, progress, controller, state);
             }
 
             foreach (string subDir in Directory.GetDirectories(sourceDir))
@@ -383,7 +626,7 @@ namespace FastExplorer.Services
             }
         }
 
-        private static (long TotalBytes, int TotalFiles) CalculateTotalSize(IEnumerable<string> paths, System.Threading.CancellationToken ct = default)
+        private static (long TotalBytes, int TotalFiles) CalculateTotalSize(IEnumerable<string> paths, CancellationToken ct = default)
         {
             long totalBytes = 0;
             int totalFiles = 0;
@@ -418,17 +661,27 @@ namespace FastExplorer.Services
         private static void ReportCurrentProgress(
             IProgress<FileTransferProgress>? progress,
             FileTransferState state,
-            FileTransferController? controller)
+            FileTransferController? controller,
+            bool force = false)
         {
             if (progress == null) return;
+
+            long now = Stopwatch.GetTimestamp();
+            if (!force)
+            {
+                // 50ms 未満の頻繁な通知をスロットリングして UI ディスパッチ負荷を抑制
+                double elapsedMs = (now - state.LastReportTimestamp) * 1000.0 / Stopwatch.Frequency;
+                if (elapsedMs < 50.0) return;
+            }
+            state.LastReportTimestamp = now;
 
             var p = new FileTransferProgress
             {
                 CurrentFileName = state.CurrentFileName,
                 SourceDirectory = state.SourceDirectory,
                 DestinationDirectory = state.DestinationDirectory,
-                TotalBytes = state.TotalBytes,
-                BytesTransferred = state.BytesTransferred,
+                TotalBytes = Interlocked.Read(ref state.TotalBytes),
+                BytesTransferred = Interlocked.Read(ref state.BytesTransferred),
                 TotalFiles = state.TotalFiles,
                 FilesTransferred = state.FilesTransferred,
                 BytesPerSecond = state.CurrentSpeedBytesPerSec,
@@ -453,6 +706,7 @@ namespace FastExplorer.Services
             public int FilesTransferred;
             public bool IsMove;
             public bool IsSizeCalculating;
+            public long LastReportTimestamp = 0;
 
             private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
             private long _lastBytes = 0;
@@ -465,7 +719,8 @@ namespace FastExplorer.Services
                 double dt = elapsedSec - _lastTimeSec;
                 if (dt >= 0.08)
                 {
-                    long dBytes = BytesTransferred - _lastBytes;
+                    long currentBytes = Interlocked.Read(ref BytesTransferred);
+                    long dBytes = currentBytes - _lastBytes;
                     double instSpeed = dBytes / Math.Max(0.001, dt);
                     if (CurrentSpeedBytesPerSec <= 0)
                     {
@@ -475,14 +730,16 @@ namespace FastExplorer.Services
                     {
                         CurrentSpeedBytesPerSec = 0.65 * CurrentSpeedBytesPerSec + 0.35 * instSpeed;
                     }
-                    _lastBytes = BytesTransferred;
+                    _lastBytes = currentBytes;
                     _lastTimeSec = elapsedSec;
                 }
             }
 
             public TimeSpan GetEstimatedRemainingTime()
             {
-                long remainingBytes = Math.Max(0, TotalBytes - BytesTransferred);
+                long currentBytes = Interlocked.Read(ref BytesTransferred);
+                long currentTotal = Interlocked.Read(ref TotalBytes);
+                long remainingBytes = Math.Max(0, currentTotal - currentBytes);
                 if (CurrentSpeedBytesPerSec > 1024)
                 {
                     double remSec = remainingBytes / CurrentSpeedBytesPerSec;
