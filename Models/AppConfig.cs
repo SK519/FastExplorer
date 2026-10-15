@@ -123,6 +123,8 @@ namespace FastExplorer.Models
         public bool ReplaceDefaultExplorer { get; set; } = false;
         public bool AddContextMenuToFolders { get; set; } = false;
         public bool InterceptWinE { get; set; } = false;
+        public bool DisableCopilotKey { get; set; } = true;
+        public bool DisableCapsLockKey { get; set; } = true;
     }
 
     public class UpdateConfig

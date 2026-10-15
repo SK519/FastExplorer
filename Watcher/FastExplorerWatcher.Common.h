@@ -86,3 +86,41 @@ static bool IsDefaultExplorerEnabledInRegistry()
 
     return true; // デフォルトは有効
 }
+
+static bool IsCapsLockBlockingEnabledInRegistry()
+{
+    DWORD val = 1;
+    DWORD type = REG_DWORD;
+    DWORD size = sizeof(val);
+
+    HKEY hKey;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\FastExplorer", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+    {
+        if (RegQueryValueExW(hKey, L"DisableCapsLockKey", NULL, &type, (LPBYTE)&val, &size) == ERROR_SUCCESS)
+        {
+            RegCloseKey(hKey);
+            return val != 0;
+        }
+        RegCloseKey(hKey);
+    }
+    return true; // デフォルトは有効
+}
+
+static bool IsCopilotBlockingEnabledInRegistry()
+{
+    DWORD val = 1;
+    DWORD type = REG_DWORD;
+    DWORD size = sizeof(val);
+
+    HKEY hKey;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\FastExplorer", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+    {
+        if (RegQueryValueExW(hKey, L"DisableCopilotKey", NULL, &type, (LPBYTE)&val, &size) == ERROR_SUCCESS)
+        {
+            RegCloseKey(hKey);
+            return val != 0;
+        }
+        RegCloseKey(hKey);
+    }
+    return true; // デフォルトは有効
+}

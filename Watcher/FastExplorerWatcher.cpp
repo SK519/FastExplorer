@@ -11,6 +11,32 @@ static LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lP
     {
         KBDLLHOOKSTRUCT* pKey = (KBDLLHOOKSTRUCT*)lParam;
         
+        // 1. CapsLock キーの無効化 (設定で有効時のみ)
+        if (pKey->vkCode == VK_CAPITAL)
+        {
+            if (IsCapsLockBlockingEnabledInRegistry())
+            {
+                return 1;
+            }
+        }
+
+        // 2. Copilot キー (Win + Shift + F23) の無効化 (設定で有効時のみ)
+        if (pKey->vkCode == VK_F23)
+        {
+            if (IsCopilotBlockingEnabledInRegistry())
+            {
+                // Winキー単体押し判定によるスタートメニュー誤爆を防ぐためダミーキーを送信
+                if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
+                {
+                    INPUT dummyInput = { 0 };
+                    dummyInput.type = INPUT_KEYBOARD;
+                    dummyInput.ki.wVk = 0xFF;
+                    SendInput(1, &dummyInput, sizeof(INPUT));
+                }
+                return 1;
+            }
+        }
+
         if (pKey->vkCode == VK_LWIN)
         {
             if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN) g_isLWinDown = true;

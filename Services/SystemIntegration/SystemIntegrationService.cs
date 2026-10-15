@@ -47,6 +47,10 @@ namespace FastExplorer.Services
             try
             {
                 EnsureCleanExplorerDisabledHotkeys();
+                UpdateKeyBlockingRegistry(
+                    ConfigService.Current.SystemIntegration.DisableCopilotKey,
+                    ConfigService.Current.SystemIntegration.DisableCapsLockKey
+                );
                 if (ConfigService.Current.SystemIntegration.ReplaceDefaultExplorer)
                 {
                     SetAsDefaultExplorer(true);
@@ -55,6 +59,23 @@ namespace FastExplorer.Services
             catch (Exception ex)
             {
                 Debug.WriteLine($"[SystemIntegration] EnsureDefaultExplorerIntegration error: {ex.Message}");
+            }
+        }
+
+        public static void UpdateKeyBlockingRegistry(bool disableCopilot, bool disableCapsLock)
+        {
+            try
+            {
+                using var appKey = Registry.CurrentUser.CreateSubKey(@"Software\FastExplorer");
+                if (appKey != null)
+                {
+                    appKey.SetValue("DisableCopilotKey", disableCopilot ? 1 : 0, RegistryValueKind.DWord);
+                    appKey.SetValue("DisableCapsLockKey", disableCapsLock ? 1 : 0, RegistryValueKind.DWord);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SystemIntegration] UpdateKeyBlockingRegistry error: {ex.Message}");
             }
         }
 

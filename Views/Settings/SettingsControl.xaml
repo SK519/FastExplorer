@@ -448,6 +448,46 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+
+                    <!-- キーボード制御 (誤爆防止・無効化) -->
+                    <Border Background="{ThemeResource LayerFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="8" Padding="20">
+                        <StackPanel Spacing="16">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="キーボード制御 (誤爆防止・無効化)" FontWeight="SemiBold" FontSize="16"/>
+                                <TextBlock Text="不要な特殊キーや誤爆しやすいキーの入力をブロックし、快適なタイピングを維持します。" FontSize="13" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            </StackPanel>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                            <!-- Copilot キー無効化 -->
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Text="Copilot キーを無効化する" FontWeight="Medium"/>
+                                    <TextBlock Text="物理 Copilot キー (Win + Shift + F23) による意図しない AI 起動やスタートメニュー誤爆を防止します。" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ToggleDisableCopilotKey" Grid.Column="1" VerticalAlignment="Center" Toggled="ToggleDisableCopilotKey_Toggled"/>
+                            </Grid>
+
+                            <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                            <!-- CapsLock キー無効化 -->
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock Text="CapsLock キーを無効化する" FontWeight="Medium"/>
+                                    <TextBlock Text="CapsLock のトグル状態の誤切り替えをブロックします。" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                </StackPanel>
+                                <ToggleSwitch x:Name="ToggleDisableCapsLockKey" Grid.Column="1" VerticalAlignment="Center" Toggled="ToggleDisableCapsLockKey_Toggled"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
 
                 <!-- セクション 7: 詳細とシステム情報 -->

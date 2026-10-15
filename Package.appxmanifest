@@ -11,7 +11,7 @@
   <Identity
     Name="10c8a1b7-6352-4f74-93ed-4aac3fc64864"
     Publisher="CN=swei4"
-    Version="1.2.1.0" />
+    Version="1.2.2.0" />
 
   <mp:PhoneIdentity PhoneProductId="10c8a1b7-6352-4f74-93ed-4aac3fc64864" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 

@@ -150,6 +150,9 @@ namespace FastExplorer.Views.Settings
                 bool isDef = SystemIntegrationService.IsDefaultExplorerEnabled();
                 if (ToggleDefaultExplorer != null) ToggleDefaultExplorer.IsOn = isDef;
                 UpdateDefaultExplorerStatusBadge(isDef);
+
+                if (ToggleDisableCopilotKey != null) ToggleDisableCopilotKey.IsOn = config.SystemIntegration.DisableCopilotKey;
+                if (ToggleDisableCapsLockKey != null) ToggleDisableCapsLockKey.IsOn = config.SystemIntegration.DisableCapsLockKey;
             }
             catch (Exception ex)
             {
@@ -436,6 +439,24 @@ namespace FastExplorer.Views.Settings
                 ToggleDefaultExplorer.IsEnabled = true;
                 _isSettingDefaultExplorer = false;
             }
+        }
+
+        private void ToggleDisableCopilotKey_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_isInitializing) return;
+            bool isEnabled = ToggleDisableCopilotKey.IsOn;
+            ConfigService.Current.SystemIntegration.DisableCopilotKey = isEnabled;
+            SystemIntegrationService.UpdateKeyBlockingRegistry(isEnabled, ConfigService.Current.SystemIntegration.DisableCapsLockKey);
+            ConfigService.Save();
+        }
+
+        private void ToggleDisableCapsLockKey_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_isInitializing) return;
+            bool isEnabled = ToggleDisableCapsLockKey.IsOn;
+            ConfigService.Current.SystemIntegration.DisableCapsLockKey = isEnabled;
+            SystemIntegrationService.UpdateKeyBlockingRegistry(ConfigService.Current.SystemIntegration.DisableCopilotKey, isEnabled);
+            ConfigService.Save();
         }
 
         private static int CompressionLevelToIndex(ArchiveCompressionLevel level) => level switch
