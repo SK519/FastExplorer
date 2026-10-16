@@ -243,10 +243,10 @@ namespace FastExplorer
         {
             var uniqueTargetList = targetList.DistinctBy(x => x.FullPath, StringComparer.OrdinalIgnoreCase).ToList();
 
-            // Items コレクションの同期 (初回読み込み時は一括、差分時は最小の変更でスクロール位置・選択状態を維持)
-            if (Items.Count == 0)
+            // Items コレクションの同期 (初回読み込み時や差分が大きい時は一括、小差分時は最小の変更でスクロール位置・選択状態を維持)
+            if (Items.Count == 0 || Math.Abs(Items.Count - uniqueTargetList.Count) > 50 || uniqueTargetList.Count > 1000)
             {
-                Items.AddRange(uniqueTargetList);
+                Items.ReplaceAll(uniqueTargetList);
             }
             else
             {
@@ -346,7 +346,8 @@ namespace FastExplorer
                 }
 
                 // アイコンの事前設定
-                bool allowThumb = IconThumbnailService.IsImageOrientedMode(_viewMode);
+                FolderViewMode activeMode = detectedMode ?? _viewMode;
+                bool allowThumb = IconThumbnailService.IsImageOrientedMode(activeMode);
                 foreach (var item in scanned)
                 {
                     item.IsCut = FileOperationService.IsPathCut(item.FullPath);
@@ -385,7 +386,10 @@ namespace FastExplorer
                     {
                         var targetItem = Items.FirstOrDefault(i => 
                             i.Name.Equals(selectTargetName, StringComparison.OrdinalIgnoreCase) ||
-                            (i.IsDrive && i.FullPath.StartsWith(selectTargetName, StringComparison.OrdinalIgnoreCase)));
+                            (!string.IsNullOrEmpty(i.ShortcutPath) && Path.GetFileName(i.ShortcutPath).Equals(selectTargetName, StringComparison.OrdinalIgnoreCase)))
+                            ?? Items.FirstOrDefault(i =>
+                                Path.GetFileNameWithoutExtension(i.Name).Equals(Path.GetFileNameWithoutExtension(selectTargetName), StringComparison.OrdinalIgnoreCase) ||
+                                (i.IsDrive && i.FullPath.StartsWith(selectTargetName, StringComparison.OrdinalIgnoreCase)));
                         if (targetItem != null)
                         {
                             targetItem.IsSelected = true;

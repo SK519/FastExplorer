@@ -174,7 +174,10 @@ namespace FastExplorer
                     {
                         var targetItem = navTab.Items.FirstOrDefault(i => 
                             i.Name.Equals(selectName, StringComparison.OrdinalIgnoreCase) ||
-                            (i.IsDrive && i.FullPath.StartsWith(selectName, StringComparison.OrdinalIgnoreCase)));
+                            (!string.IsNullOrEmpty(i.ShortcutPath) && Path.GetFileName(i.ShortcutPath).Equals(selectName, StringComparison.OrdinalIgnoreCase)))
+                            ?? navTab.Items.FirstOrDefault(i =>
+                                Path.GetFileNameWithoutExtension(i.Name).Equals(Path.GetFileNameWithoutExtension(selectName), StringComparison.OrdinalIgnoreCase) ||
+                                (i.IsDrive && i.FullPath.StartsWith(selectName, StringComparison.OrdinalIgnoreCase)));
                         if (targetItem != null)
                         {
                             SelectSingleItem(targetItem);

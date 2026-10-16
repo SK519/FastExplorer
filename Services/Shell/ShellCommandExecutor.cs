@@ -83,7 +83,7 @@ namespace FastExplorer.Services
                     }
                     catch { }
 
-                    if (!ShellComHelper.TryGetContextMenuForPaths(hwnd, validPaths, out var pContextMenu, out var pidlsToFree))
+                    if (!ShellComHelper.TryGetContextMenuForPaths(hwnd, validPaths, out var pContextMenu, out var comObjectsToRelease, out var pidlsToFree))
                     {
                         return;
                     }
@@ -153,6 +153,7 @@ namespace FastExplorer.Services
                         {
                             Win32Interop.NativeCom.Release(pContextMenu);
                         }
+                        ShellComHelper.ReleaseComObjects(comObjectsToRelease);
                         ShellComHelper.FreePidls(pidlsToFree);
                     }
                 }

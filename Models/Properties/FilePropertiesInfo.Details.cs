@@ -201,16 +201,28 @@ namespace FastExplorer
                 string filePath = FullPath;
                 var (sha256, md5) = await Task.Run(() =>
                 {
-                    using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 64 * 1024);
-                    
-                    using var sha256Alg = SHA256.Create();
-                    byte[] sha256Bytes = sha256Alg.ComputeHash(stream);
-                    string sha256Str = Convert.ToHexString(sha256Bytes).ToLowerInvariant();
+                    using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 128 * 1024, FileOptions.SequentialScan);
+                    using var sha256Alg = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                    using var md5Alg = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
 
-                    stream.Position = 0;
-                    using var md5Alg = MD5.Create();
-                    byte[] md5Bytes = md5Alg.ComputeHash(stream);
-                    string md5Str = Convert.ToHexString(md5Bytes).ToLowerInvariant();
+                    byte[] buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(128 * 1024);
+                    try
+                    {
+                        int bytesRead;
+                        while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            token.ThrowIfCancellationRequested();
+                            sha256Alg.AppendData(buffer, 0, bytesRead);
+                            md5Alg.AppendData(buffer, 0, bytesRead);
+                        }
+                    }
+                    finally
+                    {
+                        System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
+                    }
+
+                    string sha256Str = Convert.ToHexString(sha256Alg.GetHashAndReset()).ToLowerInvariant();
+                    string md5Str = Convert.ToHexString(md5Alg.GetHashAndReset()).ToLowerInvariant();
 
                     return (sha256Str, md5Str);
                 }, token);

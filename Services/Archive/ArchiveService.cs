@@ -119,7 +119,7 @@ namespace FastExplorer.Services
             if (pathList.Count == 0 || !Directory.Exists(destinationDirectory)) return null;
 
             string baseName = pathList.Count == 1
-                ? Path.GetFileNameWithoutExtension(pathList[0])
+                ? (Directory.Exists(pathList[0]) ? Path.GetFileName(pathList[0].TrimEnd('\\', '/')) : Path.GetFileNameWithoutExtension(pathList[0]))
                 : "アーカイブ";
 
             if (string.IsNullOrWhiteSpace(baseName)) baseName = "アーカイブ";
@@ -265,7 +265,7 @@ namespace FastExplorer.Services
             if (pathList.Count == 0 || !Directory.Exists(destinationDirectory)) return null;
 
             string baseName = pathList.Count == 1
-                ? Path.GetFileNameWithoutExtension(pathList[0])
+                ? (Directory.Exists(pathList[0]) ? Path.GetFileName(pathList[0].TrimEnd('\\', '/')) : Path.GetFileNameWithoutExtension(pathList[0]))
                 : "アーカイブ";
 
             if (string.IsNullOrWhiteSpace(baseName)) baseName = "アーカイブ";
@@ -447,7 +447,12 @@ namespace FastExplorer.Services
                             if (string.IsNullOrEmpty(entry.Key)) continue;
 
                             string relativePath = entry.Key.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
-                            string destinationPath = Path.Combine(targetDir, relativePath);
+                            string destinationPath = Path.GetFullPath(Path.Combine(targetDir, relativePath));
+                            string fullTarget = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                            if (!destinationPath.StartsWith(fullTarget, StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
 
                             if (entry.IsDirectory)
                             {
@@ -568,7 +573,13 @@ namespace FastExplorer.Services
                                     return false;
                                 }
 
-                                string destinationPath = Path.Combine(targetDir, entry.FullName);
+                                string relativePath = entry.FullName.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
+                                string destinationPath = Path.GetFullPath(Path.Combine(targetDir, relativePath));
+                                string fullTarget = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                                if (!destinationPath.StartsWith(fullTarget, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    continue;
+                                }
                                 if (entry.FullName.EndsWith("/") || entry.FullName.EndsWith("\\"))
                                 {
                                     if (!Directory.Exists(destinationPath))

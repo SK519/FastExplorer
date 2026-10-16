@@ -7,6 +7,7 @@
 #include <shlobj.h>
 #include <shlwapi.h>
 #include <exdisp.h>
+#include <shldisp.h>
 #include <winternl.h>
 #include <string>
 #include <fstream>
@@ -56,71 +57,97 @@ static void CleanDisabledHotkeys()
     }
 }
 
-static bool IsDefaultExplorerEnabledInRegistry()
+static ULONGLONG g_lastRegCheckTick = 0;
+static bool g_cachedReplaceExplorer = true;
+static bool g_cachedDisableCapsLock = true;
+static bool g_cachedDisableCopilot = true;
+
+static void RefreshRegistryFlagsIfNeeded()
 {
-    // HKLM または HKCU をチェック
+    ULONGLONG now = GetTickCount64();
+    if (now - g_lastRegCheckTick < 1000 && g_lastRegCheckTick != 0)
+    {
+        return;
+    }
+    g_lastRegCheckTick = now;
+
     DWORD val = 0;
     DWORD type = REG_DWORD;
     DWORD size = sizeof(val);
-
     HKEY hKey;
+
+    bool replaceFound = false;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\FastExplorer", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
     {
+        size = sizeof(val);
         if (RegQueryValueExW(hKey, L"ReplaceDefaultExplorer", NULL, &type, (LPBYTE)&val, &size) == ERROR_SUCCESS)
         {
-            RegCloseKey(hKey);
-            return val != 0;
+            g_cachedReplaceExplorer = (val != 0);
+            replaceFound = true;
         }
+
+        size = sizeof(val);
+        if (RegQueryValueExW(hKey, L"DisableCapsLockKey", NULL, &type, (LPBYTE)&val, &size) == ERROR_SUCCESS)
+        {
+            g_cachedDisableCapsLock = (val != 0);
+        }
+        else
+        {
+            g_cachedDisableCapsLock = true;
+        }
+
+        size = sizeof(val);
+        if (RegQueryValueExW(hKey, L"DisableCopilotKey", NULL, &type, (LPBYTE)&val, &size) == ERROR_SUCCESS)
+        {
+            g_cachedDisableCopilot = (val != 0);
+        }
+        else
+        {
+            g_cachedDisableCopilot = true;
+        }
+
         RegCloseKey(hKey);
     }
-
-    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\FastExplorer", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+    else
     {
-        if (RegQueryValueExW(hKey, L"ReplaceDefaultExplorer", NULL, &type, (LPBYTE)&val, &size) == ERROR_SUCCESS)
-        {
-            RegCloseKey(hKey);
-            return val != 0;
-        }
-        RegCloseKey(hKey);
+        g_cachedDisableCapsLock = true;
+        g_cachedDisableCopilot = true;
     }
 
-    return true; // デフォルトは有効
+    if (!replaceFound)
+    {
+        if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\FastExplorer", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+        {
+            size = sizeof(val);
+            if (RegQueryValueExW(hKey, L"ReplaceDefaultExplorer", NULL, &type, (LPBYTE)&val, &size) == ERROR_SUCCESS)
+            {
+                g_cachedReplaceExplorer = (val != 0);
+                replaceFound = true;
+            }
+            RegCloseKey(hKey);
+        }
+    }
+
+    if (!replaceFound)
+    {
+        g_cachedReplaceExplorer = true;
+    }
+}
+
+static bool IsDefaultExplorerEnabledInRegistry()
+{
+    RefreshRegistryFlagsIfNeeded();
+    return g_cachedReplaceExplorer;
 }
 
 static bool IsCapsLockBlockingEnabledInRegistry()
 {
-    DWORD val = 1;
-    DWORD type = REG_DWORD;
-    DWORD size = sizeof(val);
-
-    HKEY hKey;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\FastExplorer", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
-    {
-        if (RegQueryValueExW(hKey, L"DisableCapsLockKey", NULL, &type, (LPBYTE)&val, &size) == ERROR_SUCCESS)
-        {
-            RegCloseKey(hKey);
-            return val != 0;
-        }
-        RegCloseKey(hKey);
-    }
-    return true; // デフォルトは有効
+    RefreshRegistryFlagsIfNeeded();
+    return g_cachedDisableCapsLock;
 }
 
 static bool IsCopilotBlockingEnabledInRegistry()
 {
-    DWORD val = 1;
-    DWORD type = REG_DWORD;
-    DWORD size = sizeof(val);
-
-    HKEY hKey;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\FastExplorer", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
-    {
-        if (RegQueryValueExW(hKey, L"DisableCopilotKey", NULL, &type, (LPBYTE)&val, &size) == ERROR_SUCCESS)
-        {
-            RegCloseKey(hKey);
-            return val != 0;
-        }
-        RegCloseKey(hKey);
-    }
-    return true; // デフォルトは有効
+    RefreshRegistryFlagsIfNeeded();
+    return g_cachedDisableCopilot;
 }

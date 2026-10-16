@@ -18,12 +18,28 @@ namespace FastExplorer.Services
             {
                 foreach (var kvp in _lruCache)
                 {
-                    try { kvp.Value.Dispose(); } catch { }
+                    if (!IsSharedBitmap(kvp.Value))
+                    {
+                        try { kvp.Value.Dispose(); } catch { }
+                    }
                 }
                 _lruCache.Clear();
                 _imageSourceCache.Clear();
                 _lruKeys.Clear();
             }
+        }
+
+        private static bool IsSharedBitmap(SoftwareBitmap? bmp)
+        {
+            if (bmp == null) return false;
+            if (ReferenceEquals(bmp, _defaultFolderBitmap) || ReferenceEquals(bmp, _defaultFileBitmap))
+                return true;
+            foreach (var shared in _extensionIconCache.Values)
+            {
+                if (ReferenceEquals(bmp, shared))
+                    return true;
+            }
+            return false;
         }
 
         private static string GetCacheKey(FileItem item)
@@ -130,7 +146,10 @@ namespace FastExplorer.Services
                         _lruKeys.RemoveFirst();
                         if (_lruCache.TryRemove(oldestKey, out var oldBmp))
                         {
-                            try { oldBmp.Dispose(); } catch { }
+                            if (!IsSharedBitmap(oldBmp))
+                            {
+                                try { oldBmp.Dispose(); } catch { }
+                            }
                         }
                         _imageSourceCache.TryRemove(oldestKey, out _);
                     }

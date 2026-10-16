@@ -236,6 +236,21 @@ static bool TrySendPipeMessage(const wchar_t* customArgs)
         0,
         NULL);
 
+    if (hPipe == INVALID_HANDLE_VALUE && GetLastError() == ERROR_PIPE_BUSY)
+    {
+        if (WaitNamedPipeW(PIPE_NAME, 300))
+        {
+            hPipe = CreateFileW(
+                PIPE_NAME,
+                GENERIC_WRITE,
+                0,
+                NULL,
+                OPEN_EXISTING,
+                0,
+                NULL);
+        }
+    }
+
     if (hPipe != INVALID_HANDLE_VALUE)
     {
         std::wstring payload = L"FastExplorer.exe\n";
@@ -245,14 +260,13 @@ static bool TrySendPipeMessage(const wchar_t* customArgs)
         }
         payload += L"\n";
 
-        DWORD written = 0;
-        int utf8Len = WideCharToMultiByte(CP_UTF8, 0, payload.c_str(), -1, NULL, 0, NULL, NULL);
+        int utf8Len = WideCharToMultiByte(CP_UTF8, 0, payload.c_str(), (int)payload.length(), NULL, 0, NULL, NULL);
         if (utf8Len > 0)
         {
-            char* utf8Buf = new char[utf8Len];
-            WideCharToMultiByte(CP_UTF8, 0, payload.c_str(), -1, utf8Buf, utf8Len, NULL, NULL);
-            WriteFile(hPipe, utf8Buf, (DWORD)strlen(utf8Buf), &written, NULL);
-            delete[] utf8Buf;
+            std::string utf8Buf(utf8Len, '\0');
+            WideCharToMultiByte(CP_UTF8, 0, payload.c_str(), (int)payload.length(), &utf8Buf[0], utf8Len, NULL, NULL);
+            DWORD written = 0;
+            WriteFile(hPipe, utf8Buf.data(), (DWORD)utf8Buf.size(), &written, NULL);
         }
         CloseHandle(hPipe);
         LogWatcher(L"[Pipe] Sent args: %s", customArgs ? customArgs : L"(none)");
@@ -298,13 +312,20 @@ static void LaunchOrActivateFastExplorer(const wchar_t* customArgs = NULL)
         std::wstring safeArgs;
         if (customArgs != NULL && customArgs[0] != L'\0')
         {
-            safeArgs = L"\"";
-            safeArgs += customArgs;
-            if (!safeArgs.empty() && safeArgs.back() == L'\\')
+            if (customArgs[0] == L'"' || _wcsnicmp(customArgs, L"/select", 7) == 0)
             {
-                safeArgs += L'\\'; // Win32 コマンドライン引数エスケープバグ対策
+                safeArgs = customArgs;
             }
-            safeArgs += L"\"";
+            else
+            {
+                safeArgs = L"\"";
+                safeArgs += customArgs;
+                if (!safeArgs.empty() && safeArgs.back() == L'\\')
+                {
+                    safeArgs += L'\\'; // Win32 コマンドライン引数エスケープバグ対策
+                }
+                safeArgs += L"\"";
+            }
         }
 
         SHELLEXECUTEINFOW sei = { sizeof(sei) };
@@ -333,20 +354,16 @@ static void LaunchOrActivateFastExplorer(const wchar_t* customArgs = NULL)
         si.dwFlags = STARTF_USESHOWWINDOW;
         si.wShowWindow = SW_SHOWNORMAL;
         PROCESS_INFORMATION pi = { 0 };
-        wchar_t cmdLine[MAX_PATH * 2];
 
+        std::wstring fullCmdLine = L"\"" + std::wstring(exePath) + L"\"";
         if (!safeArgs.empty())
         {
-            swprintf_s(cmdLine, L"\"%s\" %s", exePath, safeArgs.c_str());
-        }
-        else
-        {
-            swprintf_s(cmdLine, L"\"%s\"", exePath);
+            fullCmdLine += L" " + safeArgs;
         }
 
-        LogWatcher(L"[Launch] Falling back to CreateProcessW: %s", cmdLine);
+        LogWatcher(L"[Launch] Falling back to CreateProcessW: %s", fullCmdLine.c_str());
 
-        if (CreateProcessW(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, exeDir[0] != L'\0' ? exeDir : NULL, &si, &pi))
+        if (CreateProcessW(NULL, &fullCmdLine[0], NULL, NULL, FALSE, 0, NULL, exeDir[0] != L'\0' ? exeDir : NULL, &si, &pi))
         {
             CloseHandle(pi.hThread);
             CloseHandle(pi.hProcess);

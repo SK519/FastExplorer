@@ -259,6 +259,15 @@ namespace FastExplorer
                             targetPath = cleanPath;
                             return;
                         }
+
+                        // ファイルが直接検出できない場合でも親ディレクトリが存在すればフォルダーを開いてアイテム選択を試みる
+                        string? fallbackParent = Path.GetDirectoryName(cleanPath);
+                        if (!string.IsNullOrEmpty(fallbackParent) && Directory.Exists(fallbackParent))
+                        {
+                            targetPath = fallbackParent;
+                            selectItem = Path.GetFileName(cleanPath);
+                            return;
+                        }
                         
                         targetPath = cleanPath;
                         return;

@@ -88,6 +88,8 @@ namespace FastExplorer.Core
             [In] in Guid riid,
             out nint ppv);
 
+        public static string? ResolveShortcutTarget(string lnkPath) => ResolveShortcut(lnkPath);
+
         public static string? ResolveShortcut(string lnkPath)
         {
             if (string.IsNullOrEmpty(lnkPath)) return null;

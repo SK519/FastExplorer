@@ -310,7 +310,7 @@ namespace FastExplorer.Services
 
         private static bool InvokeShellVerbOnPath(string path, string verb)
         {
-            if (!ShellComHelper.TryGetContextMenuForPaths(nint.Zero, [path], out nint pContextMenu, out var pidlsToFree))
+            if (!ShellComHelper.TryGetContextMenuForPaths(nint.Zero, [path], out nint pContextMenu, out var comObjectsToRelease, out var pidlsToFree))
             {
                 return false;
             }
@@ -442,6 +442,7 @@ namespace FastExplorer.Services
             finally
             {
                 Win32Interop.NativeCom.Release(pContextMenu);
+                ShellComHelper.ReleaseComObjects(comObjectsToRelease);
                 ShellComHelper.FreePidls(pidlsToFree);
             }
         }

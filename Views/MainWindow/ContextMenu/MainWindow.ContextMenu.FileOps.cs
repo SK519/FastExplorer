@@ -269,11 +269,31 @@ namespace FastExplorer
             ItemContextMenu.Hide();
             if (item != null && !string.IsNullOrEmpty(item.FullPath))
             {
-                string path = item.FullPath;
-                string? folder = item.IsDirectory ? Path.GetDirectoryName(path.TrimEnd('\\', '/')) : Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
+                string targetPath = item.FullPath;
+                if (!string.IsNullOrEmpty(item.ShortcutPath))
                 {
-                    CurrentTab?.NavigateTo(folder);
+                    targetPath = item.ShortcutPath;
+                }
+                else if (item.Extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+                {
+                    string? resolved = Core.Win32Interop.ResolveShortcutTarget(item.FullPath);
+                    if (!string.IsNullOrEmpty(resolved))
+                    {
+                        targetPath = resolved;
+                    }
+                }
+
+                string? folder = Directory.Exists(targetPath)
+                    ? targetPath
+                    : Path.GetDirectoryName(targetPath.TrimEnd('\\', '/'));
+
+                if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder) && CurrentTab != null)
+                {
+                    if (!Directory.Exists(targetPath))
+                    {
+                        CurrentTab.PendingSelectedItemName = Path.GetFileName(targetPath.TrimEnd('\\', '/'));
+                    }
+                    CurrentTab.NavigateTo(folder);
                 }
             }
         }

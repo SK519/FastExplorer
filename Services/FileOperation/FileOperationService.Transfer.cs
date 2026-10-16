@@ -228,11 +228,17 @@ namespace FastExplorer.Services
                 {
                     try
                     {
-                        if (File.Exists(destPath) && !src.Equals(destPath, StringComparison.OrdinalIgnoreCase))
+                        if (src.Equals(destPath, StringComparison.OrdinalIgnoreCase))
                         {
-                            File.Delete(destPath);
+                            if (!string.Equals(src, destPath, StringComparison.Ordinal))
+                            {
+                                File.Move(src, destPath);
+                            }
                         }
-                        File.Move(src, destPath);
+                        else
+                        {
+                            File.Move(src, destPath, overwrite: true);
+                        }
                         Interlocked.Add(ref state.BytesTransferred, fileLength);
                         Interlocked.Increment(ref state.FilesTransferred);
                         state.UpdateSpeed();

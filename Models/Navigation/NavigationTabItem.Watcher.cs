@@ -18,9 +18,9 @@ namespace FastExplorer
                 RecycleBinService.IsRecycleBinPath(path) ||
                 path.StartsWith("shell:", StringComparison.OrdinalIgnoreCase) ||
                 path.StartsWith("::", StringComparison.OrdinalIgnoreCase) ||
-                // WSL UNC パスは FileSystemWatcher 非対応かつ Directory.Exists で数分ブロックするためスキップ
-                path.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase) ||
-                !Directory.Exists(path))
+                ArchiveService.IsSupportedArchive(path) ||
+                // WSL UNC パスは FileSystemWatcher 非対応のためスキップ
+                path.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase))
                 return;
 
             try
@@ -119,8 +119,11 @@ namespace FastExplorer
 
         public void Dispose()
         {
+            System.Threading.Interlocked.Increment(ref _loadGeneration);
             QuickAccessService.PinnedItemsChanged -= OnQuickAccessPinnedChanged;
             DisposeWatcher();
+            _allItems.Clear();
+            Items.Clear();
         }
     }
 }

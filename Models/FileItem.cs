@@ -15,7 +15,7 @@ namespace FastExplorer
         private string _glyphIcon = "\uE7C3";
         private string _name = string.Empty;
         private string _fullPath = string.Empty;
-        private long _sizeInBytes;
+        private long _sizeInBytes = -1;
         private string _formattedSize = string.Empty;
         private DateTime _dateModified;
         private string _formattedDateModified = "-";
@@ -87,13 +87,25 @@ namespace FastExplorer
         public string FormattedDateModified
         {
             get => _formattedDateModified;
-            private set => SetField(ref _formattedDateModified, value);
+            private set
+            {
+                if (SetField(ref _formattedDateModified, value))
+                {
+                    OnPropertyChanged(nameof(DisplayCol2Text));
+                }
+            }
         }
 
         public string FileType
         {
             get => _fileType;
-            set => SetField(ref _fileType, value);
+            set
+            {
+                if (SetField(ref _fileType, value))
+                {
+                    OnPropertyChanged(nameof(DisplayCol3Text));
+                }
+            }
         }
 
         public string OriginalLocation
@@ -206,6 +218,10 @@ namespace FastExplorer
                     }
                     else
                     {
+                        if (_sizeInBytes >= 0)
+                        {
+                            FormattedSize = FormatFileSize(_sizeInBytes);
+                        }
                         GlyphIcon = "\uE7C3";
                     }
                 }

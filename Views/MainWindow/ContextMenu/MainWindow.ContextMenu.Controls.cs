@@ -60,6 +60,11 @@ namespace FastExplorer
             };
 
             DispatcherTimer? timer = null;
+            container.Unloaded += (s, args) =>
+            {
+                timer?.Stop();
+                timer = null;
+            };
             double currentX = 0;
             double targetOverflow = 0;
             int direction = -1;

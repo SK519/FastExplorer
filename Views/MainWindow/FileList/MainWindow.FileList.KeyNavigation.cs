@@ -327,13 +327,31 @@ namespace FastExplorer
                 return;
             }
 
-            // 4. メディア機器・ネットワークデバイス・通常ファイルの起動
+            // 4. ショートカット (.lnk) のリンク先解決 (フォルダーへのショートカットならタブ内遷移)
+            if (item.Extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase))
+            {
+                string? resolvedTarget = Core.Win32Interop.ResolveShortcutTarget(item.FullPath);
+                if (!string.IsNullOrEmpty(resolvedTarget))
+                {
+                    if (Directory.Exists(resolvedTarget) || Services.QuickAccessService.IsWslPath(resolvedTarget) || Services.ArchiveService.IsSupportedArchive(resolvedTarget))
+                    {
+                        CurrentTab?.NavigateTo(resolvedTarget);
+                        return;
+                    }
+                }
+            }
+
+            // 5. 通常ファイルの起動
             LaunchFile(item.FullPath);
         }
 
         private static void LaunchFile(string filePath)
         {
-            Core.Win32Interop.RecordRecentDocument(filePath);
+            bool isLnk = filePath.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase);
+            if (!isLnk)
+            {
+                Core.Win32Interop.RecordRecentDocument(filePath);
+            }
 
             // シェル名前空間アイテム (::{...} や urn:uuid など) の PIDL 起動
             if (filePath.StartsWith("::") || filePath.StartsWith("shell:") || filePath.StartsWith("urn:"))
@@ -368,18 +386,21 @@ namespace FastExplorer
             }
 
             string? workingDir = null;
-            try
+            if (!isLnk)
             {
-                workingDir = Path.GetDirectoryName(filePath);
+                try
+                {
+                    workingDir = Path.GetDirectoryName(filePath);
+                }
+                catch { }
             }
-            catch { }
 
             try
             {
                 var pExecInfo = new Win32Interop.SHELLEXECUTEINFOW
                 {
                     cbSize = Marshal.SizeOf<Win32Interop.SHELLEXECUTEINFOW>(),
-                    lpVerb = "open",
+                    lpVerb = isLnk ? null : "open",
                     lpFile = filePath,
                     lpDirectory = workingDir,
                     nShow = Win32Interop.SW_SHOWNORMAL

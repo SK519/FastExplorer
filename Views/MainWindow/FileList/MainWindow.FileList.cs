@@ -264,14 +264,14 @@ namespace FastExplorer
                         {
                             if (_wasSelectedOnPointerPressed)
                             {
-                                // 既にチェックがついていたアイテムの行（名前・更新日時・種類・サイズ等）をクリックした場合はチェックを解除
-                                item.IsSelected = false;
-                                ActiveListControl?.SelectedItems?.Remove(item);
-                                UpdateSelectionVisuals();
+                                if (_selectionCountOnPointerPressed > 1)
+                                {
+                                    // 複数選択中にそのうちの1つをクリックした場合は、そのアイテムのみを単一選択
+                                    SelectSingleItem(item);
+                                }
                             }
                             else
                             {
-                                // チェックがついていなかったアイテムをクリックした場合はそのアイテムを選択
                                 SelectSingleItem(item);
                             }
                         }
@@ -309,14 +309,14 @@ namespace FastExplorer
                         {
                             if (_wasSelectedOnPointerPressed)
                             {
-                                // 既にチェックがついていたアイテムの行をクリックした場合はチェックを解除
-                                item.IsSelected = false;
-                                ActiveListControl?.SelectedItems?.Remove(item);
-                                UpdateSelectionVisuals();
+                                if (_selectionCountOnPointerPressed > 1)
+                                {
+                                    // 複数選択中にそのうちの1つをクリックした場合は、そのアイテムのみを単一選択
+                                    SelectSingleItem(item);
+                                }
                             }
                             else
                             {
-                                // チェックがついていなかったアイテムをクリックした場合はそのアイテムを選択
                                 SelectSingleItem(item);
                             }
                         }
@@ -425,12 +425,12 @@ namespace FastExplorer
                 {
                     if (!FileListView.SelectedItems.Contains(item))
                     {
-                        FileListView.SelectedItem = item;
+                        SelectSingleItem(item);
                     }
                 }
                 else
                 {
-                    FileListView.SelectedItems.Clear();
+                    ClearAllSelections();
                 }
                 UpdateActionToolbarButtons();
             }
@@ -445,12 +445,12 @@ namespace FastExplorer
                 {
                     if (!FileGridView.SelectedItems.Contains(item))
                     {
-                        FileGridView.SelectedItem = item;
+                        SelectSingleItem(item);
                     }
                 }
                 else
                 {
-                    FileGridView.SelectedItems.Clear();
+                    ClearAllSelections();
                 }
                 UpdateActionToolbarButtons();
             }

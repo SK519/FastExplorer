@@ -15,6 +15,7 @@ namespace FastExplorer.Services
         public nint PContextMenu2 { get; private set; }
         public nint PContextMenu3 { get; private set; }
         public List<nint> PidlsToFree { get; private set; } = new List<nint>();
+        public List<nint> ComObjectsToRelease { get; private set; } = new List<nint>();
         public List<ExtractedShellItem> ExtractedItems { get; } = new List<ExtractedShellItem>();
         public uint? ShareCommandId { get; private set; }
         private bool _configUpdated = false;
@@ -32,12 +33,13 @@ namespace FastExplorer.Services
 
             try
             {
-                if (!ShellComHelper.TryGetContextMenuForPaths(Hwnd, validPaths, out var pContextMenu, out var pidlsToFree))
+                if (!ShellComHelper.TryGetContextMenuForPaths(Hwnd, validPaths, out var pContextMenu, out var comObjectsToRelease, out var pidlsToFree))
                 {
                     return false;
                 }
 
                 PContextMenu = pContextMenu;
+                ComObjectsToRelease = comObjectsToRelease;
                 PidlsToFree = pidlsToFree;
 
                 Win32Interop.NativeCom.QueryInterface(PContextMenu, in Win32Interop.IID_IContextMenu3, out var pMenu3);
@@ -415,6 +417,8 @@ namespace FastExplorer.Services
                 Win32Interop.NativeCom.Release(PContextMenu);
                 PContextMenu = nint.Zero;
             }
+            ShellComHelper.ReleaseComObjects(ComObjectsToRelease);
+            ComObjectsToRelease.Clear();
             ShellComHelper.FreePidls(PidlsToFree);
             PidlsToFree.Clear();
         }

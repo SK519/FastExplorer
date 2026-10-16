@@ -53,10 +53,10 @@ static LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lP
             {
                 bool isLWinPhys = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0;
                 bool isRWinPhys = (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
-                bool isLWinSync = (GetKeyState(VK_LWIN) & 0x8000) != 0;
-                bool isRWinSync = (GetKeyState(VK_RWIN) & 0x8000) != 0;
+                if (!isLWinPhys) g_isLWinDown = false;
+                if (!isRWinPhys) g_isRWinDown = false;
 
-                bool isWinDown = g_isLWinDown || g_isRWinDown || (isLWinPhys && isLWinSync) || (isRWinPhys && isRWinSync);
+                bool isWinDown = (g_isLWinDown && isLWinPhys) || (g_isRWinDown && isRWinPhys) || isLWinPhys || isRWinPhys;
 
                 bool isCtrlDown = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
                 bool isAltDown = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;

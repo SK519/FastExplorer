@@ -21,7 +21,9 @@ namespace FastExplorer
         public void AddRange(IEnumerable<T> items)
         {
             if (items == null) throw new ArgumentNullException(nameof(items));
+            CheckReentrancy();
 
+            int initialCount = Items.Count;
             _suppressNotification = true;
             try
             {
@@ -33,21 +35,32 @@ namespace FastExplorer
             finally
             {
                 _suppressNotification = false;
-                OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
-                OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
-                OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+                if (Items.Count != initialCount)
+                {
+                    OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
+                    OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
+                    OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+                }
             }
         }
 
         public void ReplaceAll(IEnumerable<T> items)
         {
             if (items == null) throw new ArgumentNullException(nameof(items));
+            CheckReentrancy();
+
+            if (ReferenceEquals(items, this) || ReferenceEquals(items, Items))
+                return;
+
+            var itemList = items as IList<T> ?? new List<T>(items);
+            if (Items.Count == 0 && itemList.Count == 0)
+                return;
 
             _suppressNotification = true;
             try
             {
                 Items.Clear();
-                foreach (var item in items)
+                foreach (var item in itemList)
                 {
                     Items.Add(item);
                 }

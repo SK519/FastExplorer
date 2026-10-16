@@ -152,7 +152,8 @@ namespace FastExplorer
                 }
 
                 // ファイルの場所を開く (Home 画面またはショートカット所持アイテム)
-                if ((isHomeView || !string.IsNullOrEmpty(targetItem?.ShortcutPath)) && !string.IsNullOrEmpty(targetItem?.FullPath) && !targetItem.FullPath.Equals("Home", StringComparison.OrdinalIgnoreCase) && !targetItem.FullPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
+                bool isShortcutFile = targetItem != null && targetItem.Extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase);
+                if ((isHomeView || !string.IsNullOrEmpty(targetItem?.ShortcutPath) || isShortcutFile) && !string.IsNullOrEmpty(targetItem?.FullPath) && !targetItem.FullPath.Equals("Home", StringComparison.OrdinalIgnoreCase) && !targetItem.FullPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
                 {
                     standardItems.Add(CreateContextButton("\uED25", "ファイルの場所を開く", ContextMenuOpenFileLocation_Click, itemStyle));
                 }

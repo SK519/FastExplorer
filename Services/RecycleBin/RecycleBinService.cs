@@ -157,8 +157,14 @@ namespace FastExplorer.Services
                 string rFilePath = Path.Combine(dirName, rFileName);
 
                 bool isDir = Directory.Exists(rFilePath);
+                bool isFile = !isDir && File.Exists(rFilePath);
+                if (!isDir && !isFile)
+                {
+                    return null; // 実体が存在しない孤立した $I メタデータはスキップ
+                }
+
                 long actualSize = originalSize;
-                if (File.Exists(rFilePath))
+                if (isFile)
                 {
                     try { actualSize = new FileInfo(rFilePath).Length; } catch { }
                 }
@@ -255,13 +261,6 @@ namespace FastExplorer.Services
                     string fileName = Path.GetFileName(path);
                     if (fileName.StartsWith("$R", StringComparison.OrdinalIgnoreCase))
                     {
-                        string iFileName = "$I" + fileName.Substring(2);
-                        string iFilePath = Path.Combine(dir, iFileName);
-                        if (File.Exists(iFilePath))
-                        {
-                            try { File.Delete(iFilePath); } catch { }
-                        }
-
                         if (Directory.Exists(path))
                         {
                             Directory.Delete(path, recursive: true);
@@ -269,6 +268,13 @@ namespace FastExplorer.Services
                         else if (File.Exists(path))
                         {
                             File.Delete(path);
+                        }
+
+                        string iFileName = "$I" + fileName.Substring(2);
+                        string iFilePath = Path.Combine(dir, iFileName);
+                        if (File.Exists(iFilePath))
+                        {
+                            try { File.Delete(iFilePath); } catch { }
                         }
                     }
                 }
