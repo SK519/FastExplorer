@@ -60,8 +60,11 @@ namespace FastExplorer.Models
             // parts: ["wsl.localhost"] → ルートのみ → false
             if (parts.Length < 2) return false;
 
-            // parts: ["wsl.localhost", "Ubuntu"] or ["wsl.localhost", "Ubuntu", "home", ...]
             distroName = parts[1];
+            if (string.IsNullOrWhiteSpace(distroName) || distroName.StartsWith('-') || distroName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                return false;
+            }
 
             if (parts.Length == 2)
             {
@@ -159,9 +162,12 @@ namespace FastExplorer.Models
 
             try
             {
-                // wsl.exe -d Ubuntu -e ls -la1 --time-style=long-iso /home
-                string args = $"-d {distro} -e ls -la1 --time-style=long-iso \"{linuxPath}\"";
-                var psi = new ProcessStartInfo("wsl.exe", args)
+                if (string.IsNullOrWhiteSpace(distro) || distro.StartsWith('-') || distro.Contains('\0'))
+                {
+                    return items;
+                }
+
+                var psi = new ProcessStartInfo("wsl.exe")
                 {
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -169,6 +175,14 @@ namespace FastExplorer.Models
                     CreateNoWindow = true,
                     StandardOutputEncoding = new UTF8Encoding(false)
                 };
+                psi.ArgumentList.Add("-d");
+                psi.ArgumentList.Add(distro);
+                psi.ArgumentList.Add("-e");
+                psi.ArgumentList.Add("ls");
+                psi.ArgumentList.Add("-la1");
+                psi.ArgumentList.Add("--time-style=long-iso");
+                psi.ArgumentList.Add("--");
+                psi.ArgumentList.Add(linuxPath);
 
                 using var proc = Process.Start(psi);
                 if (proc == null) return items;

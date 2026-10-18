@@ -30,6 +30,7 @@ namespace FastExplorer
         public string SignerName { get; set; } = string.Empty;
         public string DigestAlgorithm { get; set; } = string.Empty;
         public string Timestamp { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
     }
 
     public class FileDetailProperty

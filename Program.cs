@@ -76,16 +76,19 @@ namespace FastExplorer
                             PipeDirection.In,
                             NamedPipeServerStream.MaxAllowedServerInstances,
                             PipeTransmissionMode.Byte,
-                            PipeOptions.Asynchronous);
+                            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
                         await server.WaitForConnectionAsync();
 
                         using var reader = new StreamReader(server, Encoding.UTF8);
                         var receivedLines = new System.Collections.Generic.List<string>();
                         string? line;
+                        int lineCount = 0;
                         while ((line = await reader.ReadLineAsync()) != null)
                         {
+                            if (line.Length > 4096) line = line[..4096];
                             receivedLines.Add(line);
+                            if (++lineCount >= 50) break;
                         }
 
                         if (receivedLines.Count > 0)

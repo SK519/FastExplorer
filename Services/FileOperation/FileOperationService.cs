@@ -430,16 +430,47 @@ namespace FastExplorer.Services
 
         #region Open With
 
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct OPENASINFO
+        {
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string pcszFile;
+            [MarshalAs(UnmanagedType.LPWStr)]
+            public string? pcszClass;
+            public uint oaifInFlags;
+        }
+
+        [DllImport("shell32.dll", EntryPoint = "SHOpenWithDialog", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern int SHOpenWithDialog(nint hwnd, ref OPENASINFO poaInfo);
+
         public static void OpenWithDialog(string filePath)
         {
             if (!File.Exists(filePath)) return;
 
             try
             {
+                var info = new OPENASINFO
+                {
+                    pcszFile = filePath,
+                    pcszClass = null,
+                    oaifInFlags = 0x00000004 | 0x00000001 // OAIF_EXEC | OAIF_ALLOW_REGISTRATION
+                };
+
+                int hr = SHOpenWithDialog(nint.Zero, ref info);
+                if (hr == 0) return;
+            }
+            catch
+            {
+                // SHOpenWithDialog not available or error, fall through to fallback
+            }
+
+            try
+            {
+                string safePath = filePath.EndsWith('\\') ? $"\"{filePath}\\\"" : $"\"{filePath}\"";
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = "rundll32.exe",
-                    Arguments = $"shell32.dll,OpenAs_RunDLL {filePath}",
+                    Arguments = $"shell32.dll,OpenAs_RunDLL {safePath}",
                     UseShellExecute = true
                 });
             }

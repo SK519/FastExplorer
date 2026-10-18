@@ -332,7 +332,7 @@ namespace FastExplorer.Services
   </Settings>
   <Actions Context=""Author"">
     <Exec>
-      <Command>{watcherExe}</Command>
+      <Command>{System.Security.SecurityElement.Escape(watcherExe)}</Command>
     </Exec>
   </Actions>
 </Task>";
@@ -342,10 +342,16 @@ namespace FastExplorer.Services
                     var psi = new ProcessStartInfo
                     {
                         FileName = "schtasks.exe",
-                        Arguments = $"/create /tn \"{taskName}\" /xml \"{tempXml}\" /f",
                         CreateNoWindow = true,
                         UseShellExecute = false
                     };
+                    psi.ArgumentList.Add("/create");
+                    psi.ArgumentList.Add("/tn");
+                    psi.ArgumentList.Add(taskName);
+                    psi.ArgumentList.Add("/xml");
+                    psi.ArgumentList.Add(tempXml);
+                    psi.ArgumentList.Add("/f");
+
                     using var proc = Process.Start(psi);
                     proc?.WaitForExit(3000);
 
@@ -379,10 +385,14 @@ namespace FastExplorer.Services
                     var psi = new ProcessStartInfo
                     {
                         FileName = "schtasks.exe",
-                        Arguments = $"/delete /tn \"{taskName}\" /f",
                         CreateNoWindow = true,
                         UseShellExecute = false
                     };
+                    psi.ArgumentList.Add("/delete");
+                    psi.ArgumentList.Add("/tn");
+                    psi.ArgumentList.Add(taskName);
+                    psi.ArgumentList.Add("/f");
+
                     using var proc = Process.Start(psi);
                     proc?.WaitForExit(3000);
                     return proc?.ExitCode == 0;
@@ -412,17 +422,11 @@ namespace FastExplorer.Services
                 if (enable)
                 {
                     string watcherExe = GetWatcherExecutablePath();
-                    string psCommand = $"$ws = New-Object -ComObject WScript.Shell; $s = $ws.CreateShortcut('{shortcutPath}'); $s.TargetPath = '{watcherExe}'; $s.IconLocation = '{watcherExe},0'; $s.Save()";
-                    var psi = new ProcessStartInfo
+                    if (CreateShortcutCom(shortcutPath, watcherExe, $"{watcherExe},0"))
                     {
-                        FileName = "powershell.exe",
-                        Arguments = $"-NoProfile -NonInteractive -Command \"{psCommand}\"",
-                        CreateNoWindow = true,
-                        UseShellExecute = false
-                    };
-                    using var proc = Process.Start(psi);
-                    proc?.WaitForExit(3000);
-                    return File.Exists(shortcutPath);
+                        return File.Exists(shortcutPath);
+                    }
+                    return false;
                 }
                 else
                 {
@@ -436,6 +440,46 @@ namespace FastExplorer.Services
             catch (Exception ex)
             {
                 Debug.WriteLine($"[SystemIntegration] SetStartupFolderShortcut error: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static bool CreateShortcutCom(string shortcutPath, string targetPath, string? iconLocation = null)
+        {
+            try
+            {
+                Type? shellType = Type.GetTypeFromProgID("WScript.Shell");
+                if (shellType == null) return false;
+
+                dynamic? shell = Activator.CreateInstance(shellType);
+                if (shell == null) return false;
+
+                try
+                {
+                    dynamic shortcut = shell.CreateShortcut(shortcutPath);
+                    try
+                    {
+                        shortcut.TargetPath = targetPath;
+                        if (!string.IsNullOrEmpty(iconLocation))
+                        {
+                            shortcut.IconLocation = iconLocation;
+                        }
+                        shortcut.Save();
+                        return true;
+                    }
+                    finally
+                    {
+                        Marshal.FinalReleaseComObject(shortcut);
+                    }
+                }
+                finally
+                {
+                    Marshal.FinalReleaseComObject(shell);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SystemIntegration] CreateShortcutCom error: {ex.Message}");
                 return false;
             }
         }

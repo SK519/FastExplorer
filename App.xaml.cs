@@ -51,7 +51,23 @@ namespace FastExplorer
                 catch { }
             };
 
+            AppDomain.CurrentDomain.ProcessExit += (s, e) => CleanTempFiles();
+
+            CleanTempFiles();
             InitializeComponent();
+        }
+
+        private static void CleanTempFiles()
+        {
+            try
+            {
+                string archiveTemp = Path.Combine(Path.GetTempPath(), "FastExplorer", "ArchiveExtract");
+                if (Directory.Exists(archiveTemp))
+                {
+                    Directory.Delete(archiveTemp, true);
+                }
+            }
+            catch { }
         }
 
         private static Microsoft.UI.Dispatching.DispatcherQueue? _appDispatcherQueue;

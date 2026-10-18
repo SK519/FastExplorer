@@ -447,9 +447,15 @@ namespace FastExplorer.Services
                             if (string.IsNullOrEmpty(entry.Key)) continue;
 
                             string relativePath = entry.Key.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
+                            if (relativePath.Contains(':')) continue;
                             string destinationPath = Path.GetFullPath(Path.Combine(targetDir, relativePath));
                             string fullTarget = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
                             if (!destinationPath.StartsWith(fullTarget, StringComparison.OrdinalIgnoreCase))
+                            {
+                                continue;
+                            }
+
+                            if (File.Exists(destinationPath) && (File.GetAttributes(destinationPath) & FileAttributes.ReparsePoint) != 0)
                             {
                                 continue;
                             }
@@ -574,9 +580,15 @@ namespace FastExplorer.Services
                                 }
 
                                 string relativePath = entry.FullName.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
+                                if (relativePath.Contains(':')) continue;
                                 string destinationPath = Path.GetFullPath(Path.Combine(targetDir, relativePath));
                                 string fullTarget = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
                                 if (!destinationPath.StartsWith(fullTarget, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    continue;
+                                }
+
+                                if (File.Exists(destinationPath) && (File.GetAttributes(destinationPath) & FileAttributes.ReparsePoint) != 0)
                                 {
                                     continue;
                                 }

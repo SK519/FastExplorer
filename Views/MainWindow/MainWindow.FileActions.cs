@@ -174,11 +174,14 @@ namespace FastExplorer
             ActiveListControl?.Focus(FocusState.Programmatic);
         }
 
-        private void CommitRename(FileItem item, string newName)
+        private void CommitRename(FileItem item, string? newName)
         {
             _isRenameImeComposing = false;
             _lastRenameCommittedTimestamp = Stopwatch.GetTimestamp();
-            if (string.IsNullOrWhiteSpace(newName) || newName == item.Name)
+            string trimmedNewName = newName?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(trimmedNewName) || trimmedNewName == item.Name ||
+                trimmedNewName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                trimmedNewName.Contains('/') || trimmedNewName.Contains('\\') || trimmedNewName.Contains(".."))
             {
                 item.RenameText = item.Name;
                 item.IsRenaming = false;
@@ -189,7 +192,7 @@ namespace FastExplorer
             try
             {
                 string dir = Path.GetDirectoryName(item.FullPath) ?? "";
-                string newPath = Path.Combine(dir, newName);
+                string newPath = Path.Combine(dir, trimmedNewName);
 
                 if (item.IsDirectory)
                 {
@@ -200,7 +203,7 @@ namespace FastExplorer
                     File.Move(item.FullPath, newPath);
                 }
 
-                item.Name = newName;
+                item.Name = trimmedNewName;
                 item.FullPath = newPath;
                 item.IsRenaming = false;
                 ActiveListControl?.Focus(FocusState.Programmatic);

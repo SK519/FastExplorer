@@ -73,9 +73,19 @@ namespace FastExplorer.Services.Update
                 return info;
             }
 
+            // オーナー名・リポジトリ名の安全なバリデーション (英数字、ハイフン、アンダースコア、ドットのみ許可)
+            if (!System.Text.RegularExpressions.Regex.IsMatch(owner, @"^[a-zA-Z0-9_\-\.]+$") ||
+                !System.Text.RegularExpressions.Regex.IsMatch(repo, @"^[a-zA-Z0-9_\-\.]+$"))
+            {
+                info.ErrorMessage = "リポジトリの指定形式が不正です。";
+                return info;
+            }
+
             try
             {
-                var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{owner}/{repo}/releases/latest");
+                string safeOwner = Uri.EscapeDataString(owner);
+                string safeRepo = Uri.EscapeDataString(repo);
+                var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{safeOwner}/{safeRepo}/releases/latest");
                 request.Headers.UserAgent.Add(new ProductInfoHeaderValue("FastExplorer-App", info.CurrentVersion));
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github.v3+json"));
 
@@ -138,20 +148,22 @@ namespace FastExplorer.Services.Update
         {
             if (string.IsNullOrEmpty(downloadUrl)) return null;
 
+            // ダウンロードURLの安全性検証 (HTTPS かつ GitHub 公式ドメインのみ許可)
+            if (!Uri.TryCreate(downloadUrl, UriKind.Absolute, out var uri) ||
+                uri.Scheme != Uri.UriSchemeHttps ||
+                !(uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) ||
+                  uri.Host.EndsWith(".github.com", StringComparison.OrdinalIgnoreCase) ||
+                  uri.Host.EndsWith(".githubusercontent.com", StringComparison.OrdinalIgnoreCase)))
+            {
+                Debug.WriteLine($"[Update] Security alert: Blocked untrusted download URL: {downloadUrl}");
+                return null;
+            }
+
             try
             {
-                string tempPath = Path.Combine(Path.GetTempPath(), "FastExplorer_Setup.exe");
-                try
-                {
-                    if (File.Exists(tempPath))
-                    {
-                        File.Delete(tempPath);
-                    }
-                }
-                catch
-                {
-                    tempPath = Path.Combine(Path.GetTempPath(), $"FastExplorer_Setup_{Guid.NewGuid():N}.exe");
-                }
+                string updateDir = Path.Combine(Path.GetTempPath(), "FastExplorer", "Updates");
+                Directory.CreateDirectory(updateDir);
+                string tempPath = Path.Combine(updateDir, $"FastExplorer_Setup_{Guid.NewGuid():N}.exe");
 
                 using (var response = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken))
                 {
@@ -159,7 +171,7 @@ namespace FastExplorer.Services.Update
 
                     var totalBytes = response.Content.Headers.ContentLength ?? -1L;
                     using (var stream = await response.Content.ReadAsStreamAsync(cancellationToken))
-                    using (var fileStream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
+                    using (var fileStream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 8192, true))
                     {
                         var buffer = new byte[8192];
                         long totalRead = 0;
@@ -202,6 +214,15 @@ namespace FastExplorer.Services.Update
         {
             var path = installerPath ?? DownloadedInstallerPath;
             if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+
+            // インストーラの完全性・署名検証
+            var verifyResult = FastExplorer.Core.AuthenticodeVerifier.VerifyFile(path, out var statusDesc);
+            if (verifyResult == FastExplorer.Core.SignatureVerificationResult.Tampered ||
+                verifyResult == FastExplorer.Core.SignatureVerificationResult.ExplicitlyDistrusted)
+            {
+                Debug.WriteLine($"[Update] Security alert: Installer signature verification failed ({statusDesc})! Launch aborted.");
+                return;
+            }
 
             try
             {

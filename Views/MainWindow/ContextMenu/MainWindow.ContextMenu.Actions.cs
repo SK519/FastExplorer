@@ -132,7 +132,7 @@ namespace FastExplorer
             var editor = ConfigService.Current.Editor;
             try
             {
-                string args = string.Join(" ", editor.Args.Select(a => a.Replace("{filePath}", $"\"{item.FullPath}\"")));
+                string args = string.Join(" ", editor.Args.Select(a => a.Replace("{filePath}", QuoteArgument(item.FullPath))));
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = editor.Path,
@@ -142,8 +142,18 @@ namespace FastExplorer
             }
             catch
             {
-                Process.Start(new ProcessStartInfo("notepad.exe", $"\"{item.FullPath}\"") { UseShellExecute = true });
+                Process.Start(new ProcessStartInfo("notepad.exe", QuoteArgument(item.FullPath)) { UseShellExecute = true });
             }
+        }
+
+        private static string QuoteArgument(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return "\"\"";
+            if (path.EndsWith('\\'))
+            {
+                return $"\"{path}\\\"";
+            }
+            return $"\"{path}\"";
         }
 
         private void ContextMenuTerminal_Click(object sender, RoutedEventArgs e)
@@ -164,7 +174,7 @@ namespace FastExplorer
             var terminal = ConfigService.Current.Terminal;
             try
             {
-                string args = string.Join(" ", terminal.Args.Select(a => a.Replace("{dirPath}", $"\"{targetDir}\"")));
+                string args = string.Join(" ", terminal.Args.Select(a => a.Replace("{dirPath}", QuoteArgument(targetDir))));
                 Process.Start(new ProcessStartInfo
                 {
                     FileName = terminal.Path,

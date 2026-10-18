@@ -462,6 +462,11 @@ namespace FastExplorer
                 if (ShowNameTextBox && !string.IsNullOrWhiteSpace(Name) && Name != _originalName)
                 {
                     string trimmedName = Name.Trim();
+                    if (trimmedName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
+                        trimmedName.Contains('/') || trimmedName.Contains('\\') || trimmedName.Contains(".."))
+                    {
+                        return false;
+                    }
                     string dir = Location;
                     if (string.IsNullOrEmpty(dir) && !string.IsNullOrEmpty(FullPath))
                     {

@@ -147,8 +147,10 @@ namespace FastExplorer.Services
                 }
 
                 if (string.IsNullOrWhiteSpace(originalPath)) return null;
+                if (!Path.IsPathRooted(originalPath) || originalPath.Contains("..")) return null;
 
                 string fileName = Path.GetFileName(originalPath);
+                if (string.IsNullOrEmpty(fileName) || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return null;
                 string originalDir = Path.GetDirectoryName(originalPath) ?? string.Empty;
 
                 // 対応する $R ファイル (実体)
@@ -225,11 +227,32 @@ namespace FastExplorer.Services
 
                                 if (Directory.Exists(path))
                                 {
+                                    if (Directory.Exists(targetPath))
+                                    {
+                                        int c = 2;
+                                        string originalTarget = targetPath;
+                                        while (Directory.Exists(targetPath))
+                                        {
+                                            targetPath = $"{originalTarget} ({c})";
+                                            c++;
+                                        }
+                                    }
                                     Directory.Move(path, targetPath);
                                 }
                                 else if (File.Exists(path))
                                 {
-                                    File.Move(path, targetPath, overwrite: true);
+                                    if (File.Exists(targetPath))
+                                    {
+                                        string nameWithoutExt = Path.GetFileNameWithoutExtension(parsed.Name);
+                                        string ext = Path.GetExtension(parsed.Name);
+                                        int c = 2;
+                                        while (File.Exists(targetPath))
+                                        {
+                                            targetPath = Path.Combine(targetDir, $"{nameWithoutExt} ({c}){ext}");
+                                            c++;
+                                        }
+                                    }
+                                    File.Move(path, targetPath);
                                 }
 
                                 try { File.Delete(iFilePath); } catch { }

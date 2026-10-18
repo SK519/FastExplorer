@@ -183,6 +183,8 @@ namespace FastExplorer.Services
                 {
                     if (string.IsNullOrEmpty(entry.Key)) continue;
                     string key = entry.Key.Replace('\\', '/').TrimStart('/');
+                    string[] segments = key.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    if (segments.Any(s => s == ".." || s == "." || s.Contains(':'))) continue;
 
                     if (string.IsNullOrEmpty(normalizedPrefix))
                     {
@@ -261,6 +263,8 @@ namespace FastExplorer.Services
                         foreach (var entry in zip.Entries)
                         {
                             string key = entry.FullName.Replace('\\', '/').TrimStart('/');
+                            string[] segments = key.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                            if (segments.Any(s => s == ".." || s == "." || s.Contains(':'))) continue;
                             if (string.IsNullOrEmpty(normalizedPrefix))
                             {
                                 int slashIndex = key.IndexOf('/');
@@ -362,17 +366,30 @@ namespace FastExplorer.Services
         /// </summary>
         public static async Task<string?> ExtractEntryToTempAsync(string archiveFile, string entryKey)
         {
-            if (!File.Exists(archiveFile)) return null;
+            if (!File.Exists(archiveFile) || string.IsNullOrWhiteSpace(entryKey)) return null;
 
             return await Task.Run(() =>
             {
                 try
                 {
+                    string normalizedKey = entryKey.Replace('\\', '/').TrimStart('/');
+                    string[] segments = normalizedKey.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    if (segments.Any(s => s == ".." || s == "." || s.Contains(':')))
+                    {
+                        return null;
+                    }
+
+                    string fileName = Path.GetFileName(normalizedKey);
+                    if (string.IsNullOrEmpty(fileName) || fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                    {
+                        return null;
+                    }
+
                     string tempDir = Path.Combine(Path.GetTempPath(), "FastExplorer", "ArchiveExtract", Path.GetFileNameWithoutExtension(archiveFile));
                     Directory.CreateDirectory(tempDir);
+                    string destPath = Path.Combine(tempDir, fileName);
 
-                    string normalizedKey = entryKey.Replace('\\', '/').TrimStart('/');
-                    string destPath = Path.Combine(tempDir, Path.GetFileName(normalizedKey));
+                    const long MaxTempExtractionBytes = 250 * 1024 * 1024; // 250MB 安全上限
 
                     var readerOptions = new ReaderOptions
                     {
@@ -383,9 +400,25 @@ namespace FastExplorer.Services
                     var entry = archive.Entries.FirstOrDefault(e => e.Key?.Replace('\\', '/').TrimStart('/').Equals(normalizedKey, StringComparison.OrdinalIgnoreCase) == true);
                     if (entry != null)
                     {
+                        if (entry.Size > MaxTempExtractionBytes)
+                        {
+                            throw new InvalidOperationException("展開サイズが安全上限(250MB)を超過しています。");
+                        }
+
                         using var entryStream = entry.OpenEntryStream();
                         using var outStream = File.Create(destPath);
-                        entryStream.CopyTo(outStream);
+                        byte[] buffer = new byte[8192];
+                        long totalRead = 0;
+                        int read;
+                        while ((read = entryStream.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            totalRead += read;
+                            if (totalRead > MaxTempExtractionBytes)
+                            {
+                                throw new InvalidOperationException("展開サイズが安全上限(250MB)を超過しました。");
+                            }
+                            outStream.Write(buffer, 0, read);
+                        }
                         return destPath;
                     }
 
@@ -396,7 +429,25 @@ namespace FastExplorer.Services
                         var zipEntry = zip.Entries.FirstOrDefault(e => e.FullName.Replace('\\', '/').TrimStart('/').Equals(normalizedKey, StringComparison.OrdinalIgnoreCase) == true);
                         if (zipEntry != null)
                         {
-                            zipEntry.ExtractToFile(destPath, overwrite: true);
+                            if (zipEntry.Length > MaxTempExtractionBytes)
+                            {
+                                throw new InvalidOperationException("展開サイズが安全上限(250MB)を超過しています。");
+                            }
+
+                            using var entryStream = zipEntry.Open();
+                            using var outStream = File.Create(destPath);
+                            byte[] buffer = new byte[8192];
+                            long totalRead = 0;
+                            int read;
+                            while ((read = entryStream.Read(buffer, 0, buffer.Length)) > 0)
+                            {
+                                totalRead += read;
+                                if (totalRead > MaxTempExtractionBytes)
+                                {
+                                    throw new InvalidOperationException("展開サイズが安全上限(250MB)を超過しました。");
+                                }
+                                outStream.Write(buffer, 0, read);
+                            }
                             return destPath;
                         }
                     }

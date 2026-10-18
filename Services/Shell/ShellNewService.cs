@@ -331,23 +331,9 @@ namespace FastExplorer.Services
 
                 if (!string.IsNullOrEmpty(template.Command))
                 {
-                    try
+                    if (ExecuteShellNewCommand(template.Command, targetPath))
                     {
-                        string cmd = template.Command.Replace("%1", targetPath);
-                        var psi = new ProcessStartInfo
-                        {
-                            FileName = "cmd.exe",
-                            Arguments = $"/c \"{cmd}\"",
-                            CreateNoWindow = true,
-                            UseShellExecute = false
-                        };
-                        using var proc = Process.Start(psi);
-                        proc?.WaitForExit(4000);
-                        if (File.Exists(targetPath)) return targetPath;
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"[ShellNew] Command execution error: {ex.Message}");
+                        return targetPath;
                     }
                 }
 
@@ -391,6 +377,79 @@ namespace FastExplorer.Services
                 dest = Path.Combine(dir, newName);
                 if (!File.Exists(dest) && !Directory.Exists(dest)) return dest;
                 counter++;
+            }
+        }
+
+        private static bool ExecuteShellNewCommand(string command, string targetPath)
+        {
+            try
+            {
+                string trimmed = command.Trim();
+                if (string.IsNullOrEmpty(trimmed)) return false;
+
+                string exe;
+                string argsTemplate;
+
+                if (trimmed.StartsWith('"'))
+                {
+                    int closeQuote = trimmed.IndexOf('"', 1);
+                    if (closeQuote > 1)
+                    {
+                        exe = trimmed.Substring(1, closeQuote - 1);
+                        argsTemplate = trimmed.Substring(closeQuote + 1).TrimStart();
+                    }
+                    else
+                    {
+                        exe = trimmed.Trim('"');
+                        argsTemplate = string.Empty;
+                    }
+                }
+                else
+                {
+                    int spaceIdx = trimmed.IndexOf(' ');
+                    if (spaceIdx > 0)
+                    {
+                        exe = trimmed.Substring(0, spaceIdx);
+                        argsTemplate = trimmed.Substring(spaceIdx + 1).TrimStart();
+                    }
+                    else
+                    {
+                        exe = trimmed;
+                        argsTemplate = string.Empty;
+                    }
+                }
+
+                string safeTarget = targetPath.Replace("\"", "");
+                string args;
+                if (argsTemplate.Contains("\"%1\""))
+                {
+                    args = argsTemplate.Replace("\"%1\"", $"\"{safeTarget}\"");
+                }
+                else if (argsTemplate.Contains("%1"))
+                {
+                    args = argsTemplate.Replace("%1", $"\"{safeTarget}\"");
+                }
+                else
+                {
+                    args = string.IsNullOrWhiteSpace(argsTemplate) ? $"\"{safeTarget}\"" : $"{argsTemplate} \"{safeTarget}\"";
+                }
+
+                var psi = new ProcessStartInfo
+                {
+                    FileName = exe,
+                    Arguments = args,
+                    CreateNoWindow = true,
+                    UseShellExecute = true
+                };
+
+                using var proc = Process.Start(psi);
+                proc?.WaitForExit(4000);
+                return File.Exists(targetPath);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ShellNew] Command execution error: {ex.Message}");
+                return false;
             }
         }
     }

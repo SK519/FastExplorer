@@ -263,12 +263,14 @@
                                     <Grid ColumnSpacing="8" Padding="8,6" Background="{ThemeResource SolidBackgroundFillColorSecondaryBrush}">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="100"/>
+                                            <ColumnDefinition Width="90"/>
                                             <ColumnDefinition Width="130"/>
+                                            <ColumnDefinition Width="160"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="署名者名" FontWeight="SemiBold" FontSize="11.5"/>
                                         <TextBlock Grid.Column="1" Text="ダイジェスト" FontWeight="SemiBold" FontSize="11.5"/>
                                         <TextBlock Grid.Column="2" Text="タイムスタンプ" FontWeight="SemiBold" FontSize="11.5"/>
+                                        <TextBlock Grid.Column="3" Text="検証状態" FontWeight="SemiBold" FontSize="11.5"/>
                                     </Grid>
                                 </DataTemplate>
                             </ListView.HeaderTemplate>
@@ -277,12 +279,14 @@
                                     <Grid ColumnSpacing="8" Padding="8,6">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="100"/>
+                                            <ColumnDefinition Width="90"/>
                                             <ColumnDefinition Width="130"/>
+                                            <ColumnDefinition Width="160"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Text="{x:Bind SignerName}" FontSize="12" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
                                         <TextBlock Grid.Column="1" Text="{x:Bind DigestAlgorithm}" FontSize="12"/>
                                         <TextBlock Grid.Column="2" Text="{x:Bind Timestamp}" FontSize="12"/>
+                                        <TextBlock Grid.Column="3" Text="{x:Bind Status}" FontSize="11.5" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
                                     </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>

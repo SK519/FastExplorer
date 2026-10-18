@@ -104,20 +104,25 @@ namespace FastExplorer
                     string.Equals(ext, ".msi", StringComparison.OrdinalIgnoreCase) ||
                     string.Equals(ext, ".cat", StringComparison.OrdinalIgnoreCase))
                 {
-#pragma warning disable SYSLIB0057
-                    var cert = System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(filePath);
-#pragma warning restore SYSLIB0057
-                    var cert2 = new System.Security.Cryptography.X509Certificates.X509Certificate2(cert);
-
-                    string signer = cert2.GetNameInfo(System.Security.Cryptography.X509Certificates.X509NameType.SimpleName, false) ?? cert2.Subject;
-                    string algo = cert2.SignatureAlgorithm.FriendlyName ?? cert2.SignatureAlgorithm.Value ?? "SHA256";
-
-                    DigitalSignatures.Add(new DigitalSignatureItem
+                    var verifyResult = FastExplorer.Core.AuthenticodeVerifier.VerifyFile(filePath, out var statusDesc);
+                    if (verifyResult != FastExplorer.Core.SignatureVerificationResult.NotSigned)
                     {
-                        SignerName = signer,
-                        DigestAlgorithm = algo,
-                        Timestamp = cert2.NotBefore.ToString("yyyy'年'M'月'd'日' HH:mm:ss")
-                    });
+#pragma warning disable SYSLIB0057
+                        var cert = System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(filePath);
+#pragma warning restore SYSLIB0057
+                        var cert2 = new System.Security.Cryptography.X509Certificates.X509Certificate2(cert);
+
+                        string signer = cert2.GetNameInfo(System.Security.Cryptography.X509Certificates.X509NameType.SimpleName, false) ?? cert2.Subject;
+                        string algo = cert2.SignatureAlgorithm.FriendlyName ?? cert2.SignatureAlgorithm.Value ?? "SHA256";
+
+                        DigitalSignatures.Add(new DigitalSignatureItem
+                        {
+                            SignerName = signer,
+                            DigestAlgorithm = algo,
+                            Timestamp = cert2.NotBefore.ToString("yyyy'年'M'月'd'日' HH:mm:ss"),
+                            Status = statusDesc
+                        });
+                    }
                 }
             }
             catch
