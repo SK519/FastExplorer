@@ -71,18 +71,14 @@ namespace FastExplorer
             }
         }
 
+
         private List<FileItem> GetContextTargetItems()
         {
             if (_contextTargetItemsOverride != null && _contextTargetItemsOverride.Count > 0)
             {
                 return _contextTargetItemsOverride;
             }
-            if (CurrentTab?.Items != null)
-            {
-                var selected = CurrentTab.Items.Where(i => i.IsSelected).ToList();
-                if (selected.Count > 0) return selected;
-            }
-            return ActiveListControl?.SelectedItems?.OfType<FileItem>().ToList() ?? [];
+            return GetCurrentlySelectedItems();
         }
 
         private FileItem? GetContextTargetItem()
