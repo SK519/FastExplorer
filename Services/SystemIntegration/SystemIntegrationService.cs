@@ -51,6 +51,10 @@ namespace FastExplorer.Services
                     ConfigService.Current.SystemIntegration.DisableCopilotKey,
                     ConfigService.Current.SystemIntegration.DisableCapsLockKey
                 );
+                if (ConfigService.Current.SystemIntegration.DisableCapsLockKey)
+                {
+                    EnsureCapsLockOff();
+                }
                 if (ConfigService.Current.SystemIntegration.ReplaceDefaultExplorer)
                 {
                     SetAsDefaultExplorer(true);
@@ -59,6 +63,22 @@ namespace FastExplorer.Services
             catch (Exception ex)
             {
                 Debug.WriteLine($"[SystemIntegration] EnsureDefaultExplorerIntegration error: {ex.Message}");
+            }
+        }
+
+        public static void EnsureCapsLockOff()
+        {
+            try
+            {
+                if ((Win32Interop.GetKeyState(0x14) & 0x0001) != 0)
+                {
+                    Win32Interop.keybd_event(0x14, 0x3A, 0, 0);
+                    Win32Interop.keybd_event(0x14, 0x3A, 2 /* KEYEVENTF_KEYUP */, 0);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[SystemIntegration] EnsureCapsLockOff error: {ex.Message}");
             }
         }
 
@@ -71,6 +91,11 @@ namespace FastExplorer.Services
                 {
                     appKey.SetValue("DisableCopilotKey", disableCopilot ? 1 : 0, RegistryValueKind.DWord);
                     appKey.SetValue("DisableCapsLockKey", disableCapsLock ? 1 : 0, RegistryValueKind.DWord);
+                }
+
+                if (disableCapsLock)
+                {
+                    EnsureCapsLockOff();
                 }
             }
             catch (Exception ex)

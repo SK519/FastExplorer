@@ -39,6 +39,9 @@ namespace FastExplorer.Core
         [DllImport("user32.dll")]
         public static extern nint CallNextHookEx(nint hhk, int nCode, nuint wParam, nint lParam);
 
+        [DllImport("user32.dll")]
+        public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, nuint dwExtraInfo);
+
         public delegate nint SUBCLASSPROC(nint hWnd, uint uMsg, nuint wParam, nint lParam, nuint uIdSubclass, nuint dwRefData);
 
         [DllImport("comctl32.dll", SetLastError = true)]
