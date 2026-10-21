@@ -152,6 +152,11 @@ if ($Release) {
 
     $tag = "v$CleanVersion"
     $relTitle = if (-not [string]::IsNullOrWhiteSpace($Title)) { $Title } else { "FastExplorer $tag" }
+    
+    $notesFile = "$ProjectDir\release_notes_v$CleanVersion.md"
+    if ([string]::IsNullOrWhiteSpace($Notes) -and (Test-Path $notesFile)) {
+        $Notes = Get-Content -Raw $notesFile
+    }
     $relNotes = if (-not [string]::IsNullOrWhiteSpace($Notes)) { $Notes } else { "Release $tag" }
     $installerPath = "$ProjectDir\dist\$outputBaseFilename.exe"
 
