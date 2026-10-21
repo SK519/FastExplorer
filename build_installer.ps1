@@ -154,18 +154,20 @@ if ($Release) {
     $relTitle = if (-not [string]::IsNullOrWhiteSpace($Title)) { $Title } else { "FastExplorer $tag" }
     
     $notesFile = "$ProjectDir\release_notes_v$CleanVersion.md"
-    if ([string]::IsNullOrWhiteSpace($Notes) -and (Test-Path $notesFile)) {
-        $Notes = Get-Content -Raw $notesFile
-    }
-    $relNotes = if (-not [string]::IsNullOrWhiteSpace($Notes)) { $Notes } else { "Release $tag" }
     $installerPath = "$ProjectDir\dist\$outputBaseFilename.exe"
 
     $ghArgs = @(
         "release", "create", $tag,
         $installerPath,
-        "--title", $relTitle,
-        "--notes", $relNotes
+        "--title", $relTitle
     )
+
+    if (Test-Path $notesFile) {
+        $ghArgs += @("--notes-file", $notesFile)
+    } else {
+        $relNotes = if (-not [string]::IsNullOrWhiteSpace($Notes)) { $Notes } else { "Release $tag" }
+        $ghArgs += @("--notes", $relNotes)
+    }
 
     if ($Draft) { $ghArgs += "--draft" }
     if ($Prerelease) { $ghArgs += "--prerelease" }
