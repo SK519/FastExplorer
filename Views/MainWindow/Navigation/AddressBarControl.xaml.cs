@@ -17,6 +17,8 @@ namespace FastExplorer.Views.MainWindow.Navigation
         public static long LastAddressCommittedTimestamp { get; set; }
 
         private readonly ObservableCollection<TypedPathSuggestionItem> _suggestions = [];
+        private TypedPathSuggestionItem? _selectedSuggestion;
+        private bool _isNavigatingWithArrows;
 
         public event RoutedEventHandler? BackRequested;
         public event RoutedEventHandler? ForwardRequested;
@@ -116,6 +118,8 @@ namespace FastExplorer.Views.MainWindow.Navigation
 
         public void SwitchToAddressInput(string currentPath)
         {
+            _selectedSuggestion = null;
+            _isNavigatingWithArrows = false;
             BreadcrumbContainer.Visibility = Visibility.Collapsed;
             HistoryDropDownButton.Visibility = Visibility.Collapsed;
             AddressSuggestBox.Visibility = Visibility.Visible;
@@ -133,6 +137,8 @@ namespace FastExplorer.Views.MainWindow.Navigation
 
         public void SwitchToBreadcrumbs()
         {
+            _selectedSuggestion = null;
+            _isNavigatingWithArrows = false;
             AddressSuggestBox.Visibility = Visibility.Collapsed;
             BreadcrumbContainer.Visibility = Visibility.Visible;
             HistoryDropDownButton.Visibility = Visibility.Visible;
@@ -280,8 +286,11 @@ namespace FastExplorer.Views.MainWindow.Navigation
 
         private void AddressSuggestBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
         {
+            if (_isNavigatingWithArrows) return;
+
             if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
             {
+                _selectedSuggestion = null;
                 UpdateSuggestions(sender.Text);
                 sender.IsSuggestionListOpen = true;
             }
@@ -290,17 +299,17 @@ namespace FastExplorer.Views.MainWindow.Navigation
         private void AddressSuggestBox_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
         {
             if (_isDeletingSuggestion) return;
-            if (args.SelectedItem is TypedPathSuggestionItem item)
-            {
-                sender.Text = item.Path;
-            }
+            _selectedSuggestion = args.SelectedItem as TypedPathSuggestionItem;
         }
 
         private void AddressSuggestBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
         {
             LastAddressCommittedTimestamp = Stopwatch.GetTimestamp();
             if (_isDeletingSuggestion) return;
-            string path = (args.ChosenSuggestion as TypedPathSuggestionItem)?.Path ?? args.QueryText?.Trim() ?? string.Empty;
+            var chosenItem = (args.ChosenSuggestion as TypedPathSuggestionItem) ?? _selectedSuggestion;
+            _selectedSuggestion = null;
+            _isNavigatingWithArrows = false;
+            string path = chosenItem?.Path ?? args.QueryText?.Trim() ?? string.Empty;
             SwitchToBreadcrumbs();
             if (!string.IsNullOrEmpty(path))
             {
@@ -316,6 +325,8 @@ namespace FastExplorer.Views.MainWindow.Navigation
         {
             if (e.Key == VirtualKey.Escape)
             {
+                _selectedSuggestion = null;
+                _isNavigatingWithArrows = false;
                 SwitchToBreadcrumbs();
                 e.Handled = true;
             }
@@ -324,9 +335,21 @@ namespace FastExplorer.Views.MainWindow.Navigation
                 LastAddressCommittedTimestamp = Stopwatch.GetTimestamp();
                 e.Handled = true;
             }
-            else if (e.Key == VirtualKey.Down)
+            else if (e.Key == VirtualKey.Down || e.Key == VirtualKey.Up)
             {
-                AddressSuggestBox.IsSuggestionListOpen = true;
+                _isNavigatingWithArrows = true;
+                if (e.Key == VirtualKey.Down && !AddressSuggestBox.IsSuggestionListOpen)
+                {
+                    AddressSuggestBox.IsSuggestionListOpen = true;
+                }
+            }
+        }
+
+        private void AddressSuggestBox_KeyUp(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == VirtualKey.Down || e.Key == VirtualKey.Up)
+            {
+                _isNavigatingWithArrows = false;
             }
         }
 
@@ -343,6 +366,7 @@ namespace FastExplorer.Views.MainWindow.Navigation
 
         private void AddressSuggestBox_LostFocus(object sender, RoutedEventArgs e)
         {
+            _isNavigatingWithArrows = false;
             if (_isDeletingSuggestion) return;
 
             DispatcherQueue.TryEnqueue(() =>
@@ -360,6 +384,7 @@ namespace FastExplorer.Views.MainWindow.Navigation
                         return;
                     }
                 }
+                _selectedSuggestion = null;
                 SwitchToBreadcrumbs();
             });
         }
@@ -380,6 +405,10 @@ namespace FastExplorer.Views.MainWindow.Navigation
             if (sender is Button btn && btn.DataContext is TypedPathSuggestionItem item)
             {
                 _isDeletingSuggestion = true;
+                if (_selectedSuggestion == item)
+                {
+                    _selectedSuggestion = null;
+                }
                 try
                 {
                     TypedPathsService.RemovePath(item.Path);

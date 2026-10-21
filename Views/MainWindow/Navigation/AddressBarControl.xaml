@@ -72,10 +72,13 @@
             <AutoSuggestBox x:Name="AddressSuggestBox" Height="34" VerticalAlignment="Center" Visibility="Collapsed"
                             PlaceholderText="パスを入力..."
                             ItemTemplate="{StaticResource SuggestionItemTemplate}"
+                            TextMemberPath="Path"
+                            UpdateTextOnSelect="False"
                             TextChanged="AddressSuggestBox_TextChanged"
                             QuerySubmitted="AddressSuggestBox_QuerySubmitted"
                             SuggestionChosen="AddressSuggestBox_SuggestionChosen"
                             KeyDown="AddressSuggestBox_KeyDown"
+                            KeyUp="AddressSuggestBox_KeyUp"
                             GotFocus="AddressSuggestBox_GotFocus"
                             LostFocus="AddressSuggestBox_LostFocus">
                 <AutoSuggestBox.Resources>
