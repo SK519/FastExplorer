@@ -20,6 +20,7 @@ namespace FastExplorer.Services
         private static readonly HashSet<string> _inAppClipboardPaths = new(StringComparer.OrdinalIgnoreCase);
 
         public static event Action? ClipboardStateChanged;
+        public static nint DefaultOwnerHwnd { get; set; }
 
         public static bool IsCutOperation => _isCutOperation;
         public static IReadOnlyCollection<string> InAppClipboardPaths => _inAppClipboardPaths;
@@ -287,45 +288,18 @@ namespace FastExplorer.Services
             var validPaths = paths.Where(p => File.Exists(p) || Directory.Exists(p)).Select(Path.GetFullPath).ToList();
             if (validPaths.Count == 0) return true;
 
-            // 1. Windows Explorer 標準の IFileOperation COM インターフェイス（完全なゴミ箱移動・Undo対応）
+            // 1. Windows Explorer 標準の IFileOperation COM インターフェイス（完全なゴミ箱移動・Undo・UAC昇格対応）
             try
             {
-                var fileOp = (Win32Interop.IFileOperation)new Win32Interop.FileOperationClass();
-                fileOp.SetOperationFlags(
-                    Win32Interop.FOFX_RECYCLEONDELETE |
-                    Win32Interop.FOF_NOCONFIRMATION |
-                    Win32Interop.FOF_SILENT);
-
-                bool addedAny = false;
-                foreach (var path in validPaths)
+                bool shellSuccess = ShellFileOperationHelper.ExecuteDeleteAsync(validPaths, recycle: true, DefaultOwnerHwnd).GetAwaiter().GetResult();
+                if (shellSuccess)
                 {
-                    int hr = Win32Interop.SHCreateItemFromParsingName(path, 0, in Win32Interop.IID_IShellItem, out nint ppv);
-                    if (hr == 0 && ppv != 0)
-                    {
-                        try
-                        {
-                            fileOp.DeleteItem(ppv, 0);
-                            addedAny = true;
-                        }
-                        finally
-                        {
-                            Marshal.Release(ppv);
-                        }
-                    }
-                }
-
-                if (addedAny)
-                {
-                    fileOp.PerformOperations();
-                    if (!fileOp.GetAnyOperationsAborted())
-                    {
-                        return true;
-                    }
+                    return true;
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"IFileOperation error: {ex.Message}");
+                Debug.WriteLine($"Shell delete error: {ex.Message}");
             }
 
             // 2. フォールバック: Microsoft.VisualBasic.FileIO.FileSystem (SendToRecycleBin)
@@ -360,7 +334,12 @@ namespace FastExplorer.Services
 
         public static void DeletePermanently(IEnumerable<string> paths)
         {
-            foreach (var path in paths)
+            var pathList = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+            if (pathList.Count == 0) return;
+
+            // 通常削除を試行、管理者権限が必要な場合はシェル削除にフォールバック
+            var failedPaths = new List<string>();
+            foreach (var path in pathList)
             {
                 try
                 {
@@ -373,10 +352,27 @@ namespace FastExplorer.Services
                         File.Delete(path);
                     }
                 }
+                catch (UnauthorizedAccessException)
+                {
+                    failedPaths.Add(path);
+                }
+                catch (IOException ex) when ((ex.HResult & 0xFFFF) == 5)
+                {
+                    failedPaths.Add(path);
+                }
                 catch
                 {
                     // ignored
                 }
+            }
+
+            if (failedPaths.Count > 0)
+            {
+                try
+                {
+                    ShellFileOperationHelper.ExecuteDeleteAsync(failedPaths, recycle: false, DefaultOwnerHwnd).GetAwaiter().GetResult();
+                }
+                catch { }
             }
         }
 
@@ -384,24 +380,74 @@ namespace FastExplorer.Services
 
         #region New Items Creation
 
-        public static string? CreateNewFolder(string parentDirectory)
+        public static async Task<string?> CreateNewFolderAsync(string parentDirectory)
         {
             if (string.IsNullOrWhiteSpace(parentDirectory) || !Directory.Exists(parentDirectory))
                 return null;
 
-            string targetPath = GetUniqueDestinationPath(parentDirectory, "新しいフォルダー");
-            Directory.CreateDirectory(targetPath);
-            return targetPath;
+            string targetName = Path.GetFileName(GetUniqueDestinationPath(parentDirectory, "新しいフォルダー"));
+            string targetPath = Path.Combine(parentDirectory, targetName);
+
+            if (!ShellFileOperationHelper.HasWritePermission(parentDirectory))
+            {
+                bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: true, DefaultOwnerHwnd);
+                return ok ? targetPath : null;
+            }
+
+            try
+            {
+                Directory.CreateDirectory(targetPath);
+                return targetPath;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: true, DefaultOwnerHwnd);
+                return ok ? targetPath : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public static string? CreateNewFolder(string parentDirectory)
+        {
+            return CreateNewFolderAsync(parentDirectory).GetAwaiter().GetResult();
+        }
+
+        public static async Task<string?> CreateNewTextFileAsync(string parentDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(parentDirectory) || !Directory.Exists(parentDirectory))
+                return null;
+
+            string targetName = Path.GetFileName(GetUniqueDestinationPath(parentDirectory, "新しいテキスト ドキュメント.txt"));
+            string targetPath = Path.Combine(parentDirectory, targetName);
+
+            if (!ShellFileOperationHelper.HasWritePermission(parentDirectory))
+            {
+                bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: false, DefaultOwnerHwnd);
+                return ok ? targetPath : null;
+            }
+
+            try
+            {
+                File.WriteAllText(targetPath, string.Empty);
+                return targetPath;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: false, DefaultOwnerHwnd);
+                return ok ? targetPath : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public static string? CreateNewTextFile(string parentDirectory)
         {
-            if (string.IsNullOrWhiteSpace(parentDirectory) || !Directory.Exists(parentDirectory))
-                return null;
-
-            string targetPath = GetUniqueDestinationPath(parentDirectory, "新しいテキスト ドキュメント.txt");
-            File.WriteAllText(targetPath, string.Empty);
-            return targetPath;
+            return CreateNewTextFileAsync(parentDirectory).GetAwaiter().GetResult();
         }
 
         #endregion

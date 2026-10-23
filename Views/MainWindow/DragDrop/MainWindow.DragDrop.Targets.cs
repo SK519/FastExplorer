@@ -25,6 +25,12 @@ namespace FastExplorer
             var pathList = sourcePaths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (pathList.Count == 0) return false;
 
+            // 管理者権限が必要な場合は自前ダイアログを表示せず、シェルダイアログ（UAC昇格確認画面）に直接委譲
+            if (!ShellFileOperationHelper.HasWritePermission(destinationDirectory))
+            {
+                return await FileOperationService.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove);
+            }
+
             var controller = new FileTransferController();
             TransferDialogControl.Controller = controller;
             TransferDialogControl.ResetState(isMove ? "アイテムを移動中" : "アイテムをコピー中");
@@ -56,6 +62,12 @@ namespace FastExplorer
         public async Task<bool> PerformPasteWithDialogAsync(string destinationDirectory)
         {
             if (string.IsNullOrWhiteSpace(destinationDirectory) || !Directory.Exists(destinationDirectory)) return false;
+
+            // 管理者権限が必要な場合は自前ダイアログを表示せず、シェルダイアログ（UAC昇格確認画面）に直接委譲
+            if (!ShellFileOperationHelper.HasWritePermission(destinationDirectory))
+            {
+                return await FileOperationService.PasteFilesAsync(destinationDirectory);
+            }
 
             var controller = new FileTransferController();
             TransferDialogControl.Controller = controller;

@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using FastExplorer.Models;
+using FastExplorer.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -174,7 +175,7 @@ namespace FastExplorer
             ActiveListControl?.Focus(FocusState.Programmatic);
         }
 
-        private void CommitRename(FileItem item, string? newName)
+        private async void CommitRename(FileItem item, string? newName)
         {
             _isRenameImeComposing = false;
             _lastRenameCommittedTimestamp = Stopwatch.GetTimestamp();
@@ -194,6 +195,24 @@ namespace FastExplorer
                 string dir = Path.GetDirectoryName(item.FullPath) ?? "";
                 string newPath = Path.Combine(dir, trimmedNewName);
 
+                bool needElevation = !ShellFileOperationHelper.HasWritePermission(dir);
+                if (needElevation)
+                {
+                    bool ok = await ShellFileOperationHelper.ExecuteRenameAsync(item.FullPath, trimmedNewName, WindowHandle);
+                    if (ok)
+                    {
+                        item.Name = trimmedNewName;
+                        item.FullPath = newPath;
+                    }
+                    else
+                    {
+                        item.RenameText = item.Name;
+                    }
+                    item.IsRenaming = false;
+                    ActiveListControl?.Focus(FocusState.Programmatic);
+                    return;
+                }
+
                 if (item.IsDirectory)
                 {
                     Directory.Move(item.FullPath, newPath);
@@ -207,6 +226,34 @@ namespace FastExplorer
                 item.FullPath = newPath;
                 item.IsRenaming = false;
                 ActiveListControl?.Focus(FocusState.Programmatic);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException || (ex is IOException ioe && (ioe.HResult & 0xFFFF) == 5))
+            {
+                // アクセス拒否時は管理者権限（UAC確認画面付き）でリネーム試行
+                try
+                {
+                    string dir = Path.GetDirectoryName(item.FullPath) ?? "";
+                    string newPath = Path.Combine(dir, trimmedNewName);
+                    bool ok = await ShellFileOperationHelper.ExecuteRenameAsync(item.FullPath, trimmedNewName, WindowHandle);
+                    if (ok)
+                    {
+                        item.Name = trimmedNewName;
+                        item.FullPath = newPath;
+                    }
+                    else
+                    {
+                        item.RenameText = item.Name;
+                    }
+                }
+                catch
+                {
+                    item.RenameText = item.Name;
+                }
+                finally
+                {
+                    item.IsRenaming = false;
+                    ActiveListControl?.Focus(FocusState.Programmatic);
+                }
             }
             catch (Exception ex)
             {

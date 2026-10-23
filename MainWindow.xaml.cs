@@ -27,6 +27,8 @@ namespace FastExplorer
             InitializeComponent();
             InitializeComponentEvents();
 
+            FileOperationService.DefaultOwnerHwnd = this.WindowHandle;
+
             this.SetTitleBar(CustomDragRegion);
 
             // アイコンサービス初期化 (Sidebar構築前にDispatcherQueueを確実に登録)

@@ -55,6 +55,7 @@ namespace FastExplorer.Core
                     foreach (var dir in dirInfo.EnumerateDirectories())
                     {
                         bool isHidden = (dir.Attributes & FileAttributes.Hidden) != 0;
+                        bool isReparse = (dir.Attributes & FileAttributes.ReparsePoint) != 0;
                         if (!showHiddenFiles && isHidden) continue;
 
                         items.Add(new FileItem
@@ -62,6 +63,7 @@ namespace FastExplorer.Core
                             Name = dir.Name,
                             FullPath = dir.FullName,
                             IsDirectory = true,
+                            IsReparsePoint = isReparse,
                             DateModified = dir.LastWriteTime,
                             FileType = "フォルダ",
                             GlyphIcon = "\uE8B7"
@@ -114,6 +116,7 @@ namespace FastExplorer.Core
 
                     bool isDirectory = (findData.dwFileAttributes & Win32Interop.FILE_ATTRIBUTE_DIRECTORY) != 0;
                     bool isReadOnly = (findData.dwFileAttributes & Win32Interop.FILE_ATTRIBUTE_READONLY) != 0;
+                    bool isReparsePoint = (findData.dwFileAttributes & Win32Interop.FILE_ATTRIBUTE_REPARSE_POINT) != 0;
 
                     long fileSize = isDirectory
                         ? 0
@@ -142,6 +145,7 @@ namespace FastExplorer.Core
                         Name = fileName,
                         FullPath = fullPath,
                         IsDirectory = isDirectory,
+                        IsReparsePoint = isReparsePoint,
                         SizeInBytes = fileSize,
                         DateModified = lastModified,
                         FileType = fileType,

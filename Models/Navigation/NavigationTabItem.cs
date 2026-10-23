@@ -33,6 +33,8 @@ namespace FastExplorer
         private FileSystemWatcher? _watcher;
         private System.Threading.Timer? _debounceTimer;
         private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
+        private System.Threading.CancellationTokenSource? _searchCts;
+        private bool _isSearchingSubfolders;
 
         public Microsoft.UI.Dispatching.DispatcherQueue? DispatcherQueue
         {
@@ -356,7 +358,34 @@ namespace FastExplorer
 
         private void ApplyFilter()
         {
+            // 直下のアイテムを即座にフィルタ＆ソートして画面に反映 (0ms 即答性)
             SyncFilteredItems();
+
+            // 以前のサブフォルダー検索があればキャンセル
+            CancelSubfolderSearch();
+
+            // 検索テキストが存在し、かつファイルシステム上の物理パスである場合のみサブフォルダー検索を実行
+            if (!string.IsNullOrWhiteSpace(_filterText) &&
+                !string.IsNullOrEmpty(_currentPath) &&
+                Directory.Exists(_currentPath))
+            {
+                StartSubfolderSearch(_filterText, _currentPath);
+            }
+        }
+
+        public void CancelSubfolderSearch()
+        {
+            if (_searchCts != null)
+            {
+                try
+                {
+                    _searchCts.Cancel();
+                    _searchCts.Dispose();
+                }
+                catch { }
+                _searchCts = null;
+            }
+            _isSearchingSubfolders = false;
         }
 
         public void RecalculateTotalBytes()
@@ -374,13 +403,26 @@ namespace FastExplorer
 
         public void UpdateStatusText(int selectedCount = 0, long selectedBytes = 0)
         {
+            int totalCount = string.IsNullOrWhiteSpace(_filterText) ? _allItems.Count : Items.Count;
+
             if (selectedCount > 0)
             {
-                StatusText = $"{_allItems.Count} 個の項目 | {selectedCount} 個を選択 ({FileItem.FormatFileSize(selectedBytes)})";
+                StatusText = $"{totalCount} 個の項目 | {selectedCount} 個を選択 ({FileItem.FormatFileSize(selectedBytes)})";
             }
             else
             {
-                StatusText = $"{_allItems.Count} 個の項目 ({FileItem.FormatFileSize(_allItemsTotalBytes)})";
+                if (_isSearchingSubfolders)
+                {
+                    StatusText = $"{totalCount} 個の項目 (サブフォルダーを検索中...)";
+                }
+                else if (!string.IsNullOrWhiteSpace(_filterText))
+                {
+                    StatusText = $"{totalCount} 個の項目 (検索完了)";
+                }
+                else
+                {
+                    StatusText = $"{totalCount} 個の項目 ({FileItem.FormatFileSize(_allItemsTotalBytes)})";
+                }
             }
         }
 

@@ -27,11 +27,11 @@
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="#282828"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="#444444"/>
 
-                    <!-- ToolTip 共通リソース (角丸8px・すりガラス) -->
+                    <!-- ToolTip 共通リソース (角丸8px・不透明ソリッド背景で視認性確保) -->
                     <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
                     <Thickness x:Key="ToolTipBorderThemeThickness">1</Thickness>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#242424" TintOpacity="0.80" FallbackColor="#F0242424" TintLuminosityOpacity="0.90"/>
-                    <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
+                    <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#2C2C2C"/>
+                    <SolidColorBrush x:Key="ToolTipBackground" Color="#2C2C2C"/>
                     <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#4DFFFFFF"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="#FFFFFF"/>
 
@@ -61,12 +61,12 @@
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="#FDFDFD"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="#E5E5E5"/>
 
-                    <!-- ToolTip 共通リソース (角丸8px・すりガラス) -->
+                    <!-- ToolTip 共通リソース (角丸8px・不透明ソリッド背景で視認性確保) -->
                     <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
                     <Thickness x:Key="ToolTipBorderThemeThickness">1</Thickness>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#FAFAFA" TintOpacity="0.85" FallbackColor="#F0FAFAFA" TintLuminosityOpacity="0.95"/>
-                    <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
-                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#26000000"/>
+                    <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#FDFDFD"/>
+                    <SolidColorBrush x:Key="ToolTipBackground" Color="#FDFDFD"/>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#D6D6D6"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="#1C1C1C"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
@@ -95,11 +95,11 @@
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="#282828"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="#444444"/>
 
-                    <!-- ToolTip 共通リソース (角丸8px・すりガラス) -->
+                    <!-- ToolTip 共通リソース (角丸8px・不透明ソリッド背景で視認性確保) -->
                     <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
                     <Thickness x:Key="ToolTipBorderThemeThickness">1</Thickness>
-                    <AcrylicBrush x:Key="ToolTipBackgroundBrush" TintColor="#242424" TintOpacity="0.80" FallbackColor="#F0242424" TintLuminosityOpacity="0.90"/>
-                    <StaticResource x:Key="ToolTipBackground" ResourceKey="ToolTipBackgroundBrush"/>
+                    <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#2C2C2C"/>
+                    <SolidColorBrush x:Key="ToolTipBackground" Color="#2C2C2C"/>
                     <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#4DFFFFFF"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="#FFFFFF"/>
 
@@ -120,7 +120,7 @@
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 
-            <!-- モダンツールチップスタイル (角丸8px・アクリルすりガラスぼかし) -->
+            <!-- モダンツールチップスタイル (角丸8px・不透明ソリッド背景で視認性確保) -->
             <Style x:Key="DefaultToolTipStyle" TargetType="ToolTip">
                 <Setter Property="Background" Value="{ThemeResource ToolTipBackgroundBrush}"/>
                 <Setter Property="Foreground" Value="{ThemeResource ToolTipForeground}"/>
@@ -135,7 +135,7 @@
                             <Border Background="{TemplateBinding Background}"
                                     BorderBrush="{TemplateBinding BorderBrush}"
                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                    CornerRadius="8"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
                                     Padding="{TemplateBinding Padding}">
                                 <ContentPresenter Content="{TemplateBinding Content}"
                                                   ContentTransitions="{TemplateBinding ContentTransitions}"

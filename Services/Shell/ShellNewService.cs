@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 using Microsoft.Win32;
 
 namespace FastExplorer.Services
@@ -303,16 +304,23 @@ namespace FastExplorer.Services
             };
         }
 
-        public static string? CreateFileFromTemplate(string destinationDirectory, ShellNewTemplate template)
+        public static async Task<string?> CreateFileFromTemplateAsync(string destinationDirectory, ShellNewTemplate template, nint ownerHwnd = 0)
         {
             if (string.IsNullOrWhiteSpace(destinationDirectory) || !Directory.Exists(destinationDirectory))
                 return null;
 
+            string baseName = $"新規 {template.DisplayName}{template.Extension}";
+            string targetPath = GetUniquePath(destinationDirectory, baseName);
+            string targetName = Path.GetFileName(targetPath);
+
+            // 書き込み権限がない場合は管理者権限（UAC確認画面付き）で作成
+            if (!ShellFileOperationHelper.HasWritePermission(destinationDirectory))
+            {
+                return await CreateElevatedFileFromTemplateAsync(destinationDirectory, targetPath, targetName, template, ownerHwnd);
+            }
+
             try
             {
-                string baseName = $"新規 {template.DisplayName}{template.Extension}";
-                string targetPath = GetUniquePath(destinationDirectory, baseName);
-
                 if (!string.IsNullOrEmpty(template.TemplateFileName))
                 {
                     string? templateFilePath = FindTemplateFile(template.TemplateFileName);
@@ -340,11 +348,66 @@ namespace FastExplorer.Services
                 File.WriteAllBytes(targetPath, Array.Empty<byte>());
                 return targetPath;
             }
+            catch (Exception ex) when (ex is UnauthorizedAccessException || (ex is IOException ioe && (ioe.HResult & 0xFFFF) == 5))
+            {
+                Debug.WriteLine($"[ShellNew] Access denied, delegating to elevated shell operation: {ex.Message}");
+                return await CreateElevatedFileFromTemplateAsync(destinationDirectory, targetPath, targetName, template, ownerHwnd);
+            }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[ShellNew] Error creating file: {ex.Message}");
                 return null;
             }
+        }
+
+        private static async Task<string?> CreateElevatedFileFromTemplateAsync(
+            string destinationDirectory,
+            string targetPath,
+            string targetName,
+            ShellNewTemplate template,
+            nint ownerHwnd)
+        {
+            try
+            {
+                string tempDir = Path.Combine(Path.GetTempPath(), "FastExplorer_NewItem_" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(tempDir);
+                string tempFile = Path.Combine(tempDir, targetName);
+
+                if (!string.IsNullOrEmpty(template.TemplateFileName))
+                {
+                    string? templateFilePath = FindTemplateFile(template.TemplateFileName);
+                    if (templateFilePath != null && File.Exists(templateFilePath))
+                    {
+                        File.Copy(templateFilePath, tempFile, true);
+                    }
+                    else
+                    {
+                        File.WriteAllBytes(tempFile, Array.Empty<byte>());
+                    }
+                }
+                else if (template.Data != null && template.Data.Length > 0)
+                {
+                    File.WriteAllBytes(tempFile, template.Data);
+                }
+                else
+                {
+                    File.WriteAllBytes(tempFile, Array.Empty<byte>());
+                }
+
+                bool ok = await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(new[] { tempFile }, destinationDirectory, isMove: true, ownerHwnd);
+                try { Directory.Delete(tempDir, true); } catch { }
+                return ok ? targetPath : null;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ShellNew] Elevated creation error: {ex.Message}");
+                return null;
+            }
+        }
+
+        public static string? CreateFileFromTemplate(string destinationDirectory, ShellNewTemplate template)
+        {
+            return CreateFileFromTemplateAsync(destinationDirectory, template).GetAwaiter().GetResult();
         }
 
         private static string? FindTemplateFile(string fileName)

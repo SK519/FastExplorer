@@ -120,6 +120,7 @@ namespace FastExplorer
         public void Dispose()
         {
             System.Threading.Interlocked.Increment(ref _loadGeneration);
+            CancelSubfolderSearch();
             QuickAccessService.PinnedItemsChanged -= OnQuickAccessPinnedChanged;
             DisposeWatcher();
             _allItems.Clear();

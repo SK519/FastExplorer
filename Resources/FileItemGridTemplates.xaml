@@ -12,8 +12,9 @@
             </Grid.RowDefinitions>
 
             <CheckBox Grid.Row="0"
-                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                      Visibility="{Binding CheckBoxVisibility}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
                       HorizontalAlignment="Left" VerticalAlignment="Top"
                       MinWidth="0" MinHeight="0" Padding="0" Margin="8,8,0,0"/>
 
@@ -56,8 +57,9 @@
             </Grid.RowDefinitions>
 
             <CheckBox Grid.Row="0"
-                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                      Visibility="{Binding CheckBoxVisibility}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
                       HorizontalAlignment="Left" VerticalAlignment="Top"
                       MinWidth="0" MinHeight="0" Padding="0" Margin="8,8,0,0"/>
 
@@ -100,8 +102,9 @@
             </Grid.RowDefinitions>
 
             <CheckBox Grid.Row="0"
-                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                      Visibility="{Binding CheckBoxVisibility}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
                       HorizontalAlignment="Left" VerticalAlignment="Top"
                       MinWidth="0" MinHeight="0" Padding="0" Margin="6,6,0,0"/>
 
@@ -145,8 +148,9 @@
             </Grid.ColumnDefinitions>
 
             <CheckBox Grid.Column="0"
-                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                      Visibility="{Binding CheckBoxVisibility}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
                       MinWidth="0" MinHeight="0" Padding="0" Margin="8,0,6,0" VerticalAlignment="Center"/>
 
             <Image Grid.Column="1"
@@ -182,8 +186,9 @@
             </Grid.ColumnDefinitions>
 
             <CheckBox Grid.Column="0"
-                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                      Visibility="{Binding CheckBoxVisibility}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
                       MinWidth="0" MinHeight="0" Padding="0" Margin="8,0,6,0" VerticalAlignment="Center"/>
 
             <Image Grid.Column="1"
@@ -219,8 +224,9 @@
             </Grid.ColumnDefinitions>
 
             <CheckBox Grid.Column="0"
-                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                      Visibility="{Binding CheckBoxVisibility}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
                       MinWidth="0" MinHeight="0" Padding="0" Margin="4,0,4,0" VerticalAlignment="Center"/>
 
             <Image Grid.Column="1"

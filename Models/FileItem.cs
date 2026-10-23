@@ -167,6 +167,14 @@ namespace FastExplorer
             : FileType;
 
         private bool _isDrive;
+        private bool _isReparsePoint;
+
+        public bool IsReparsePoint
+        {
+            get => _isReparsePoint;
+            set => SetField(ref _isReparsePoint, value);
+        }
+
         public bool IsDrive
         {
             get => _isDrive;

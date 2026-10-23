@@ -47,7 +47,7 @@
         <Setter Property="CornerRadius" Value="4"/>
     </Style>
 
-    <!-- ツールチップモダンデザイン (角丸8px・アクリルすりガラスぼかし) -->
+    <!-- ツールチップモダンデザイン (角丸8px・不透明ソリッド背景で視認性確保) -->
     <Style x:Key="DefaultToolTipStyle" TargetType="ToolTip">
         <Setter Property="Background" Value="{ThemeResource ToolTipBackgroundBrush}"/>
         <Setter Property="Foreground" Value="{ThemeResource ToolTipForeground}"/>
@@ -62,7 +62,7 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8"
+                            CornerRadius="{TemplateBinding CornerRadius}"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter Content="{TemplateBinding Content}"
                                           ContentTransitions="{TemplateBinding ContentTransitions}"
@@ -74,5 +74,15 @@
         </Setter>
     </Style>
     <Style TargetType="ToolTip" BasedOn="{StaticResource DefaultToolTipStyle}"/>
+
+    <!-- ファイルリスト用チェックボックスの統一スタイル -->
+    <Style x:Key="FileItemCheckBoxStyle" TargetType="CheckBox">
+        <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="MinHeight" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="8,0,8,0"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="IsThreeState" Value="False"/>
+    </Style>
 
 </ResourceDictionary>

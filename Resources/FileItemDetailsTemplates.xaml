@@ -6,9 +6,10 @@
     <!-- 1. 詳細表示テンプレート (ListView 用) -->
     <DataTemplate x:Key="DetailsItemTemplate">
         <StackPanel Orientation="Horizontal" Height="{Binding RowHeight, FallbackValue=34}" Padding="4,0,12,0" Spacing="0" Opacity="{Binding Opacity}">
-            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
-                      MinWidth="0" MinHeight="0" Padding="0" Margin="8,0,8,0" VerticalAlignment="Center"/>
+            <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"
                    Width="{Binding ItemIconSize, FallbackValue=20}"
@@ -65,9 +66,10 @@
     <!-- 2. コンテンツ表示テンプレート (ListView 用) -->
     <DataTemplate x:Key="ContentItemTemplate">
         <StackPanel Orientation="Horizontal" Height="50" Padding="4,4,12,4" Spacing="0" Opacity="{Binding Opacity}">
-            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"
-                      MinWidth="0" MinHeight="0" Padding="0" Margin="8,0,8,0" VerticalAlignment="Center"/>
+            <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
+                      Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"
                    Width="32"
@@ -110,7 +112,8 @@
     <DataTemplate x:Key="DetailsLargeItemTemplate">
         <StackPanel Orientation="Horizontal" Height="42" Padding="4,0,12,0" Spacing="0" Opacity="{Binding Opacity}">
             <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
-                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
                       Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"
@@ -145,7 +148,8 @@
     <DataTemplate x:Key="DetailsCompactItemTemplate">
         <StackPanel Orientation="Horizontal" Height="28" Padding="4,0,10,0" Spacing="0" Opacity="{Binding Opacity}">
             <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
-                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
                       Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"
@@ -180,7 +184,8 @@
     <DataTemplate x:Key="DetailsExtraLargeItemTemplate">
         <StackPanel Orientation="Horizontal" Height="52" Padding="4,0,14,0" Spacing="0" Opacity="{Binding Opacity}">
             <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
-                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
                       Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"
@@ -216,7 +221,8 @@
     <DataTemplate x:Key="ContentExtraLargeItemTemplate">
         <StackPanel Orientation="Horizontal" Height="68" Padding="6,0,14,0" Spacing="0" Opacity="{Binding Opacity}">
             <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
-                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                      IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
+                      IsThreeState="False"
                       Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"

@@ -26,11 +26,11 @@ namespace FastExplorer
             SevenZip
         }
 
-        private void CreateNewFileFromTemplate(ShellNewTemplate template)
+        private async void CreateNewFileFromTemplate(ShellNewTemplate template)
         {
             if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
 
-            string? createdPath = ShellNewService.CreateFileFromTemplate(CurrentTab.CurrentPath, template);
+            string? createdPath = await ShellNewService.CreateFileFromTemplateAsync(CurrentTab.CurrentPath, template, WindowHandle);
             if (createdPath != null)
             {
                 CurrentTab.Refresh();
@@ -312,11 +312,11 @@ namespace FastExplorer
             ContextMenuExtractToFolder_Click(sender, e);
         }
 
-        private void ContextMenuNewFolder_Click(object sender, RoutedEventArgs e)
+        private async void ContextMenuNewFolder_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
 
-            string? folderPath = FileOperationService.CreateNewFolder(CurrentTab.CurrentPath);
+            string? folderPath = await FileOperationService.CreateNewFolderAsync(CurrentTab.CurrentPath);
             if (folderPath != null)
             {
                 CurrentTab.Refresh();
@@ -324,11 +324,11 @@ namespace FastExplorer
             }
         }
 
-        private void ContextMenuNewTextFile_Click(object sender, RoutedEventArgs e)
+        private async void ContextMenuNewTextFile_Click(object sender, RoutedEventArgs e)
         {
             if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
 
-            string? filePath = FileOperationService.CreateNewTextFile(CurrentTab.CurrentPath);
+            string? filePath = await FileOperationService.CreateNewTextFileAsync(CurrentTab.CurrentPath);
             if (filePath != null)
             {
                 CurrentTab.Refresh();

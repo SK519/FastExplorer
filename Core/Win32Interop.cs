@@ -284,6 +284,32 @@ namespace FastExplorer.Core
         public const uint FOFX_NOMINIMIZEBOX = 0x01000000;
         public const uint FOFX_MOVEACROSSVOLUMES = 0x02000000;
         public const uint FOFX_DONTRENAMEEXISTING = 0x04000000;
+        public const uint FOFX_REQUIREELEVATION = 0x10000000;
+        public const uint CLSCTX_LOCAL_SERVER = 0x4;
+
+        public static readonly Guid CLSID_FileOperation = new("3ad05575-8857-4850-9277-11b85bdb8e09");
+        public static readonly Guid IID_IFileOperation = new("947aab5f-0a5c-4c13-b4d6-4bf7836fc9f8");
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BIND_OPTS3
+        {
+            public uint cbStruct;
+            public uint grfFlags;
+            public uint grfMode;
+            public uint dwTickCountDeadline;
+            public uint dwTrackFlags;
+            public uint dwClassContext;
+            public uint locale;
+            public nint pServerInfo;
+            public nint hwnd;
+        }
+
+        [DllImport("ole32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
+        public static extern int CoGetObject(
+            [MarshalAs(UnmanagedType.LPWStr)] string pszName,
+            [In] ref BIND_OPTS3 pBindOptions,
+            [In] in Guid riid,
+            out nint ppv);
 
         [ComImport]
         [Guid("3ad05575-8857-4850-9277-11b85bdb8e09")]
@@ -292,7 +318,7 @@ namespace FastExplorer.Core
         public class FileOperationClass { }
 
         [ComImport]
-        [Guid("947aab5f-0a4c-449b-ac4b-92b60705e26b")]
+        [Guid("947aab5f-0a5c-4c13-b4d6-4bf7836fc9f8")]
         [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
         public interface IFileOperation
         {

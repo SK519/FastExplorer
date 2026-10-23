@@ -27,6 +27,14 @@ namespace FastExplorer.Services
             var pathList = sourcePaths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (pathList.Count == 0) return false;
 
+            // 管理者権限が必要なフォルダー（アクセス権がないフォルダー）の場合、Windows シェル (IFileOperation) に委譲
+            // これにより、Windows 標準の「管理者のアクセス許可を提供する必要があります」確認画面および UAC 昇格プロンプトが表示される
+            if (!ShellFileOperationHelper.HasWritePermission(destinationDirectory))
+            {
+                Debug.WriteLine($"[FileOperation] Destination requires elevation: '{destinationDirectory}'. Delegating to IFileOperation.");
+                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove);
+            }
+
             // 初期化（直下ファイルのサイズ・項目数を同期的に即座に取得して初期値とする）
             long initialBytes = 0;
             int initialFiles = 0;
@@ -194,6 +202,21 @@ namespace FastExplorer.Services
             catch (OperationCanceledException)
             {
                 return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Debug.WriteLine($"[FileOperation] Access denied during transfer, delegating to elevated IFileOperation: {ex.Message}");
+                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove);
+            }
+            catch (IOException ex) when ((ex.HResult & 0xFFFF) == 5)
+            {
+                Debug.WriteLine($"[FileOperation] ERROR_ACCESS_DENIED during transfer, delegating to elevated IFileOperation: {ex.Message}");
+                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove);
+            }
+            catch (AggregateException ex) when (ex.InnerExceptions.Any(e => e is UnauthorizedAccessException || (e is IOException ioe && (ioe.HResult & 0xFFFF) == 5)))
+            {
+                Debug.WriteLine($"[FileOperation] Access denied in parallel tasks, delegating to elevated IFileOperation: {ex.Message}");
+                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove);
             }
             catch (Exception ex)
             {
@@ -437,6 +460,7 @@ namespace FastExplorer.Services
 
                 if (!result)
                 {
+                    int lastErr = Marshal.GetLastWin32Error();
                     if (lastTransferred > 0)
                     {
                         Interlocked.Add(ref state.BytesTransferred, -lastTransferred);
@@ -444,6 +468,10 @@ namespace FastExplorer.Services
                     if (pbCancel != 0 || controller?.IsCancelled == true)
                     {
                         throw new OperationCanceledException();
+                    }
+                    if (lastErr == 5) // ERROR_ACCESS_DENIED
+                    {
+                        throw new UnauthorizedAccessException($"Access denied copying '{src}' to '{destPath}'");
                     }
                     return false;
                 }

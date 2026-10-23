@@ -312,6 +312,7 @@ namespace FastExplorer
         private void LoadItems()
         {
             int currentGen = System.Threading.Interlocked.Increment(ref _loadGeneration);
+            CancelSubfolderSearch();
             IconThumbnailService.Instance.ClearQueue();
             IsLoading = true;
             _allItems.Clear();
@@ -429,6 +430,160 @@ namespace FastExplorer
                         });
                     }
                 });
+            });
+        }
+
+        private void StartSubfolderSearch(string searchKeyword, string rootPath)
+        {
+            var cts = new System.Threading.CancellationTokenSource();
+            _searchCts = cts;
+            var token = cts.Token;
+            _isSearchingSubfolders = true;
+
+            // 初期探索対象のサブフォルダー一覧 (直下の通常フォルダー)
+            var initialDirs = new List<string>();
+            lock (_allItems)
+            {
+                foreach (var item in _allItems)
+                {
+                    if (item.IsDirectory && !item.IsReparsePoint && !string.IsNullOrEmpty(item.FullPath))
+                    {
+                        initialDirs.Add(item.FullPath);
+                    }
+                }
+            }
+
+            UpdateStatusText();
+
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { rootPath };
+                    var dirQueue = new Queue<string>(initialDirs);
+                    bool showHidden = ConfigService.Current.Ui.ShowHiddenFiles;
+                    var batch = new List<FileItem>(64);
+                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+                    while (dirQueue.Count > 0)
+                    {
+                        if (token.IsCancellationRequested) return;
+
+                        string currentDir = dirQueue.Dequeue();
+                        if (!visitedDirs.Add(currentDir)) continue;
+
+                        List<FileItem> scanned;
+                        try
+                        {
+                            scanned = NativeFileScanner.ScanDirectory(currentDir, showHidden);
+                        }
+                        catch
+                        {
+                            continue;
+                        }
+
+                        foreach (var item in scanned)
+                        {
+                            if (token.IsCancellationRequested) return;
+
+                            // サブフォルダーの再帰キュー追加 (ジャンクション・リパースポイントは無限ループ防止のため除外)
+                            if (item.IsDirectory && !item.IsReparsePoint && !string.IsNullOrEmpty(item.FullPath))
+                            {
+                                string dirName = item.Name;
+                                if (!dirName.Equals("$Recycle.Bin", StringComparison.OrdinalIgnoreCase) &&
+                                    !dirName.Equals("System Volume Information", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    dirQueue.Enqueue(item.FullPath);
+                                }
+                            }
+
+                            // 検索キーワードとのマッチング判定
+                            if (item.Name.Contains(searchKeyword, StringComparison.OrdinalIgnoreCase))
+                            {
+                                batch.Add(item);
+
+                                // 30件蓄積、または150ms経過でUIへ逐次反映
+                                if (batch.Count >= 30 || (batch.Count > 0 && stopwatch.ElapsedMilliseconds >= 150))
+                                {
+                                    var currentBatch = batch;
+                                    batch = new List<FileItem>(64);
+                                    stopwatch.Restart();
+
+                                    EnqueueBatchToUI(currentBatch, searchKeyword, token);
+                                }
+                            }
+                        }
+                    }
+
+                    // 残りのバッチを反映
+                    if (batch.Count > 0 && !token.IsCancellationRequested)
+                    {
+                        EnqueueBatchToUI(batch, searchKeyword, token);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // 検索キャンセル時は静かに終了
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SubfolderSearch] Exception: {ex.Message}");
+                }
+                finally
+                {
+                    if (!token.IsCancellationRequested)
+                    {
+                        DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                        {
+                            if (!token.IsCancellationRequested && _searchCts == cts)
+                            {
+                                _isSearchingSubfolders = false;
+                                UpdateStatusText();
+                            }
+                        });
+                    }
+                }
+            }, token);
+        }
+
+        private void EnqueueBatchToUI(List<FileItem> batch, string searchKeyword, System.Threading.CancellationToken token)
+        {
+            DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+            {
+                if (token.IsCancellationRequested || !string.Equals(_filterText, searchKeyword, StringComparison.Ordinal))
+                {
+                    return;
+                }
+
+                bool isGrid = ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons;
+                bool allowThumb = IconThumbnailService.IsImageOrientedMode(_viewMode);
+
+                var existingSet = new HashSet<string>(Items.Select(x => x.FullPath), StringComparer.OrdinalIgnoreCase);
+                var toAdd = new List<FileItem>(batch.Count);
+
+                foreach (var item in batch)
+                {
+                    if (existingSet.Add(item.FullPath))
+                    {
+                        item.IsCut = FileOperationService.IsPathCut(item.FullPath);
+                        item.AllowThumbnail = allowThumb;
+                        IconThumbnailService.Instance.ApplyImmediateDefaultIcon(item);
+                        ApplySizeToItem(item, CustomSize, isGrid, ViewMode);
+                        item.ApplyDetailsScale(_viewScale);
+                        toAdd.Add(item);
+                    }
+                }
+
+                if (toAdd.Count > 0)
+                {
+                    Items.AddRange(toAdd);
+                    foreach (var item in toAdd)
+                    {
+                        IconThumbnailService.Instance.Enqueue(item);
+                    }
+                }
+
+                UpdateStatusText();
             });
         }
     }

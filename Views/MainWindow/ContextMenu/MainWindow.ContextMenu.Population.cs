@@ -151,9 +151,18 @@ namespace FastExplorer
                     }
                 }
 
-                // ファイルの場所を開く (Home 画面またはショートカット所持アイテム)
+                // ファイルの場所を開く (Home 画面、ショートカット所持アイテム、またはサブフォルダー検索結果)
                 bool isShortcutFile = targetItem != null && targetItem.Extension.Equals(".lnk", StringComparison.OrdinalIgnoreCase);
-                if ((isHomeView || !string.IsNullOrEmpty(targetItem?.ShortcutPath) || isShortcutFile) && !string.IsNullOrEmpty(targetItem?.FullPath) && !targetItem.FullPath.Equals("Home", StringComparison.OrdinalIgnoreCase) && !targetItem.FullPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
+                bool isSubfolderSearchResult = !string.IsNullOrEmpty(CurrentTab?.FilterText) &&
+                                               targetItem != null &&
+                                               !string.IsNullOrEmpty(targetItem.FullPath) &&
+                                               !string.IsNullOrEmpty(CurrentTab?.CurrentPath) &&
+                                               !string.Equals(System.IO.Path.GetDirectoryName(targetItem.FullPath.TrimEnd('\\', '/')), CurrentTab?.CurrentPath?.TrimEnd('\\', '/'), StringComparison.OrdinalIgnoreCase);
+
+                if ((isHomeView || !string.IsNullOrEmpty(targetItem?.ShortcutPath) || isShortcutFile || isSubfolderSearchResult) &&
+                    !string.IsNullOrEmpty(targetItem?.FullPath) &&
+                    !targetItem.FullPath.Equals("Home", StringComparison.OrdinalIgnoreCase) &&
+                    !targetItem.FullPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
                 {
                     standardItems.Add(CreateContextButton("\uED25", "ファイルの場所を開く", ContextMenuOpenFileLocation_Click, itemStyle));
                 }
