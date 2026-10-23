@@ -161,25 +161,16 @@ namespace FastExplorer
 
         private List<FileItem> GetFilteredAndSortedItems()
         {
-            List<FileItem> targetList;
+            var targetList = !string.IsNullOrWhiteSpace(_filterText)
+                ? _allItems.Where(item => item.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase)).ToList()
+                : new List<FileItem>(_allItems);
 
-            if (!string.IsNullOrWhiteSpace(_filterText))
-            {
-                targetList = new List<FileItem>(_allItems.Count);
-                foreach (var item in _allItems)
-                {
-                    if (item.Name.Contains(_filterText, StringComparison.OrdinalIgnoreCase))
-                    {
-                        targetList.Add(item);
-                    }
-                }
-            }
-            else
-            {
-                targetList = new List<FileItem>(_allItems);
-            }
+            SortItemList(targetList);
+            return targetList;
+        }
 
-            // フォルダを先頭に、その中で高速直接ソート (Windows Explorer 準拠の自然順ソート)
+        public void SortItemList(List<FileItem> targetList)
+        {
             var sortCol = CurrentSortColumn;
             bool asc = IsSortAscending;
 
@@ -225,8 +216,6 @@ namespace FastExplorer
 
                 return cmp;
             });
-
-            return targetList;
         }
 
         private void ApplySizesToItems(List<FileItem> targetList)

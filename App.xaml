@@ -27,13 +27,19 @@
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="#282828"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="#444444"/>
 
-                    <!-- ToolTip 共通リソース (角丸8px・不透明ソリッド背景で視認性確保) -->
+                    <!-- ToolTip & フライアウト不透明ソリッド背景 (壁紙透過防止) -->
                     <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
+                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+                    <CornerRadius x:Key="CheckBoxCornerRadius">4</CornerRadius>
                     <Thickness x:Key="ToolTipBorderThemeThickness">1</Thickness>
                     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#2C2C2C"/>
                     <SolidColorBrush x:Key="ToolTipBackground" Color="#2C2C2C"/>
+                    <SolidColorBrush x:Key="ToolTipBackgroundThemeBrush" Color="#2C2C2C"/>
+                    <SolidColorBrush x:Key="AcrylicInAppFillColorDefaultBrush" Color="#2C2C2C"/>
+                    <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumLowBrush" Color="#2C2C2C"/>
                     <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#4DFFFFFF"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="ToolTipForegroundBrush" Color="#FFFFFF"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
@@ -61,13 +67,19 @@
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="#FDFDFD"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="#E5E5E5"/>
 
-                    <!-- ToolTip 共通リソース (角丸8px・不透明ソリッド背景で視認性確保) -->
+                    <!-- ToolTip & フライアウト不透明ソリッド背景 (壁紙透過防止) -->
                     <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
+                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+                    <CornerRadius x:Key="CheckBoxCornerRadius">4</CornerRadius>
                     <Thickness x:Key="ToolTipBorderThemeThickness">1</Thickness>
                     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#FDFDFD"/>
                     <SolidColorBrush x:Key="ToolTipBackground" Color="#FDFDFD"/>
+                    <SolidColorBrush x:Key="ToolTipBackgroundThemeBrush" Color="#FDFDFD"/>
+                    <SolidColorBrush x:Key="AcrylicInAppFillColorDefaultBrush" Color="#FDFDFD"/>
+                    <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumLowBrush" Color="#FDFDFD"/>
                     <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#D6D6D6"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="#1C1C1C"/>
+                    <SolidColorBrush x:Key="ToolTipForegroundBrush" Color="#1C1C1C"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>
@@ -95,13 +107,19 @@
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBackground" Color="#282828"/>
                     <SolidColorBrush x:Key="AutoSuggestBoxSuggestionsListBorderBrush" Color="#444444"/>
 
-                    <!-- ToolTip 共通リソース (角丸8px・不透明ソリッド背景で視認性確保) -->
+                    <!-- ToolTip & フライアウト不透明ソリッド背景 (壁紙透過防止) -->
                     <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
+                    <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+                    <CornerRadius x:Key="CheckBoxCornerRadius">4</CornerRadius>
                     <Thickness x:Key="ToolTipBorderThemeThickness">1</Thickness>
                     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#2C2C2C"/>
                     <SolidColorBrush x:Key="ToolTipBackground" Color="#2C2C2C"/>
+                    <SolidColorBrush x:Key="ToolTipBackgroundThemeBrush" Color="#2C2C2C"/>
+                    <SolidColorBrush x:Key="AcrylicInAppFillColorDefaultBrush" Color="#2C2C2C"/>
+                    <SolidColorBrush x:Key="SystemControlBackgroundChromeMediumLowBrush" Color="#2C2C2C"/>
                     <SolidColorBrush x:Key="ToolTipBorderBrush" Color="#4DFFFFFF"/>
                     <SolidColorBrush x:Key="ToolTipForeground" Color="#FFFFFF"/>
+                    <SolidColorBrush x:Key="ToolTipForegroundBrush" Color="#FFFFFF"/>
 
                     <!-- TabView 透過 & すりガラス調スタイル -->
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent"/>

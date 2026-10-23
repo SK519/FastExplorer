@@ -47,41 +47,14 @@
         <Setter Property="CornerRadius" Value="4"/>
     </Style>
 
-    <!-- ツールチップモダンデザイン (角丸8px・不透明ソリッド背景で視認性確保) -->
-    <Style x:Key="DefaultToolTipStyle" TargetType="ToolTip">
-        <Setter Property="Background" Value="{ThemeResource ToolTipBackgroundBrush}"/>
-        <Setter Property="Foreground" Value="{ThemeResource ToolTipForeground}"/>
-        <Setter Property="BorderBrush" Value="{ThemeResource ToolTipBorderBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="10,6"/>
-        <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ToolTip">
-                    <Border Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="{TemplateBinding CornerRadius}"
-                            Padding="{TemplateBinding Padding}">
-                        <ContentPresenter Content="{TemplateBinding Content}"
-                                          ContentTransitions="{TemplateBinding ContentTransitions}"
-                                          MaxWidth="{TemplateBinding MaxWidth}"
-                                          TextWrapping="Wrap"/>
-                    </Border>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-    <Style TargetType="ToolTip" BasedOn="{StaticResource DefaultToolTipStyle}"/>
-
-    <!-- ファイルリスト用チェックボックスの統一スタイル -->
-    <Style x:Key="FileItemCheckBoxStyle" TargetType="CheckBox">
+    <!-- ファイルリスト用チェックボックスの統一スタイル (Windows 11 標準角丸4px) -->
+    <Style x:Key="FileItemCheckBoxStyle" TargetType="CheckBox" BasedOn="{StaticResource DefaultCheckBoxStyle}">
         <Setter Property="MinWidth" Value="0"/>
         <Setter Property="MinHeight" Value="0"/>
         <Setter Property="Padding" Value="0"/>
         <Setter Property="Margin" Value="8,0,8,0"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="CornerRadius" Value="4"/>
         <Setter Property="IsThreeState" Value="False"/>
     </Style>
 

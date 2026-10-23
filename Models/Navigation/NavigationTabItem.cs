@@ -353,7 +353,17 @@ namespace FastExplorer
                 CurrentSortColumn = column;
                 IsSortAscending = true;
             }
-            ApplyFilter();
+
+            if (!string.IsNullOrWhiteSpace(_filterText))
+            {
+                var list = Items.ToList();
+                SortItemList(list);
+                Items.ReplaceAll(list);
+            }
+            else
+            {
+                ApplyFilter();
+            }
         }
 
         private void ApplyFilter()

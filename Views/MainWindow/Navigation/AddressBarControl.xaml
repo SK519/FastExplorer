@@ -14,6 +14,32 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="ms-appx:///Resources/LayoutTemplates.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+
+            <Style TargetType="ToolTip">
+                <Setter Property="Background" Value="{ThemeResource ToolTipBackgroundBrush}"/>
+                <Setter Property="Foreground" Value="{ThemeResource ToolTipForeground}"/>
+                <Setter Property="BorderBrush" Value="{ThemeResource ToolTipBorderBrush}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="10,6"/>
+                <Setter Property="CornerRadius" Value="8"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToolTip">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{TemplateBinding CornerRadius}"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter Content="{TemplateBinding Content}"
+                                                  ContentTransitions="{TemplateBinding ContentTransitions}"
+                                                  MaxWidth="{TemplateBinding MaxWidth}"
+                                                  TextWrapping="Wrap"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
             <DataTemplate x:Key="BreadcrumbItemTemplate" x:DataType="local:BreadcrumbItem">
                 <StackPanel Orientation="Horizontal" Spacing="0" VerticalAlignment="Center">
                     <HyperlinkButton Click="BreadcrumbFolder_Click" PointerPressed="BreadcrumbFolder_PointerPressed" Padding="6,2" Height="30" VerticalAlignment="Center" CornerRadius="4">

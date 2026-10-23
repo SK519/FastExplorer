@@ -24,6 +24,33 @@
     <Grid x:Name="RootGrid" Background="Transparent">
         <Grid.Resources>
             <ResourceDictionary>
+                <!-- ツールチップモダンデザイン (不透明ソリッド背景で視認性確保) -->
+                <Style TargetType="ToolTip">
+                    <Setter Property="Background" Value="{ThemeResource ToolTipBackgroundBrush}"/>
+                    <Setter Property="Foreground" Value="{ThemeResource ToolTipForeground}"/>
+                    <Setter Property="BorderBrush" Value="{ThemeResource ToolTipBorderBrush}"/>
+                    <Setter Property="BorderThickness" Value="1"/>
+                    <Setter Property="Padding" Value="10,6"/>
+                    <Setter Property="CornerRadius" Value="8"/>
+                    <Setter Property="FontSize" Value="12"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="ToolTip">
+                                <Border Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="{TemplateBinding CornerRadius}"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter Content="{TemplateBinding Content}"
+                                                      ContentTransitions="{TemplateBinding ContentTransitions}"
+                                                      MaxWidth="{TemplateBinding MaxWidth}"
+                                                      TextWrapping="Wrap"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+
                 <!-- 選択アイテム用 Win11 風コンテキストメニュー -->
                 <Flyout x:Key="ItemContextMenu" x:Name="ItemContextMenu" Placement="BottomEdgeAlignedLeft" Opening="ItemContextMenu_Opening" Opened="ItemContextMenu_Opened" Closed="ItemContextMenu_Closed">
                     <Flyout.FlyoutPresenterStyle>

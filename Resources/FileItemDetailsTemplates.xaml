@@ -9,6 +9,7 @@
             <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
                       IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
                       IsThreeState="False"
+                      CornerRadius="4"
                       Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"
@@ -69,6 +70,7 @@
             <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
                       IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
                       IsThreeState="False"
+                      CornerRadius="4"
                       Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"
@@ -114,6 +116,7 @@
             <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
                       IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
                       IsThreeState="False"
+                      CornerRadius="4"
                       Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"
@@ -150,6 +153,7 @@
             <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
                       IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
                       IsThreeState="False"
+                      CornerRadius="4"
                       Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"
@@ -186,6 +190,7 @@
             <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
                       IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
                       IsThreeState="False"
+                      CornerRadius="4"
                       Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"
@@ -223,6 +228,7 @@
             <CheckBox Style="{StaticResource FileItemCheckBoxStyle}"
                       IsChecked="{Binding IsSelected, Mode=TwoWay, FallbackValue=False, TargetNullValue=False}"
                       IsThreeState="False"
+                      CornerRadius="4"
                       Visibility="{Binding CheckBoxVisibility, FallbackValue=Collapsed, TargetNullValue=Collapsed}"/>
 
             <Image Source="{Binding Icon}"
