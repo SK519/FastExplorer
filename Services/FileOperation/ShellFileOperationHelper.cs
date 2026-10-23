@@ -13,6 +13,23 @@ namespace FastExplorer.Services
     public static class ShellFileOperationHelper
     {
         /// <summary>
+        /// 指定された例外がアクセス権限不足（ERROR_ACCESS_DENIED / E_ACCESSDENIED）によるものかを正確に判定
+        /// </summary>
+        public static bool IsAccessDeniedException(Exception ex)
+        {
+            if (ex is UnauthorizedAccessException) return true;
+            if (ex is IOException ioe && (ioe.HResult & 0xFFFF) == 5) return true;
+            if (ex is COMException cex)
+            {
+                uint hr = (uint)cex.HResult;
+                // E_ACCESSDENIED (0x80070005), Win32 ERROR_ACCESS_DENIED (5)
+                // COPYENGINE_E_ACCESS_DENIED_SRC (0x80270000), COPYENGINE_E_ACCESS_DENIED_DEST (0x80270001)
+                return hr == 0x80070005 || (hr & 0xFFFF) == 5 || hr == 0x80270000 || hr == 0x80270001;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// 指定されたディレクトリに一般権限で書き込み可能かどうかを高速判定
         /// </summary>
         public static bool HasWritePermission(string directoryPath)
@@ -112,7 +129,7 @@ namespace FastExplorer.Services
         }
 
         /// <summary>
-        /// Windows シェル (IFileOperation) を使用してコピーまたは移動を実行（UAC 昇格確認画面をサポート）
+        /// Windows シェル (IFileOperation) を使用してコピーまたは移動を実行（権限不足時のみ UAC 昇格をサポート）
         /// </summary>
         public static async Task<bool> ExecuteCopyOrMoveAsync(
             IEnumerable<string> sourcePaths,
@@ -130,17 +147,17 @@ namespace FastExplorer.Services
 
             return await RunInStaAsync(() =>
             {
-                var (success, aborted) = TryExecuteOperation(pathList, destinationDirectory, isMove, ownerHwnd, elevated: false);
-                if (!success && !aborted)
+                var (success, aborted, isAccessDenied) = TryExecuteOperation(pathList, destinationDirectory, isMove, ownerHwnd, elevated: false);
+                // 明確なアクセス拒否（権限不足）の場合のみ管理者権限昇格を試行
+                if (!success && !aborted && isAccessDenied)
                 {
-                    // 拒否または失敗時は明示的に Elevation Moniker で昇格試行 (ユーザーキャンセル時は再試行しない)
-                    (success, _) = TryExecuteOperation(pathList, destinationDirectory, isMove, ownerHwnd, elevated: true);
+                    (success, _, _) = TryExecuteOperation(pathList, destinationDirectory, isMove, ownerHwnd, elevated: true);
                 }
                 return success;
             });
         }
 
-        private static (bool Success, bool Aborted) TryExecuteOperation(
+        private static (bool Success, bool Aborted, bool IsAccessDenied) TryExecuteOperation(
             List<string> pathList,
             string destinationDirectory,
             bool isMove,
@@ -148,13 +165,11 @@ namespace FastExplorer.Services
             bool elevated)
         {
             var fileOp = CreateFileOperation(ownerHwnd, elevated);
-            if (fileOp == null) return (false, false);
+            if (fileOp == null) return (false, false, false);
 
             try
             {
-                // FOFX_MOVEACROSSVOLUMES: ボリュームをまたぐ移動（例: Dドライブから C:\Program Files へのカット移動）を許可
-                uint flags = Win32Interop.FOFX_SHOWELEVATIONPROMPT |
-                             Win32Interop.FOF_ALLOWUNDO |
+                uint flags = Win32Interop.FOF_ALLOWUNDO |
                              Win32Interop.FOFX_MOVEACROSSVOLUMES;
 
                 if (elevated)
@@ -170,7 +185,7 @@ namespace FastExplorer.Services
 
                 int hrDest = Win32Interop.SHCreateItemFromParsingName(
                     destinationDirectory, 0, in Win32Interop.IID_IShellItem, out nint pDestItem);
-                if (hrDest != 0 || pDestItem == 0) return (false, false);
+                if (hrDest != 0 || pDestItem == 0) return (false, false, hrDest == unchecked((int)0x80070005));
 
                 try
                 {
@@ -200,11 +215,11 @@ namespace FastExplorer.Services
                         }
                     }
 
-                    if (!addedAny) return (false, false);
+                    if (!addedAny) return (false, false, false);
 
                     fileOp.PerformOperations();
                     bool aborted = fileOp.GetAnyOperationsAborted();
-                    return (!aborted, aborted);
+                    return (!aborted, aborted, false);
                 }
                 finally
                 {
@@ -213,8 +228,9 @@ namespace FastExplorer.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[ShellFileOp] PerformOperations error (elevated={elevated}): {ex.Message}");
-                return (false, false);
+                bool isDenied = IsAccessDeniedException(ex);
+                Debug.WriteLine($"[ShellFileOp] PerformOperations error (elevated={elevated}, isDenied={isDenied}): {ex.Message}");
+                return (false, false, isDenied);
             }
             finally
             {
@@ -223,7 +239,7 @@ namespace FastExplorer.Services
         }
 
         /// <summary>
-        /// Windows シェルを使用して新規アイテム（フォルダーまたはファイル）を作成（UAC 昇格確認画面をサポート）
+        /// Windows シェルを使用して新規アイテム（フォルダーまたはファイル）を作成（権限不足時のみ UAC 昇格をサポート）
         /// </summary>
         public static async Task<bool> ExecuteNewItemAsync(
             string parentDirectory,
@@ -238,16 +254,17 @@ namespace FastExplorer.Services
 
             return await RunInStaAsync(() =>
             {
-                var (success, aborted) = TryExecuteNewItem(parentDirectory, name, isDirectory, ownerHwnd, elevated: false);
-                if (!success && !aborted)
+                var (success, aborted, isAccessDenied) = TryExecuteNewItem(parentDirectory, name, isDirectory, ownerHwnd, elevated: false);
+                // 明確なアクセス拒否（権限不足）の場合のみ管理者権限昇格を試行
+                if (!success && !aborted && isAccessDenied)
                 {
-                    (success, _) = TryExecuteNewItem(parentDirectory, name, isDirectory, ownerHwnd, elevated: true);
+                    (success, _, _) = TryExecuteNewItem(parentDirectory, name, isDirectory, ownerHwnd, elevated: true);
                 }
                 return success;
             });
         }
 
-        private static (bool Success, bool Aborted) TryExecuteNewItem(
+        private static (bool Success, bool Aborted, bool IsAccessDenied) TryExecuteNewItem(
             string parentDirectory,
             string name,
             bool isDirectory,
@@ -255,11 +272,11 @@ namespace FastExplorer.Services
             bool elevated)
         {
             var fileOp = CreateFileOperation(ownerHwnd, elevated);
-            if (fileOp == null) return (false, false);
+            if (fileOp == null) return (false, false, false);
 
             try
             {
-                uint flags = Win32Interop.FOFX_SHOWELEVATIONPROMPT | Win32Interop.FOF_ALLOWUNDO;
+                uint flags = Win32Interop.FOF_ALLOWUNDO | Win32Interop.FOF_NOCONFIRMATION;
                 if (elevated) flags |= Win32Interop.FOFX_REQUIREELEVATION;
                 fileOp.SetOperationFlags(flags);
 
@@ -267,7 +284,7 @@ namespace FastExplorer.Services
 
                 int hr = Win32Interop.SHCreateItemFromParsingName(
                     parentDirectory, 0, in Win32Interop.IID_IShellItem, out nint pParentItem);
-                if (hr != 0 || pParentItem == 0) return (false, false);
+                if (hr != 0 || pParentItem == 0) return (false, false, hr == unchecked((int)0x80070005));
 
                 try
                 {
@@ -275,7 +292,7 @@ namespace FastExplorer.Services
                     fileOp.NewItem(pParentItem, attr, name, null!, 0);
                     fileOp.PerformOperations();
                     bool aborted = fileOp.GetAnyOperationsAborted();
-                    return (!aborted, aborted);
+                    return (!aborted, aborted, false);
                 }
                 finally
                 {
@@ -284,8 +301,9 @@ namespace FastExplorer.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[ShellFileOp] NewItem error (elevated={elevated}): {ex.Message}");
-                return (false, false);
+                bool isDenied = IsAccessDeniedException(ex);
+                Debug.WriteLine($"[ShellFileOp] NewItem error (elevated={elevated}, isDenied={isDenied}): {ex.Message}");
+                return (false, false, isDenied);
             }
             finally
             {
@@ -294,7 +312,7 @@ namespace FastExplorer.Services
         }
 
         /// <summary>
-        /// Windows シェルを使用して名前変更を実行（UAC 昇格確認画面をサポート）
+        /// Windows シェルを使用して名前変更を実行（権限不足時のみ UAC 昇格をサポート）
         /// </summary>
         public static async Task<bool> ExecuteRenameAsync(
             string itemPath,
@@ -308,27 +326,28 @@ namespace FastExplorer.Services
 
             return await RunInStaAsync(() =>
             {
-                var (success, aborted) = TryExecuteRename(itemPath, newName, ownerHwnd, elevated: false);
-                if (!success && !aborted)
+                var (success, aborted, isAccessDenied) = TryExecuteRename(itemPath, newName, ownerHwnd, elevated: false);
+                // 明確なアクセス拒否（権限不足）の場合のみ管理者権限昇格を試行
+                if (!success && !aborted && isAccessDenied)
                 {
-                    (success, _) = TryExecuteRename(itemPath, newName, ownerHwnd, elevated: true);
+                    (success, _, _) = TryExecuteRename(itemPath, newName, ownerHwnd, elevated: true);
                 }
                 return success;
             });
         }
 
-        private static (bool Success, bool Aborted) TryExecuteRename(
+        private static (bool Success, bool Aborted, bool IsAccessDenied) TryExecuteRename(
             string itemPath,
             string newName,
             nint ownerHwnd,
             bool elevated)
         {
             var fileOp = CreateFileOperation(ownerHwnd, elevated);
-            if (fileOp == null) return (false, false);
+            if (fileOp == null) return (false, false, false);
 
             try
             {
-                uint flags = Win32Interop.FOFX_SHOWELEVATIONPROMPT | Win32Interop.FOF_ALLOWUNDO;
+                uint flags = Win32Interop.FOF_ALLOWUNDO | Win32Interop.FOF_NOCONFIRMATION;
                 if (elevated) flags |= Win32Interop.FOFX_REQUIREELEVATION;
                 fileOp.SetOperationFlags(flags);
 
@@ -336,14 +355,14 @@ namespace FastExplorer.Services
 
                 int hr = Win32Interop.SHCreateItemFromParsingName(
                     itemPath, 0, in Win32Interop.IID_IShellItem, out nint pItem);
-                if (hr != 0 || pItem == 0) return (false, false);
+                if (hr != 0 || pItem == 0) return (false, false, hr == unchecked((int)0x80070005));
 
                 try
                 {
                     fileOp.RenameItem(pItem, newName, 0);
                     fileOp.PerformOperations();
                     bool aborted = fileOp.GetAnyOperationsAborted();
-                    return (!aborted, aborted);
+                    return (!aborted, aborted, false);
                 }
                 finally
                 {
@@ -352,8 +371,9 @@ namespace FastExplorer.Services
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[ShellFileOp] Rename error (elevated={elevated}): {ex.Message}");
-                return (false, false);
+                bool isDenied = IsAccessDeniedException(ex);
+                Debug.WriteLine($"[ShellFileOp] Rename error (elevated={elevated}, isDenied={isDenied}): {ex.Message}");
+                return (false, false, isDenied);
             }
             finally
             {
@@ -362,12 +382,29 @@ namespace FastExplorer.Services
         }
 
         /// <summary>
-        /// Windows シェルを使用して削除またはゴミ箱移動を実行（UAC 昇格確認画面をサポート）
+        /// 通常権限で直接削除またはゴミ箱移動を試行（STA スレッド不要の直接呼び出し可能メソッド）
+        /// </summary>
+        public static (bool Success, bool Aborted, bool IsAccessDenied) TryExecuteDeleteDirect(
+            IEnumerable<string> paths,
+            bool recycle,
+            nint ownerHwnd = 0,
+            bool elevated = false)
+        {
+            var validPaths = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+            if (validPaths.Count == 0) return (true, false, false);
+
+            if (ownerHwnd == 0) ownerHwnd = FileOperationService.DefaultOwnerHwnd;
+            return TryExecuteDelete(validPaths, recycle, ownerHwnd, elevated);
+        }
+
+        /// <summary>
+        /// Windows シェルを使用して削除またはゴミ箱移動を実行（権限不足時のみ UAC 昇格をサポート）
         /// </summary>
         public static async Task<bool> ExecuteDeleteAsync(
             IEnumerable<string> paths,
             bool recycle,
-            nint ownerHwnd = 0)
+            nint ownerHwnd = 0,
+            bool forceElevate = false)
         {
             var validPaths = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (validPaths.Count == 0) return true;
@@ -376,32 +413,42 @@ namespace FastExplorer.Services
 
             return await RunInStaAsync(() =>
             {
-                var (success, aborted) = TryExecuteDelete(validPaths, recycle, ownerHwnd, elevated: false);
-                if (!success && !aborted)
+                if (forceElevate)
                 {
-                    (success, _) = TryExecuteDelete(validPaths, recycle, ownerHwnd, elevated: true);
+                    var (elevatedSuccess, _, _) = TryExecuteDelete(validPaths, recycle, ownerHwnd, elevated: true);
+                    return elevatedSuccess;
+                }
+
+                var (success, aborted, isAccessDenied) = TryExecuteDelete(validPaths, recycle, ownerHwnd, elevated: false);
+                // 明確なアクセス拒否（権限不足）の場合のみ管理者権限昇格を試行
+                if (!success && !aborted && isAccessDenied)
+                {
+                    (success, _, _) = TryExecuteDelete(validPaths, recycle, ownerHwnd, elevated: true);
                 }
                 return success;
             });
         }
 
-        private static (bool Success, bool Aborted) TryExecuteDelete(
+        private static (bool Success, bool Aborted, bool IsAccessDenied) TryExecuteDelete(
             List<string> validPaths,
             bool recycle,
             nint ownerHwnd,
             bool elevated)
         {
             var fileOp = CreateFileOperation(ownerHwnd, elevated);
-            if (fileOp == null) return (false, false);
+            if (fileOp == null) return (false, false, false);
 
             try
             {
-                uint flags = Win32Interop.FOFX_SHOWELEVATIONPROMPT;
+                uint flags = Win32Interop.FOF_NOCONFIRMATION | Win32Interop.FOF_SILENT;
                 if (recycle)
                 {
                     flags |= Win32Interop.FOFX_RECYCLEONDELETE | Win32Interop.FOF_ALLOWUNDO;
                 }
-                if (elevated) flags |= Win32Interop.FOFX_REQUIREELEVATION;
+                if (elevated)
+                {
+                    flags |= Win32Interop.FOFX_REQUIREELEVATION;
+                }
 
                 fileOp.SetOperationFlags(flags);
 
@@ -426,16 +473,20 @@ namespace FastExplorer.Services
                     }
                 }
 
-                if (!addedAny) return (false, false);
+                if (!addedAny) return (false, false, false);
 
                 fileOp.PerformOperations();
                 bool aborted = fileOp.GetAnyOperationsAborted();
-                return (!aborted, aborted);
+
+                // 削除後に項目がまだ残っている場合は成否を確認
+                bool anyStillExists = validPaths.Any(p => File.Exists(p) || Directory.Exists(p));
+                return (!aborted && !anyStillExists, aborted, false);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[ShellFileOp] Delete error (elevated={elevated}): {ex.Message}");
-                return (false, false);
+                bool isDenied = IsAccessDeniedException(ex);
+                Debug.WriteLine($"[ShellFileOp] Delete error (elevated={elevated}, isDenied={isDenied}): {ex.Message}");
+                return (false, false, isDenied);
             }
             finally
             {

@@ -313,12 +313,6 @@ namespace FastExplorer.Services
             string targetPath = GetUniquePath(destinationDirectory, baseName);
             string targetName = Path.GetFileName(targetPath);
 
-            // 書き込み権限がない場合は管理者権限（UAC確認画面付き）で作成
-            if (!ShellFileOperationHelper.HasWritePermission(destinationDirectory))
-            {
-                return await CreateElevatedFileFromTemplateAsync(destinationDirectory, targetPath, targetName, template, ownerHwnd);
-            }
-
             try
             {
                 if (!string.IsNullOrEmpty(template.TemplateFileName))

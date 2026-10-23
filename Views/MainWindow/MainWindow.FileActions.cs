@@ -195,24 +195,6 @@ namespace FastExplorer
                 string dir = Path.GetDirectoryName(item.FullPath) ?? "";
                 string newPath = Path.Combine(dir, trimmedNewName);
 
-                bool needElevation = !ShellFileOperationHelper.HasWritePermission(dir);
-                if (needElevation)
-                {
-                    bool ok = await ShellFileOperationHelper.ExecuteRenameAsync(item.FullPath, trimmedNewName, WindowHandle);
-                    if (ok)
-                    {
-                        item.Name = trimmedNewName;
-                        item.FullPath = newPath;
-                    }
-                    else
-                    {
-                        item.RenameText = item.Name;
-                    }
-                    item.IsRenaming = false;
-                    ActiveListControl?.Focus(FocusState.Programmatic);
-                    return;
-                }
-
                 if (item.IsDirectory)
                 {
                     Directory.Move(item.FullPath, newPath);

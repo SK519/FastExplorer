@@ -288,13 +288,23 @@ namespace FastExplorer.Services
             var validPaths = paths.Where(p => File.Exists(p) || Directory.Exists(p)).Select(Path.GetFullPath).ToList();
             if (validPaths.Count == 0) return true;
 
-            // 1. Windows Explorer 標準の IFileOperation COM インターフェイス（完全なゴミ箱移動・Undo・UAC昇格対応）
+            // 1. まず通常権限の IFileOperation によるゴミ箱移動を試行 (0ms 高速処理 & ダイアログ不要)
             try
             {
-                bool shellSuccess = ShellFileOperationHelper.ExecuteDeleteAsync(validPaths, recycle: true, DefaultOwnerHwnd).GetAwaiter().GetResult();
-                if (shellSuccess)
+                var (success, aborted, isAccessDenied) = ShellFileOperationHelper.TryExecuteDeleteDirect(validPaths, recycle: true, DefaultOwnerHwnd, elevated: false);
+                if (success)
                 {
                     return true;
+                }
+                if (aborted)
+                {
+                    return false;
+                }
+
+                // 明確にアクセス拒否（権限不足）の場合のみ管理者権限昇格で削除
+                if (isAccessDenied)
+                {
+                    return ShellFileOperationHelper.ExecuteDeleteAsync(validPaths, recycle: true, DefaultOwnerHwnd, forceElevate: true).GetAwaiter().GetResult();
                 }
             }
             catch (Exception ex)
@@ -304,6 +314,7 @@ namespace FastExplorer.Services
 
             // 2. フォールバック: Microsoft.VisualBasic.FileIO.FileSystem (SendToRecycleBin)
             bool allSuccess = true;
+            var deniedPaths = new List<string>();
             foreach (var path in validPaths)
             {
                 try
@@ -323,12 +334,33 @@ namespace FastExplorer.Services
                             Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
                     }
                 }
+                catch (UnauthorizedAccessException)
+                {
+                    deniedPaths.Add(path);
+                    allSuccess = false;
+                }
+                catch (IOException ex) when ((ex.HResult & 0xFFFF) == 5)
+                {
+                    deniedPaths.Add(path);
+                    allSuccess = false;
+                }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"FileSystem fallback error for {path}: {ex.Message}");
                     allSuccess = false;
                 }
             }
+
+            // 3. VisualBasic でもアクセス拒否された項目のみ管理者権限で実行
+            if (deniedPaths.Count > 0)
+            {
+                try
+                {
+                    return ShellFileOperationHelper.ExecuteDeleteAsync(deniedPaths, recycle: true, DefaultOwnerHwnd, forceElevate: true).GetAwaiter().GetResult();
+                }
+                catch { }
+            }
+
             return allSuccess;
         }
 
@@ -370,7 +402,7 @@ namespace FastExplorer.Services
             {
                 try
                 {
-                    ShellFileOperationHelper.ExecuteDeleteAsync(failedPaths, recycle: false, DefaultOwnerHwnd).GetAwaiter().GetResult();
+                    ShellFileOperationHelper.ExecuteDeleteAsync(failedPaths, recycle: false, DefaultOwnerHwnd, forceElevate: true).GetAwaiter().GetResult();
                 }
                 catch { }
             }
@@ -388,18 +420,12 @@ namespace FastExplorer.Services
             string targetName = Path.GetFileName(GetUniqueDestinationPath(parentDirectory, "新しいフォルダー"));
             string targetPath = Path.Combine(parentDirectory, targetName);
 
-            if (!ShellFileOperationHelper.HasWritePermission(parentDirectory))
-            {
-                bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: true, DefaultOwnerHwnd);
-                return ok ? targetPath : null;
-            }
-
             try
             {
                 Directory.CreateDirectory(targetPath);
                 return targetPath;
             }
-            catch (UnauthorizedAccessException)
+            catch (Exception ex) when (ex is UnauthorizedAccessException || (ex is IOException ioe && (ioe.HResult & 0xFFFF) == 5))
             {
                 bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: true, DefaultOwnerHwnd);
                 return ok ? targetPath : null;
@@ -423,18 +449,12 @@ namespace FastExplorer.Services
             string targetName = Path.GetFileName(GetUniqueDestinationPath(parentDirectory, "新しいテキスト ドキュメント.txt"));
             string targetPath = Path.Combine(parentDirectory, targetName);
 
-            if (!ShellFileOperationHelper.HasWritePermission(parentDirectory))
-            {
-                bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: false, DefaultOwnerHwnd);
-                return ok ? targetPath : null;
-            }
-
             try
             {
                 File.WriteAllText(targetPath, string.Empty);
                 return targetPath;
             }
-            catch (UnauthorizedAccessException)
+            catch (Exception ex) when (ex is UnauthorizedAccessException || (ex is IOException ioe && (ioe.HResult & 0xFFFF) == 5))
             {
                 bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: false, DefaultOwnerHwnd);
                 return ok ? targetPath : null;
