@@ -175,13 +175,22 @@ namespace FastExplorer
 
                 // アーカイブファイルの判定
                 bool isArchive = isFile && ArchiveService.IsSupportedArchive(targetItem?.FullPath);
+                bool areAllArchives = selectedItems.Count > 1 &&
+                                      selectedItems.All(i => !string.IsNullOrEmpty(i.FullPath) && ArchiveService.IsSupportedArchive(i.FullPath));
 
                 // 展開 (解凍) 項目 (ZIP / 7-Zip / RAR / TAR / GZ 等のアーカイブファイル選択時)
-                if (isArchive && !string.IsNullOrEmpty(targetItem?.FullPath) && !targetItem.FullPath.Equals("Home", StringComparison.OrdinalIgnoreCase) && !targetItem.FullPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
+                if ((isArchive || areAllArchives) && !string.IsNullOrEmpty(targetItem?.FullPath) && !targetItem.FullPath.Equals("Home", StringComparison.OrdinalIgnoreCase) && !targetItem.FullPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
                 {
-                    string folderName = Path.GetFileNameWithoutExtension(targetItem.FullPath);
                     standardItems.Add(CreateContextButton("\uE896", "ここに展開", ContextMenuExtractHere_Click, itemStyle));
-                    standardItems.Add(CreateContextButton("\uE838", $"\"{folderName}\" に展開", ContextMenuExtractToFolder_Click, itemStyle));
+                    if (areAllArchives)
+                    {
+                        standardItems.Add(CreateContextButton("\uE838", "それぞれのフォルダーに展開", ContextMenuExtractToFolder_Click, itemStyle));
+                    }
+                    else
+                    {
+                        string folderName = ArchiveService.GetArchiveBaseName(targetItem.FullPath);
+                        standardItems.Add(CreateContextButton("\uE838", $"\"{folderName}\" に展開", ContextMenuExtractToFolder_Click, itemStyle));
+                    }
                 }
 
                 // 圧縮項目 (複数選択、またはアーカイブ以外の単一項目選択時)

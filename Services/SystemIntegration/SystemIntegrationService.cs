@@ -174,10 +174,10 @@ namespace FastExplorer.Services
                         }
 
                         // 5. コンテキストメニュー「FastExplorer で開く」
-                        SetContextMenuIntegration(true);
+                        try { SetContextMenuIntegration(true); } catch { }
 
                         // 6. スタートアップ & タスクスケジューラ登録（FastExplorerWatcher.exe）
-                        SetStartupRunKey(true);
+                        try { SetStartupRunKey(true); } catch { }
 
                         // 7. アプリケーションインストール先パスの記録
                         using (var appKey = Registry.CurrentUser.CreateSubKey(@"Software\FastExplorer"))
@@ -469,37 +469,91 @@ namespace FastExplorer.Services
             }
         }
 
+        #region Native COM Shortcut Interfaces (Safe IShellLinkW / IPersistFile)
+
+        [ComImport]
+        [Guid("00021401-0000-0000-C000-000000000046")]
+        private class ShellLinkClass
+        {
+        }
+
+        [ComImport]
+        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        [Guid("000214F9-0000-0000-C000-000000000046")]
+        private interface IShellLinkW
+        {
+            void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszFile, int cchMaxPath, out IntPtr pfd, uint fFlags);
+            void GetIDList(out IntPtr ppidl);
+            void SetIDList(IntPtr pidl);
+            void GetDescription([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszName, int cchMaxName);
+            void SetDescription([MarshalAs(UnmanagedType.LPWStr)] string pszName);
+            void GetWorkingDirectory([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszDir, int cchMaxPath);
+            void SetWorkingDirectory([MarshalAs(UnmanagedType.LPWStr)] string pszDir);
+            void GetArguments([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszArgs, int cchMaxPath);
+            void SetArguments([MarshalAs(UnmanagedType.LPWStr)] string pszArgs);
+            void GetHotkey(out short pwHotkey);
+            void SetHotkey(short wHotkey);
+            void GetShowCmd(out int piShowCmd);
+            void SetShowCmd(int iShowCmd);
+            void GetIconLocation([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pszIconPath, int cchIconPath, out int piIcon);
+            void SetIconLocation([MarshalAs(UnmanagedType.LPWStr)] string pszIconPath, int iIcon);
+            void SetRelativePath([MarshalAs(UnmanagedType.LPWStr)] string pszPathRel, uint dwReserved);
+            void Resolve(IntPtr hwnd, uint fFlags);
+            void SetPath([MarshalAs(UnmanagedType.LPWStr)] string pszFile);
+        }
+
+        [ComImport]
+        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        [Guid("0000010b-0000-0000-C000-000000000046")]
+        private interface IPersistFile
+        {
+            void GetClassID(out Guid pClassID);
+            void IsDirty();
+            void Load([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, uint dwMode);
+            void Save([MarshalAs(UnmanagedType.LPWStr)] string pszFileName, [MarshalAs(UnmanagedType.Bool)] bool fRemember);
+            void SaveCompleted([MarshalAs(UnmanagedType.LPWStr)] string pszFileName);
+            void GetCurFile([Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder ppszFileName);
+        }
+
         private static bool CreateShortcutCom(string shortcutPath, string targetPath, string? iconLocation = null)
         {
             try
             {
-                Type? shellType = Type.GetTypeFromProgID("WScript.Shell");
-                if (shellType == null) return false;
-
-                dynamic? shell = Activator.CreateInstance(shellType);
-                if (shell == null) return false;
+                var linkObj = new ShellLinkClass();
+                if (linkObj is not IShellLinkW shellLink) return false;
 
                 try
                 {
-                    dynamic shortcut = shell.CreateShortcut(shortcutPath);
-                    try
+                    shellLink.SetPath(targetPath);
+                    string? dir = Path.GetDirectoryName(targetPath);
+                    if (!string.IsNullOrEmpty(dir))
                     {
-                        shortcut.TargetPath = targetPath;
-                        if (!string.IsNullOrEmpty(iconLocation))
+                        shellLink.SetWorkingDirectory(dir);
+                    }
+
+                    if (!string.IsNullOrEmpty(iconLocation))
+                    {
+                        string iconPath = iconLocation.Trim('"');
+                        int iconIndex = 0;
+                        int commaIdx = iconLocation.LastIndexOf(',');
+                        if (commaIdx > 0 && int.TryParse(iconLocation[(commaIdx + 1)..], out int parsedIdx))
                         {
-                            shortcut.IconLocation = iconLocation;
+                            iconPath = iconLocation[..commaIdx].Trim('"');
+                            iconIndex = parsedIdx;
                         }
-                        shortcut.Save();
+                        shellLink.SetIconLocation(iconPath, iconIndex);
+                    }
+
+                    if (linkObj is IPersistFile persistFile)
+                    {
+                        persistFile.Save(shortcutPath, true);
                         return true;
                     }
-                    finally
-                    {
-                        Marshal.FinalReleaseComObject(shortcut);
-                    }
+                    return false;
                 }
                 finally
                 {
-                    Marshal.FinalReleaseComObject(shell);
+                    Marshal.FinalReleaseComObject(linkObj);
                 }
             }
             catch (Exception ex)
@@ -508,6 +562,8 @@ namespace FastExplorer.Services
                 return false;
             }
         }
+
+        #endregion
 
         public static bool SetStartupRunKey(bool enable)
         {

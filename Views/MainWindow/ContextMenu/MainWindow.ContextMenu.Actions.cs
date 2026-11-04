@@ -23,7 +23,9 @@ namespace FastExplorer
         public enum ArchiveFormat
         {
             Zip,
-            SevenZip
+            SevenZip,
+            Tar,
+            TarGz
         }
 
         private async void CreateNewFileFromTemplate(ShellNewTemplate template)
@@ -255,6 +257,16 @@ namespace FastExplorer
         {
             var shellConfig = ConfigService.Current.ShellMenu;
             await PerformCompressAsync(ArchiveFormat.SevenZip, shellConfig.DefaultSevenZipLevel);
+        }
+
+        private async void ContextMenuCompressTar_Click(object sender, RoutedEventArgs e)
+        {
+            await PerformCompressAsync(ArchiveFormat.Tar, ArchiveCompressionLevel.Store);
+        }
+
+        private async void ContextMenuCompressTarGz_Click(object sender, RoutedEventArgs e)
+        {
+            await PerformCompressAsync(ArchiveFormat.TarGz, ArchiveCompressionLevel.Normal);
         }
 
         private async void ContextMenuExtractHere_Click(object sender, RoutedEventArgs e)

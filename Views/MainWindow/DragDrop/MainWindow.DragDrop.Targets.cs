@@ -102,7 +102,14 @@ namespace FastExplorer
             var pathList = sourcePaths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (pathList.Count == 0 || !Directory.Exists(destinationDirectory)) return null;
 
-            string dialogTitle = format == ArchiveFormat.Zip ? "ZIPに圧縮中" : "7-Zipに圧縮中";
+            string dialogTitle = format switch
+            {
+                ArchiveFormat.Zip => "ZIPに圧縮中",
+                ArchiveFormat.SevenZip => "7-Zipに圧縮中",
+                ArchiveFormat.Tar => "TARに圧縮中",
+                ArchiveFormat.TarGz => "TAR.GZに圧縮中",
+                _ => "圧縮中"
+            };
             var controller = new FileTransferController();
             TransferDialogControl.Controller = controller;
             TransferDialogControl.ResetState(dialogTitle, allowPause: false);
@@ -121,6 +128,8 @@ namespace FastExplorer
                 {
                     ArchiveFormat.Zip => await ArchiveService.CompressToZipAsync(pathList, destinationDirectory, level, progress, controller),
                     ArchiveFormat.SevenZip => await ArchiveService.CompressTo7zAsync(pathList, destinationDirectory, level, progress, controller),
+                    ArchiveFormat.Tar => await ArchiveService.CompressToTarAsync(pathList, destinationDirectory, progress, controller),
+                    ArchiveFormat.TarGz => await ArchiveService.CompressToTarGzAsync(pathList, destinationDirectory, level, progress, controller),
                     _ => null
                 };
 

@@ -192,6 +192,44 @@ namespace FastExplorer
             AddCompressionLevelItem(flyout, "  ⚡ 高速 (Fast)", ArchiveFormat.SevenZip, ArchiveCompressionLevel.Fast, level);
             AddCompressionLevelItem(flyout, "  📦 無圧縮 (Store)", ArchiveFormat.SevenZip, ArchiveCompressionLevel.Store, level);
 
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            // --- TAR.GZ セクション ---
+            var tarGzHeader = new MenuFlyoutItem
+            {
+                Text = "TAR.GZ 形式 (.tar.gz)",
+                Icon = new FontIcon { Glyph = "\uE8B7" },
+                IsEnabled = false
+            };
+            tarGzHeader.PointerEntered += (s, args) =>
+            {
+                CancelPendingSubmenuOpen();
+                CloseSubmenusFromLevel(level + 1);
+            };
+            flyout.Items.Add(tarGzHeader);
+
+            AddCompressionLevelItem(flyout, "  💎 最高圧縮 (Ultra)", ArchiveFormat.TarGz, ArchiveCompressionLevel.Ultra, level);
+            AddCompressionLevelItem(flyout, "  ⚖️ 標準 (Normal)", ArchiveFormat.TarGz, ArchiveCompressionLevel.Normal, level);
+            AddCompressionLevelItem(flyout, "  ⚡ 高速 (Fast)", ArchiveFormat.TarGz, ArchiveCompressionLevel.Fast, level);
+
+            flyout.Items.Add(new MenuFlyoutSeparator());
+
+            // --- TAR (無圧縮) セクション ---
+            var tarHeader = new MenuFlyoutItem
+            {
+                Text = "TAR 形式 (.tar)",
+                Icon = new FontIcon { Glyph = "\uE8B7" },
+                IsEnabled = false
+            };
+            tarHeader.PointerEntered += (s, args) =>
+            {
+                CancelPendingSubmenuOpen();
+                CloseSubmenusFromLevel(level + 1);
+            };
+            flyout.Items.Add(tarHeader);
+
+            AddCompressionLevelItem(flyout, "  📦 無圧縮アーカイブ (Store)", ArchiveFormat.Tar, ArchiveCompressionLevel.Store, level);
+
             return flyout;
         }
 
