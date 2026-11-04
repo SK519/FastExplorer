@@ -29,6 +29,7 @@ namespace FastExplorer.Services
 
         private static void NotifyPinnedChanged()
         {
+            InvalidatePinnedCache();
             PinnedItemsChanged?.Invoke();
         }
 

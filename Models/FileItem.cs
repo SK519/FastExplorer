@@ -16,19 +16,21 @@ namespace FastExplorer
         private string _name = string.Empty;
         private string _fullPath = string.Empty;
         private long _sizeInBytes = -1;
-        private string _formattedSize = string.Empty;
+        private string? _formattedSize;
         private DateTime _dateModified;
-        private string _formattedDateModified = "-";
+        private string? _formattedDateModified;
         private string _fileType = string.Empty;
         private bool _isDirectory;
         private bool _isHidden;
         private bool _isReadOnly;
         private bool _isRenaming;
-        private string _renameText = string.Empty;
+        private string? _renameText;
         private string _originalLocation = string.Empty;
         private DateTime _dateDeleted;
         private string _formattedDateDeleted = "-";
         private bool _isRecycleBinItem;
+
+        public bool HasCustomFolderAttribute { get; set; }
 
         public string Name
         {
@@ -37,7 +39,8 @@ namespace FastExplorer
             {
                 if (SetField(ref _name, value))
                 {
-                    RenameText = value;
+                    _renameText = null;
+                    OnPropertyChanged(nameof(RenameText));
                 }
             }
         }
@@ -61,15 +64,23 @@ namespace FastExplorer
             {
                 if (SetField(ref _sizeInBytes, value))
                 {
-                    FormattedSize = _isDirectory ? string.Empty : FormatFileSize(value);
+                    _formattedSize = null;
+                    OnPropertyChanged(nameof(FormattedSize));
                 }
             }
         }
 
         public string FormattedSize
         {
-            get => _formattedSize;
-            private set => SetField(ref _formattedSize, value);
+            get
+            {
+                if (_formattedSize == null)
+                {
+                    _formattedSize = (_isDirectory || _sizeInBytes < 0) ? string.Empty : FormatFileSize(_sizeInBytes);
+                }
+                return _formattedSize;
+            }
+            set => SetField(ref _formattedSize, value);
         }
 
         public DateTime DateModified
@@ -79,15 +90,24 @@ namespace FastExplorer
             {
                 if (SetField(ref _dateModified, value))
                 {
-                    FormattedDateModified = value == DateTime.MinValue ? "-" : value.ToString("yyyy/MM/dd HH:mm");
+                    _formattedDateModified = null;
+                    OnPropertyChanged(nameof(FormattedDateModified));
+                    OnPropertyChanged(nameof(DisplayCol2Text));
                 }
             }
         }
 
         public string FormattedDateModified
         {
-            get => _formattedDateModified;
-            private set
+            get
+            {
+                if (_formattedDateModified == null)
+                {
+                    _formattedDateModified = _dateModified == DateTime.MinValue ? "-" : _dateModified.ToString("yyyy/MM/dd HH:mm");
+                }
+                return _formattedDateModified;
+            }
+            set
             {
                 if (SetField(ref _formattedDateModified, value))
                 {
@@ -221,15 +241,14 @@ namespace FastExplorer
                 {
                     if (value)
                     {
-                        FormattedSize = string.Empty;
+                        _formattedSize = string.Empty;
+                        OnPropertyChanged(nameof(FormattedSize));
                         GlyphIcon = "\uE8B7";
                     }
                     else
                     {
-                        if (_sizeInBytes >= 0)
-                        {
-                            FormattedSize = FormatFileSize(_sizeInBytes);
-                        }
+                        _formattedSize = null;
+                        OnPropertyChanged(nameof(FormattedSize));
                         GlyphIcon = "\uE7C3";
                     }
                 }
@@ -365,7 +384,7 @@ namespace FastExplorer
 
         public string RenameText
         {
-            get => _renameText;
+            get => _renameText ?? _name;
             set => SetField(ref _renameText, value);
         }
 

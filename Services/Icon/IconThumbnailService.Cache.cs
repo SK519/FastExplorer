@@ -123,8 +123,12 @@ namespace FastExplorer.Services
                     SoftwareBitmap? bitmap = ExtractIconAsSoftwareBitmap(item);
                     if (bitmap != null)
                     {
-                        AddToCache(key, bitmap);
-                        SetIconToItem(item, bitmap, key);
+                        bool isFileThumb = key.StartsWith("file::large::", StringComparison.OrdinalIgnoreCase);
+                        if (!isFileThumb)
+                        {
+                            AddToCache(key, bitmap);
+                        }
+                        SetIconToItem(item, bitmap, key, disposeBitmapAfterTransfer: isFileThumb);
                     }
                 }
                 catch
@@ -159,11 +163,30 @@ namespace FastExplorer.Services
             }
         }
 
-        private void SetIconToItem(FileItem item, SoftwareBitmap softwareBitmap, string cacheKey)
+        private readonly ConcurrentDictionary<string, System.Threading.Tasks.Task<SoftwareBitmapSource>> _pendingSourceTasks = new(StringComparer.OrdinalIgnoreCase);
+
+        private void SetIconToItem(FileItem item, SoftwareBitmap softwareBitmap, string cacheKey, bool disposeBitmapAfterTransfer = false)
         {
             if (_dispatcherQueue == null)
             {
                 _initEvent.Wait(2000);
+            }
+
+            if (_imageSourceCache.TryGetValue(cacheKey, out var existingSource))
+            {
+                if (_dispatcherQueue?.HasThreadAccess == true)
+                {
+                    item.Icon = existingSource;
+                }
+                else
+                {
+                    _dispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => item.Icon = existingSource);
+                }
+                if (disposeBitmapAfterTransfer && !IsSharedBitmap(softwareBitmap))
+                {
+                    try { softwareBitmap.Dispose(); } catch { }
+                }
+                return;
             }
 
             _dispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, async () =>
@@ -173,19 +196,54 @@ namespace FastExplorer.Services
                     if (_imageSourceCache.TryGetValue(cacheKey, out var cachedSource))
                     {
                         item.Icon = cachedSource;
+                        if (disposeBitmapAfterTransfer && !IsSharedBitmap(softwareBitmap))
+                        {
+                            try { softwareBitmap.Dispose(); } catch { }
+                        }
                         return;
                     }
 
-                    var source = new SoftwareBitmapSource();
-                    await source.SetBitmapAsync(softwareBitmap);
-                    _imageSourceCache[cacheKey] = source;
+                    System.Threading.Tasks.Task<SoftwareBitmapSource> task;
+                    lock (_pendingSourceTasks)
+                    {
+                        if (!_pendingSourceTasks.TryGetValue(cacheKey, out task!))
+                        {
+                            task = CreateSoftwareBitmapSourceAsync(softwareBitmap, cacheKey, disposeBitmapAfterTransfer);
+                            _pendingSourceTasks[cacheKey] = task;
+                        }
+                    }
+
+                    var source = await task;
                     item.Icon = source;
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"[IconThumbnailService] SetIconToItem error: {ex.Message}");
+                    if (disposeBitmapAfterTransfer && !IsSharedBitmap(softwareBitmap))
+                    {
+                        try { softwareBitmap.Dispose(); } catch { }
+                    }
                 }
             });
+        }
+
+        private async System.Threading.Tasks.Task<SoftwareBitmapSource> CreateSoftwareBitmapSourceAsync(SoftwareBitmap softwareBitmap, string cacheKey, bool disposeBitmapAfterTransfer)
+        {
+            try
+            {
+                var source = new SoftwareBitmapSource();
+                await source.SetBitmapAsync(softwareBitmap);
+                _imageSourceCache[cacheKey] = source;
+                return source;
+            }
+            finally
+            {
+                _pendingSourceTasks.TryRemove(cacheKey, out _);
+                if (disposeBitmapAfterTransfer && !IsSharedBitmap(softwareBitmap))
+                {
+                    try { softwareBitmap.Dispose(); } catch { }
+                }
+            }
         }
     }
 }

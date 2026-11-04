@@ -146,6 +146,7 @@ namespace FastExplorer.Core
                         FullPath = fullPath,
                         IsDirectory = isDirectory,
                         IsReparsePoint = isReparsePoint,
+                        HasCustomFolderAttribute = isDirectory && (isReadOnly || isSystem),
                         SizeInBytes = fileSize,
                         DateModified = lastModified,
                         FileType = fileType,

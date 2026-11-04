@@ -21,6 +21,17 @@ namespace FastExplorer.Services
         private static System.Threading.Timer? _debounceTimer;
         private static System.Threading.Timer? _recentDebounceTimer;
 
+        private static readonly object _pinnedLock = new();
+        private static List<QuickAccessFolderItem>? _cachedPinnedFolders;
+
+        public static void InvalidatePinnedCache()
+        {
+            lock (_pinnedLock)
+            {
+                _cachedPinnedFolders = null;
+            }
+        }
+
         static QuickAccessService()
         {
             InitializeWatchers();
@@ -132,6 +143,14 @@ namespace FastExplorer.Services
         /// </summary>
         public static List<QuickAccessFolderItem> GetPinnedFolders()
         {
+            lock (_pinnedLock)
+            {
+                if (_cachedPinnedFolders != null)
+                {
+                    return new List<QuickAccessFolderItem>(_cachedPinnedFolders);
+                }
+            }
+
             var results = new List<QuickAccessFolderItem>();
             var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -195,6 +214,11 @@ namespace FastExplorer.Services
                 AddFallbackFolder(results, seenPaths, "ピクチャ", "\uEB9F", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures));
                 AddFallbackFolder(results, seenPaths, "ミュージック", "\uE8D6", Environment.GetFolderPath(Environment.SpecialFolder.MyMusic));
                 AddFallbackFolder(results, seenPaths, "ビデオ", "\uE714", Environment.GetFolderPath(Environment.SpecialFolder.MyVideos));
+            }
+
+            lock (_pinnedLock)
+            {
+                _cachedPinnedFolders = results;
             }
 
             return results;

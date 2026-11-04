@@ -161,68 +161,26 @@ namespace FastExplorer
 
                     // COM STA 環境を初期化
                     Win32Interop.OleInitialize(nint.Zero);
-
-                    // 1. 新規作成テンプレートの一覧走査とアイコン事前キャッシュ
-                    var templates = ShellNewService.GetShellNewTemplates();
-                    foreach (var t in templates)
-                    {
-                        if (!string.IsNullOrEmpty(t.Extension))
-                        {
-                            IconThumbnailService.GetSoftwareBitmapForExtension(t.Extension);
-                        }
-                    }
-                    IconThumbnailService.GetSoftwareBitmapForExtension(".txt");
-
-                    // 2. 主要な拡張子アイコンの事前キャッシュ
-                    string[] commonExts = [".docx", ".xlsx", ".pptx", ".pdf", ".zip", ".jpg", ".png", ".mp4", ".exe", ".txt", ".json", ".md"];
-                    foreach (var ext in commonExts)
-                    {
-                        IconThumbnailService.GetSoftwareBitmapForExtension(ext);
-                    }
-
-                    // 3. Shell コンテキストメニューの COM 基盤の事前初期化
-                    // ファイル用およびフォルダ用の Shell Extension DLL をプロセス空間に事前ロード
-                    string tempDir = Path.GetTempPath();
-                    string tempFile = Path.Combine(tempDir, "fe_warmup.tmp");
                     try
                     {
-                        if (!File.Exists(tempFile))
+                        // 1. 新規作成テンプレートの一覧走査とアイコン事前キャッシュ
+                        var templates = ShellNewService.GetShellNewTemplates();
+                        foreach (var t in templates)
                         {
-                            File.WriteAllText(tempFile, "warmup");
-                        }
-
-                        // ファイル向けシェルメニューのセッション構築 (VSCode, Git, 7-zip等のDLLロード)
-                        using (var fileSession = new ActiveShellMenuSession(WindowHandle))
-                        {
-                            fileSession.Build(new[] { tempFile });
-                        }
-
-                        // フォルダ向けシェルメニューのセッション構築
-                        if (Directory.Exists(tempDir))
-                        {
-                            using (var dirSession = new ActiveShellMenuSession(WindowHandle))
+                            if (!string.IsNullOrEmpty(t.Extension))
                             {
-                                dirSession.Build(new[] { tempDir });
+                                IconThumbnailService.GetSoftwareBitmapForExtension(t.Extension);
                             }
                         }
+                        IconThumbnailService.GetSoftwareBitmapForExtension(".txt");
 
-                        // 主要拡張子の「プログラムから開く」事前キャッシュ
-                        OpenWithService.GetOpenWithApps(tempFile);
+                        // 2. OpenWithService の軽量事前キャッシュ
                         OpenWithService.GetOpenWithApps("dummy.txt");
                         OpenWithService.GetOpenWithApps("dummy.png");
                         OpenWithService.GetOpenWithApps("dummy.zip");
                     }
                     finally
                     {
-                        try
-                        {
-                            if (File.Exists(tempFile))
-                            {
-                                File.Delete(tempFile);
-                            }
-                        }
-                        catch { }
-
                         Win32Interop.OleUninitialize();
                     }
 

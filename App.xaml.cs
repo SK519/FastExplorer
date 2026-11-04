@@ -53,7 +53,8 @@ namespace FastExplorer
 
             AppDomain.CurrentDomain.ProcessExit += (s, e) => CleanTempFiles();
 
-            CleanTempFiles();
+            // 起動をブロックしないよう一時ファイル削除はバックグラウンドで実行
+            System.Threading.Tasks.Task.Run(CleanTempFiles);
             InitializeComponent();
         }
 

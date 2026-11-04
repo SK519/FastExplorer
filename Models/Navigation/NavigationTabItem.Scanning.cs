@@ -110,7 +110,8 @@ namespace FastExplorer
             {
                 if (CurrentPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
                 {
-                    scanned.AddRange(QuickAccessService.GetHomeItems());
+                    // ホーム画面は専用の HomeViewControl で描画されるため、通常リスト向けの重い COM 走査をスキップ
+                    return scanned;
                 }
                 else if (CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
                 {
@@ -230,68 +231,84 @@ namespace FastExplorer
 
         private void SynchronizeItemsCollection(List<FileItem> targetList)
         {
-            var uniqueTargetList = targetList.DistinctBy(x => x.FullPath, StringComparer.OrdinalIgnoreCase).ToList();
-
-            // Items コレクションの同期 (初回読み込み時や差分が大きい時は一括、小差分時は最小の変更でスクロール位置・選択状態を維持)
-            if (Items.Count == 0 || Math.Abs(Items.Count - uniqueTargetList.Count) > 50 || uniqueTargetList.Count > 1000)
+            // Items コレクションの同期 (初回読み込み時や件数差が大きい時は一括)
+            if (Items.Count == 0 || Math.Abs(Items.Count - targetList.Count) > 30 || targetList.Count > 500)
             {
-                Items.ReplaceAll(uniqueTargetList);
+                Items.ReplaceAll(targetList);
+                return;
             }
-            else
+
+            // 並び順が大きく異なっている場合（例: ソート変更）も一括置換 (O(N^2) と大量の CollectionChanged を回避)
+            int mismatchCount = 0;
+            int checkLen = Math.Min(Items.Count, targetList.Count);
+            for (int i = 0; i < checkLen; i++)
             {
-                var targetPathSet = new HashSet<string>(uniqueTargetList.Count, StringComparer.OrdinalIgnoreCase);
-                foreach (var item in uniqueTargetList)
+                if (!string.Equals(Items[i].FullPath, targetList[i].FullPath, StringComparison.OrdinalIgnoreCase))
                 {
-                    targetPathSet.Add(item.FullPath);
+                    mismatchCount++;
+                    if (mismatchCount > 10) break;
                 }
+            }
 
-                for (int i = Items.Count - 1; i >= 0; i--)
+            if (mismatchCount > 10)
+            {
+                Items.ReplaceAll(targetList);
+                return;
+            }
+
+            // 少数件の追加・削除・軽微な位置変更のみ最小差分で更新 (スクロール位置・選択状態を維持)
+            var targetPathSet = new HashSet<string>(targetList.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (var item in targetList)
+            {
+                targetPathSet.Add(item.FullPath);
+            }
+
+            for (int i = Items.Count - 1; i >= 0; i--)
+            {
+                if (!targetPathSet.Contains(Items[i].FullPath))
                 {
-                    if (!targetPathSet.Contains(Items[i].FullPath))
+                    Items.RemoveAt(i);
+                }
+            }
+
+            var currentIndices = new Dictionary<string, int>(Items.Count, StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < Items.Count; i++)
+            {
+                currentIndices[Items[i].FullPath] = i;
+            }
+
+            for (int targetIndex = 0; targetIndex < targetList.Count; targetIndex++)
+            {
+                var targetItem = targetList[targetIndex];
+                if (targetIndex < Items.Count)
+                {
+                    if (string.Equals(Items[targetIndex].FullPath, targetItem.FullPath, StringComparison.OrdinalIgnoreCase))
                     {
-                        Items.RemoveAt(i);
+                        continue;
                     }
-                }
 
-                // アイテムの現在インデックスを高速検索するための辞書 (O(n) 化)
-                var currentIndices = new Dictionary<string, int>(Items.Count, StringComparer.OrdinalIgnoreCase);
-                for (int i = 0; i < Items.Count; i++)
-                {
-                    currentIndices[Items[i].FullPath] = i;
-                }
-
-                for (int targetIndex = 0; targetIndex < uniqueTargetList.Count; targetIndex++)
-                {
-                    var targetItem = uniqueTargetList[targetIndex];
-                    if (targetIndex < Items.Count)
+                    if (currentIndices.TryGetValue(targetItem.FullPath, out int existingIndex) && existingIndex > targetIndex)
                     {
-                        if (string.Equals(Items[targetIndex].FullPath, targetItem.FullPath, StringComparison.OrdinalIgnoreCase))
+                        Items.Move(existingIndex, targetIndex);
+                        currentIndices[targetItem.FullPath] = targetIndex;
+                        for (int k = targetIndex + 1; k <= existingIndex; k++)
                         {
-                            continue;
-                        }
-
-                        if (currentIndices.TryGetValue(targetItem.FullPath, out int existingIndex) && existingIndex > targetIndex)
-                        {
-                            Items.Move(existingIndex, targetIndex);
-                            for (int k = targetIndex; k <= existingIndex; k++)
-                            {
-                                currentIndices[Items[k].FullPath] = k;
-                            }
-                        }
-                        else
-                        {
-                            Items.Insert(targetIndex, targetItem);
-                            for (int k = targetIndex; k < Items.Count; k++)
-                            {
-                                currentIndices[Items[k].FullPath] = k;
-                            }
+                            currentIndices[Items[k].FullPath] = k;
                         }
                     }
                     else
                     {
-                        Items.Add(targetItem);
-                        currentIndices[targetItem.FullPath] = Items.Count - 1;
+                        Items.Insert(targetIndex, targetItem);
+                        for (int k = targetIndex; k < Items.Count; k++)
+                        {
+                            currentIndices[Items[k].FullPath] = k;
+                        }
                     }
+                }
+                else
+                {
+                    Items.Add(targetItem);
+                    currentIndices[targetItem.FullPath] = Items.Count - 1;
                 }
             }
         }
@@ -350,8 +367,7 @@ namespace FastExplorer
                     if (currentGen != _loadGeneration) return;
 
                     _allItems.Clear();
-                    var distinctScanned = scanned.DistinctBy(x => x.FullPath, StringComparer.OrdinalIgnoreCase).ToList();
-                    _allItems.AddRange(distinctScanned);
+                    _allItems.AddRange(scanned);
 
                     if (detectedMode.HasValue)
                     {

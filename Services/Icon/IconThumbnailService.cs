@@ -410,9 +410,17 @@ namespace FastExplorer.Services
             // 読み込み待ちのチラつきを防ぐため、即座に事前作成済みデフォルトアイコン/拡張子別アイコンを同期適用
             ApplyImmediateDefaultIcon(item);
 
-            // サムネイル無効モード（詳細・一覧・小アイコン）で、既に拡張子アイコンが当たっている場合は重い抽出をスキップ
+            // サムネイル無効モード（詳細・一覧・小アイコン）で、不要な重い抽出をスキップ
             if (!force && !item.AllowThumbnail)
             {
+                // 通常のフォルダー（ReadOnly/System 属性がなく、ドライブや特殊フォルダでもない）は標準アイコンで確定
+                if (item.IsDirectory && !item.HasCustomFolderAttribute && !item.IsDrive &&
+                    (item.FullPath.Length > 3 || !item.FullPath.Contains(':')) &&
+                    !item.FullPath.StartsWith("::") && !item.FullPath.StartsWith("shell:"))
+                {
+                    return;
+                }
+
                 bool isCustomIconTarget = item.IsDirectory || (item.FullPath.Length <= 3 && item.FullPath.Contains(':')) || string.IsNullOrEmpty(item.Extension) || CustomIconExtensions.Contains(item.Extension);
                 if (!isCustomIconTarget)
                 {
