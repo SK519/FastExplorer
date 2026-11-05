@@ -18,6 +18,7 @@ namespace FastExplorer.Services
         private readonly ConcurrentDictionary<string, SoftwareBitmap> _lruCache = new();
         private readonly ConcurrentDictionary<string, Microsoft.UI.Xaml.Media.ImageSource> _imageSourceCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly LinkedList<string> _lruKeys = new();
+        private readonly LinkedList<string> _imageSourceKeys = new();
         private readonly object _lruLock = new();
         private const int MaxCacheEntries = 2000;
 

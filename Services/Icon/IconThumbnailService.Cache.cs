@@ -26,10 +26,11 @@ namespace FastExplorer.Services
                 _lruCache.Clear();
                 _imageSourceCache.Clear();
                 _lruKeys.Clear();
+                _imageSourceKeys.Clear();
             }
         }
 
-        private static bool IsSharedBitmap(SoftwareBitmap? bmp)
+        public static bool IsSharedBitmap(SoftwareBitmap? bmp)
         {
             if (bmp == null) return false;
             if (ReferenceEquals(bmp, _defaultFolderBitmap) || ReferenceEquals(bmp, _defaultFileBitmap))
@@ -163,6 +164,24 @@ namespace FastExplorer.Services
             }
         }
 
+        private void AddSourceToCache(string key, Microsoft.UI.Xaml.Media.ImageSource source)
+        {
+            lock (_lruLock)
+            {
+                if (_imageSourceKeys.Count >= MaxCacheEntries)
+                {
+                    if (_imageSourceKeys.First != null)
+                    {
+                        string oldestKey = _imageSourceKeys.First.Value;
+                        _imageSourceKeys.RemoveFirst();
+                        _imageSourceCache.TryRemove(oldestKey, out _);
+                    }
+                }
+                _imageSourceCache[key] = source;
+                _imageSourceKeys.AddLast(key);
+            }
+        }
+
         private readonly ConcurrentDictionary<string, System.Threading.Tasks.Task<SoftwareBitmapSource>> _pendingSourceTasks = new(StringComparer.OrdinalIgnoreCase);
 
         private void SetIconToItem(FileItem item, SoftwareBitmap softwareBitmap, string cacheKey, bool disposeBitmapAfterTransfer = false)
@@ -233,7 +252,7 @@ namespace FastExplorer.Services
             {
                 var source = new SoftwareBitmapSource();
                 await source.SetBitmapAsync(softwareBitmap);
-                _imageSourceCache[cacheKey] = source;
+                AddSourceToCache(cacheKey, source);
                 return source;
             }
             finally

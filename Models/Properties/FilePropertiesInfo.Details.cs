@@ -189,6 +189,7 @@ namespace FastExplorer
             if (TargetType != PropertyTargetType.SingleFile || !File.Exists(FullPath)) return;
 
             _hashCalculationCts?.Cancel();
+            _hashCalculationCts?.Dispose();
             _hashCalculationCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var token = _hashCalculationCts.Token;
 

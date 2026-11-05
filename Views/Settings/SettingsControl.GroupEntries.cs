@@ -156,9 +156,8 @@ namespace FastExplorer.Views.Settings
                     int row = idx / 2;
 
                     string fullChildName = childKvp.Key;
-                    string childDisplayName = fullChildName.Contains(" → ")
-                        ? fullChildName.Split(new[] { " → " }, 2, StringSplitOptions.None)[1]
-                        : fullChildName;
+                    int arrowIdx1 = fullChildName.IndexOf(" → ", StringComparison.Ordinal);
+                    string childDisplayName = arrowIdx1 >= 0 ? fullChildName.Substring(arrowIdx1 + 3) : fullChildName;
                     bool childEnabled = childKvp.Value;
 
                     var itemCard = new Border
@@ -232,7 +231,8 @@ namespace FastExplorer.Views.Settings
                 {
                     var sItem = subItems[0];
                     string fullChildName = sItem.Key;
-                    string leafName = fullChildName.Split(new[] { " → " }, 2, StringSplitOptions.None)[1];
+                    int arrowIdx2 = fullChildName.IndexOf(" → ", StringComparison.Ordinal);
+                    string leafName = arrowIdx2 >= 0 ? fullChildName.Substring(arrowIdx2 + 3) : fullChildName;
                     string singleDisplayName = $"{subGroupName} {leafName}";
 
                     var childGrid = new Grid();
@@ -358,7 +358,8 @@ namespace FastExplorer.Views.Settings
                 foreach (var sItem in subItems)
                 {
                     string fullChildName = sItem.Key;
-                    string leafName = fullChildName.Split(new[] { " → " }, 2, StringSplitOptions.None)[1];
+                    int arrowIdx2 = fullChildName.IndexOf(" → ", StringComparison.Ordinal);
+                    string leafName = arrowIdx2 >= 0 ? fullChildName.Substring(arrowIdx2 + 3) : fullChildName;
 
                     var nestedGrid = new Grid();
                     nestedGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });

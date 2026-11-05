@@ -440,6 +440,7 @@ namespace FastExplorer
 
         private void StartSubfolderSearch(string searchKeyword, string rootPath)
         {
+            CancelSubfolderSearch();
             var cts = new System.Threading.CancellationTokenSource();
             _searchCts = cts;
             var token = cts.Token;
@@ -447,10 +448,12 @@ namespace FastExplorer
 
             // 初期探索対象のサブフォルダー一覧 (直下の通常フォルダー)
             var initialDirs = new List<string>();
+            var existingUiPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             lock (_allItems)
             {
                 foreach (var item in _allItems)
                 {
+                    existingUiPaths.Add(item.FullPath);
                     if (item.IsDirectory && !item.IsReparsePoint && !string.IsNullOrEmpty(item.FullPath))
                     {
                         initialDirs.Add(item.FullPath);
@@ -514,7 +517,7 @@ namespace FastExplorer
                                     batch = new List<FileItem>(64);
                                     stopwatch.Restart();
 
-                                    EnqueueBatchToUI(currentBatch, searchKeyword, token);
+                                    EnqueueBatchToUI(currentBatch, searchKeyword, existingUiPaths, token);
                                 }
                             }
                         }
@@ -523,7 +526,7 @@ namespace FastExplorer
                     // 残りのバッチを反映
                     if (batch.Count > 0 && !token.IsCancellationRequested)
                     {
-                        EnqueueBatchToUI(batch, searchKeyword, token);
+                        EnqueueBatchToUI(batch, searchKeyword, existingUiPaths, token);
                     }
                 }
                 catch (OperationCanceledException)
@@ -551,7 +554,7 @@ namespace FastExplorer
             }, token);
         }
 
-        private void EnqueueBatchToUI(List<FileItem> batch, string searchKeyword, System.Threading.CancellationToken token)
+        private void EnqueueBatchToUI(List<FileItem> batch, string searchKeyword, HashSet<string> existingSet, System.Threading.CancellationToken token)
         {
             DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
             {
@@ -563,7 +566,6 @@ namespace FastExplorer
                 bool isGrid = ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons;
                 bool allowThumb = IconThumbnailService.IsImageOrientedMode(_viewMode);
 
-                var existingSet = new HashSet<string>(Items.Select(x => x.FullPath), StringComparer.OrdinalIgnoreCase);
                 var toAdd = new List<FileItem>(batch.Count);
 
                 foreach (var item in batch)

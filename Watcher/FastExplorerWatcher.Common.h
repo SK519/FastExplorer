@@ -10,7 +10,6 @@
 #include <shldisp.h>
 #include <winternl.h>
 #include <string>
-#include <fstream>
 
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "shell32.lib")

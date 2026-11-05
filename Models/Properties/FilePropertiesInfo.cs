@@ -531,8 +531,16 @@ namespace FastExplorer
 
         public void CancelOperations()
         {
-            _sizeCalculationCts?.Cancel();
-            _hashCalculationCts?.Cancel();
+            if (_sizeCalculationCts != null)
+            {
+                try { _sizeCalculationCts.Cancel(); _sizeCalculationCts.Dispose(); } catch { }
+                _sizeCalculationCts = null;
+            }
+            if (_hashCalculationCts != null)
+            {
+                try { _hashCalculationCts.Cancel(); _hashCalculationCts.Dispose(); } catch { }
+                _hashCalculationCts = null;
+            }
         }
 
         private static long CalculateSizeOnDisk(long size)

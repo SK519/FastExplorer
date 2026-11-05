@@ -78,7 +78,7 @@ namespace FastExplorer.Models
         }
     }
 
-    public class FileTransferController
+    public class FileTransferController : IDisposable
     {
         private readonly CancellationTokenSource _cts = new();
         private readonly ManualResetEventSlim _pauseEvent = new(true);
@@ -115,6 +115,12 @@ namespace FastExplorer.Models
         public void WaitIfPaused()
         {
             _pauseEvent.Wait(_cts.Token);
+        }
+
+        public void Dispose()
+        {
+            _pauseEvent.Dispose();
+            _cts.Dispose();
         }
     }
 }

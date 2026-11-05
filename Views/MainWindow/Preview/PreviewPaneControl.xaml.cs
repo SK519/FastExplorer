@@ -37,6 +37,7 @@ namespace FastExplorer.Views.MainWindow.Preview
         public void UpdatePreview(IReadOnlyList<FileItem>? selectedItems, string? currentFolderPath)
         {
             _previewCts?.Cancel();
+            _previewCts?.Dispose();
             _previewCts = new CancellationTokenSource();
             var ct = _previewCts.Token;
 
@@ -264,90 +265,95 @@ namespace FastExplorer.Views.MainWindow.Preview
                 uint height = 0;
                 SoftwareBitmap? decodedBitmap = null;
 
-                // バックグラウンドで SkiaSharp を用いた確実・高速なデコード
-                await Task.Run(() =>
+                try
                 {
-                    try
+                    // バックグラウンドで OS ネイティブ WIC を用いた確実・高速なデコード
+                    await Task.Run(async () =>
                     {
-                        if (!File.Exists(filePath)) return;
-                        using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                        using var codec = SkiaSharp.SKCodec.Create(stream);
-                        if (codec != null)
+                        try
                         {
-                            width = (uint)codec.Info.Width;
-                            height = (uint)codec.Info.Height;
+                            if (!File.Exists(filePath)) return;
+                            using var stream = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                            using var randomStream = stream.AsRandomAccessStream();
+                            var decoder = await BitmapDecoder.CreateAsync(randomStream);
+                            width = decoder.PixelWidth;
+                            height = decoder.PixelHeight;
 
-                            int targetSize = 600;
-                            int targetW, targetH;
-                            if (width >= height)
+                            uint targetSize = 600;
+                            var transform = new BitmapTransform();
+                            if (width > targetSize || height > targetSize)
                             {
-                                targetW = Math.Min((int)width, targetSize);
-                                targetH = Math.Max(1, (int)((double)height / width * targetW));
-                            }
-                            else
-                            {
-                                targetH = Math.Min((int)height, targetSize);
-                                targetW = Math.Max(1, (int)((double)width / height * targetH));
-                            }
-
-                            var imageInfo = new SkiaSharp.SKImageInfo(targetW, targetH, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul);
-                            using var origBmp = SkiaSharp.SKBitmap.Decode(codec);
-                            if (origBmp != null)
-                            {
-                                using var resized = origBmp.Resize(imageInfo, SkiaSharp.SKSamplingOptions.Default);
-                                if (resized != null)
+                                if (width >= height)
                                 {
-                                    var pixelSpan = resized.GetPixelSpan();
-                                    int byteCount = pixelSpan.Length;
-                                    byte[] rentedArray = ArrayPool<byte>.Shared.Rent(byteCount);
-                                    try
-                                    {
-                                        pixelSpan.CopyTo(rentedArray);
-                                        var sb = new SoftwareBitmap(BitmapPixelFormat.Bgra8, targetW, targetH, BitmapAlphaMode.Premultiplied);
-                                        sb.CopyFromBuffer(System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.AsBuffer(rentedArray, 0, byteCount));
-                                        decodedBitmap = sb;
-                                    }
-                                    finally
-                                    {
-                                        ArrayPool<byte>.Shared.Return(rentedArray);
-                                    }
+                                    transform.ScaledWidth = targetSize;
+                                    transform.ScaledHeight = Math.Max(1, (uint)((double)height / width * targetSize));
                                 }
+                                else
+                                {
+                                    transform.ScaledHeight = targetSize;
+                                    transform.ScaledWidth = Math.Max(1, (uint)((double)width / height * targetSize));
+                                }
+                                transform.InterpolationMode = BitmapInterpolationMode.Linear;
                             }
+
+                            decodedBitmap = await decoder.GetSoftwareBitmapAsync(
+                                BitmapPixelFormat.Bgra8,
+                                BitmapAlphaMode.Premultiplied,
+                                transform,
+                                ExifOrientationMode.RespectExifOrientation,
+                                ColorManagementMode.ColorManageToSRgb);
+                        }
+                        catch { }
+                    }, ct);
+
+                    if (ct.IsCancellationRequested) return;
+
+                    if (decodedBitmap != null)
+                    {
+                        var source = new SoftwareBitmapSource();
+                        await source.SetBitmapAsync(decodedBitmap);
+                        if (!ct.IsCancellationRequested)
+                        {
+                            PreviewImage.Source = source;
+                            PreviewImage.Visibility = Visibility.Visible;
+                            if (width > 0 && height > 0)
+                            {
+                                PreviewResolutionRow.Visibility = Visibility.Visible;
+                                PreviewItemResolutionText.Text = $"{width} × {height} ピクセル";
+                            }
+                            return;
                         }
                     }
-                    catch { }
-                }, ct);
+                }
+                finally
+                {
+                    decodedBitmap?.Dispose();
+                }
 
                 if (ct.IsCancellationRequested) return;
 
-                if (decodedBitmap != null)
+                // WIC で取得できなかった場合の Shell サムネイルフォールバック
+                SoftwareBitmap? shellBmp = null;
+                try
                 {
-                    var source = new SoftwareBitmapSource();
-                    await source.SetBitmapAsync(decodedBitmap);
-                    if (!ct.IsCancellationRequested)
+                    shellBmp = await Task.Run(() => IconThumbnailService.ExtractThumbnailViaShellItem(filePath, 384), ct);
+                    if (shellBmp != null && !ct.IsCancellationRequested)
                     {
-                        PreviewImage.Source = source;
-                        PreviewImage.Visibility = Visibility.Visible;
-                        if (width > 0 && height > 0)
+                        var source = new SoftwareBitmapSource();
+                        await source.SetBitmapAsync(shellBmp);
+                        if (!ct.IsCancellationRequested)
                         {
-                            PreviewResolutionRow.Visibility = Visibility.Visible;
-                            PreviewItemResolutionText.Text = $"{width} × {height} ピクセル";
+                            PreviewImage.Source = source;
+                            PreviewImage.Visibility = Visibility.Visible;
+                            return;
                         }
-                        return;
                     }
                 }
-
-                // SkiaSharp で取得できなかった場合の Shell サムネイルフォールバック
-                var shellBmp = await Task.Run(() => IconThumbnailService.ExtractThumbnailViaShellItem(filePath, 384), ct);
-                if (shellBmp != null && !ct.IsCancellationRequested)
+                finally
                 {
-                    var source = new SoftwareBitmapSource();
-                    await source.SetBitmapAsync(shellBmp);
-                    if (!ct.IsCancellationRequested)
+                    if (shellBmp != null && !IconThumbnailService.IsSharedBitmap(shellBmp))
                     {
-                        PreviewImage.Source = source;
-                        PreviewImage.Visibility = Visibility.Visible;
-                        return;
+                        shellBmp.Dispose();
                     }
                 }
 

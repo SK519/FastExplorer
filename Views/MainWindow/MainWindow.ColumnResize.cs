@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using FastExplorer.Core;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 
 namespace FastExplorer
@@ -149,10 +150,10 @@ namespace FastExplorer
             ColumnLayout.NotifyChanged();
 
             long now = Environment.TickCount64;
-            if (now - _lastColumnWidthsRefreshTimestamp >= 30) // 約33fpsで間引き更新し、UIメッセージキューの飽和を防止
+            if (now - _lastColumnWidthsRefreshTimestamp >= 35) // 約30fpsで間引き更新し、UIメッセージキューの飽和を防止
             {
                 _lastColumnWidthsRefreshTimestamp = now;
-                RefreshItemsColumnWidth(_resizingColumn);
+                RefreshItemsColumnWidthInteractive(_resizingColumn);
             }
             e.Handled = true;
         }
@@ -184,6 +185,42 @@ namespace FastExplorer
                 }
                 _resizingColumn = ResizeColumnTarget.None;
                 e.Handled = true;
+            }
+        }
+
+        private void RefreshItemsColumnWidthInteractive(ResizeColumnTarget target)
+        {
+            if (CurrentTab?.Items == null) return;
+            if (CurrentTab.Items.Count <= 200)
+            {
+                RefreshItemsColumnWidth(target);
+                return;
+            }
+
+            string propName = target switch
+            {
+                ResizeColumnTarget.Name => nameof(FileItem.ColNameWidth),
+                ResizeColumnTarget.Date => nameof(FileItem.ColDateWidth),
+                ResizeColumnTarget.Type => nameof(FileItem.ColTypeWidth),
+                ResizeColumnTarget.Size => nameof(FileItem.ColSizeWidth),
+                _ => string.Empty
+            };
+            if (string.IsNullOrEmpty(propName)) return;
+
+            var panel = FileListView?.ItemsPanelRoot;
+            if (panel != null)
+            {
+                foreach (var child in panel.Children)
+                {
+                    if (child is ListViewItem lvi && lvi.Content is FileItem fi)
+                    {
+                        fi.RefreshColumnWidth(propName);
+                    }
+                }
+            }
+            else
+            {
+                RefreshItemsColumnWidth(target);
             }
         }
 

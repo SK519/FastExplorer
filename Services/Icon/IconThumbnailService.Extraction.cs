@@ -180,13 +180,13 @@ namespace FastExplorer.Services
 
                 if (shouldTryThumbnail)
                 {
-                    // 高速画像（JPG, PNG, BMP, WEBP, GIF）は SkiaSharp によるダイレクト高速デコードを最優先
-                    if (!item.IsDirectory && FastImageExtensions.Contains(item.Extension))
+                    // 高速画像（JPG, PNG, BMP, WEBP, GIF等）は OS ネイティブ WIC デコードを優先
+                    if (!item.IsDirectory && ImageExtensions.Contains(item.Extension))
                     {
-                        var skiaThumb = ExtractSkiaImageThumbnail(item.FullPath, 96);
-                        if (skiaThumb != null)
+                        var directThumb = ExtractDirectImageThumbnail(item.FullPath, 96);
+                        if (directThumb != null)
                         {
-                            return skiaThumb;
+                            return directThumb;
                         }
                     }
 
@@ -195,16 +195,6 @@ namespace FastExplorer.Services
                     if (thumb != null)
                     {
                         return thumb;
-                    }
-
-                    // WIC フォールバック
-                    if (!item.IsDirectory && ImageExtensions.Contains(item.Extension))
-                    {
-                        var directThumb = ExtractDirectImageThumbnail(item.FullPath, 96);
-                        if (directThumb != null)
-                        {
-                            return directThumb;
-                        }
                     }
                 }
 

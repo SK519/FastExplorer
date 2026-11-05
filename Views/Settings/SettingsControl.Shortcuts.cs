@@ -383,21 +383,28 @@ namespace FastExplorer.Views.Settings
 
         private async void ResetAllShortcuts_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new ContentDialog
+            try
             {
-                Title = "すべてのショートカットをリセット",
-                Content = "すべてのキーボードショートカット設定を規定値（デフォルト）に戻しますか？",
-                PrimaryButtonText = "リセット",
-                CloseButtonText = "キャンセル",
-                DefaultButton = ContentDialogButton.Close,
-                XamlRoot = this.XamlRoot
-            };
+                var dialog = new ContentDialog
+                {
+                    Title = "すべてのショートカットをリセット",
+                    Content = "すべてのキーボードショートカット設定を規定値（デフォルト）に戻しますか？",
+                    PrimaryButtonText = "リセット",
+                    CloseButtonText = "キャンセル",
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = this.XamlRoot
+                };
 
-            var result = await dialog.ShowAsync();
-            if (result == ContentDialogResult.Primary)
+                var result = await dialog.ShowAsync();
+                if (result == ContentDialogResult.Primary)
+                {
+                    ShortcutService.ResetAll();
+                    RenderShortcutsList();
+                }
+            }
+            catch (Exception ex)
             {
-                ShortcutService.ResetAll();
-                RenderShortcutsList();
+                System.Diagnostics.Debug.WriteLine($"[Settings] ResetShortcuts error: {ex.Message}");
             }
         }
 

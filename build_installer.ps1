@@ -42,7 +42,7 @@ Write-Host "`n1.5. Building C++ FastExplorerWatcher..." -ForegroundColor Cyan
 & "$ProjectDir\build_watcher.ps1"
 Copy-Item "$ProjectDir\Watcher\bin\FastExplorerWatcher.exe" "bin\Release\net10.0-windows10.0.19041.0\win-$Arch\publish\" -Force
 
-# Clean up unnecessary language folders from publish directory (Keep only Assets, ja-JP, en-us)
+# Clean up unnecessary language folders and unused files from publish directory
 $publishDir = "$ProjectDir\bin\Release\net10.0-windows10.0.19041.0\win-$Arch\publish"
 $allowedDirs = @("Assets", "ja-JP", "ja", "en-us", "en-US", "en")
 if (Test-Path $publishDir) {
@@ -51,6 +51,12 @@ if (Test-Path $publishDir) {
             Remove-Item -Path $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
+    # 不要な PDB / winmd / AI / 診断ファイルの一掃
+    Get-ChildItem -Path $publishDir -File -Include "*.pdb", "*.winmd", "onnxruntime.dll", "DirectML.dll", "NPUDetect.dll", "WinUIEdit.dll", "PerceptiveStreaming.dll", "workloads.*.json", "Microsoft.Windows.Widgets.dll", "Microsoft.UI.Xaml.Phone.dll", "Microsoft.Web.WebView2.Core.dll", "WebView2Loader.dll", "Microsoft.DiaSymReader.Native.amd64.dll", "clrgcexp.dll", "createdump.exe" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -Path $publishDir -File -Filter "Microsoft.Windows.AI.*" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -Path $publishDir -File -Filter "Microsoft.Windows.Internal.AI.*" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -Path $publishDir -File -Filter "mscordac*" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -Path $publishDir -File -Filter "mscordbi*" -Recurse -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 }
 
 # Locate Inno Setup Compiler dynamically

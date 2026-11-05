@@ -51,14 +51,22 @@ namespace FastExplorer.Services
                 }
 
                 HMenu = Win32Interop.CreatePopupMenu();
-                if (HMenu == nint.Zero) return false;
+                if (HMenu == nint.Zero)
+                {
+                    Dispose();
+                    return false;
+                }
 
                 int hrQuery = Win32Interop.NativeCom.ContextMenu_QueryContextMenu(PContextMenu, HMenu, 0, 1, 0x7FFF, Win32Interop.CMF_NORMAL | Win32Interop.CMF_EXPLORE | Win32Interop.CMF_EXTENDEDVERBS);
                 if (hrQuery < 0)
                 {
                     hrQuery = Win32Interop.NativeCom.ContextMenu_QueryContextMenu(PContextMenu, HMenu, 0, 1, 0x7FFF, Win32Interop.CMF_NORMAL | Win32Interop.CMF_EXPLORE);
                 }
-                if (hrQuery < 0) return false;
+                if (hrQuery < 0)
+                {
+                    Dispose();
+                    return false;
+                }
 
                 int itemCount = Win32Interop.GetMenuItemCount(HMenu);
                 var config = ConfigService.Current.ShellMenu;
@@ -77,6 +85,7 @@ namespace FastExplorer.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[ActiveSession] Build Error: {ex.Message}");
+                Dispose();
                 return false;
             }
         }

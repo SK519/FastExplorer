@@ -30,13 +30,20 @@ namespace FastExplorer
 
         private async void CreateNewFileFromTemplate(ShellNewTemplate template)
         {
-            if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
-
-            string? createdPath = await ShellNewService.CreateFileFromTemplateAsync(CurrentTab.CurrentPath, template, WindowHandle);
-            if (createdPath != null)
+            try
             {
-                CurrentTab.Refresh();
-                SelectAndRenameCreatedPath(createdPath);
+                if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
+
+                string? createdPath = await ShellNewService.CreateFileFromTemplateAsync(CurrentTab.CurrentPath, template, WindowHandle);
+                if (createdPath != null)
+                {
+                    CurrentTab.Refresh();
+                    SelectAndRenameCreatedPath(createdPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] CreateNewFileFromTemplate error: {ex.Message}");
             }
         }
 
@@ -223,12 +230,19 @@ namespace FastExplorer
 
         private async void ContextMenuPaste_Click(object sender, RoutedEventArgs e)
         {
-            if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
-
-            bool success = await PerformPasteWithDialogAsync(CurrentTab.CurrentPath);
-            if (success)
+            try
             {
-                CurrentTab.Refresh();
+                if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
+
+                bool success = await PerformPasteWithDialogAsync(CurrentTab.CurrentPath);
+                if (success)
+                {
+                    CurrentTab.Refresh();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] ContextMenuPaste_Click error: {ex.Message}");
             }
         }
 
@@ -249,74 +263,118 @@ namespace FastExplorer
 
         private async void ContextMenuCompressZip_Click(object sender, RoutedEventArgs e)
         {
-            var shellConfig = ConfigService.Current.ShellMenu;
-            await PerformCompressAsync(ArchiveFormat.Zip, shellConfig.DefaultZipLevel);
+            try
+            {
+                var shellConfig = ConfigService.Current.ShellMenu;
+                await PerformCompressAsync(ArchiveFormat.Zip, shellConfig.DefaultZipLevel);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] CompressZip error: {ex.Message}");
+            }
         }
 
         private async void ContextMenuCompress7z_Click(object sender, RoutedEventArgs e)
         {
-            var shellConfig = ConfigService.Current.ShellMenu;
-            await PerformCompressAsync(ArchiveFormat.SevenZip, shellConfig.DefaultSevenZipLevel);
+            try
+            {
+                var shellConfig = ConfigService.Current.ShellMenu;
+                await PerformCompressAsync(ArchiveFormat.SevenZip, shellConfig.DefaultSevenZipLevel);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] Compress7z error: {ex.Message}");
+            }
         }
 
         private async void ContextMenuCompressTar_Click(object sender, RoutedEventArgs e)
         {
-            await PerformCompressAsync(ArchiveFormat.Tar, ArchiveCompressionLevel.Store);
+            try
+            {
+                var shellConfig = ConfigService.Current.ShellMenu;
+                await PerformCompressAsync(ArchiveFormat.Tar, ArchiveCompressionLevel.Store);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] CompressTar error: {ex.Message}");
+            }
         }
 
         private async void ContextMenuCompressTarGz_Click(object sender, RoutedEventArgs e)
         {
-            await PerformCompressAsync(ArchiveFormat.TarGz, ArchiveCompressionLevel.Normal);
+            try
+            {
+                var shellConfig = ConfigService.Current.ShellMenu;
+                await PerformCompressAsync(ArchiveFormat.TarGz, ArchiveCompressionLevel.Normal);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] CompressTarGz error: {ex.Message}");
+            }
         }
 
         private async void ContextMenuExtractHere_Click(object sender, RoutedEventArgs e)
         {
-            var paths = GetSelectedPaths().Where(ArchiveService.IsSupportedArchive).ToList();
-            if (paths.Count == 0)
+            try
             {
-                var item = GetContextTargetItem();
-                if (item != null && ArchiveService.IsSupportedArchive(item.FullPath))
+                var paths = GetSelectedPaths().Where(ArchiveService.IsSupportedArchive).ToList();
+                if (paths.Count == 0)
                 {
-                    paths.Add(item.FullPath);
+                    var item = GetContextTargetItem();
+                    if (item != null && ArchiveService.IsSupportedArchive(item.FullPath))
+                    {
+                        paths.Add(item.FullPath);
+                    }
                 }
+
+                ItemContextMenu.Hide();
+                CloseAllSubmenus();
+                if (CurrentTab == null || paths.Count == 0 || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
+
+                foreach (var path in paths)
+                {
+                    bool success = await PerformExtractWithDialogAsync(path, CurrentTab.CurrentPath, createSubFolder: false);
+                    if (!success) break; // ユーザーがキャンセルした場合は後続のアーカイブ展開も中止
+                }
+
+                CurrentTab.Refresh();
             }
-
-            ItemContextMenu.Hide();
-            CloseAllSubmenus();
-            if (CurrentTab == null || paths.Count == 0 || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
-
-            foreach (var path in paths)
+            catch (Exception ex)
             {
-                bool success = await PerformExtractWithDialogAsync(path, CurrentTab.CurrentPath, createSubFolder: false);
-                if (!success) break; // ユーザーがキャンセルした場合は後続のアーカイブ展開も中止
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] ExtractHere error: {ex.Message}");
             }
-
-            CurrentTab.Refresh();
         }
 
         private async void ContextMenuExtractToFolder_Click(object sender, RoutedEventArgs e)
         {
-            var paths = GetSelectedPaths().Where(ArchiveService.IsSupportedArchive).ToList();
-            if (paths.Count == 0)
+            try
             {
-                var item = GetContextTargetItem();
-                if (item != null && ArchiveService.IsSupportedArchive(item.FullPath))
+                var paths = GetSelectedPaths().Where(ArchiveService.IsSupportedArchive).ToList();
+                if (paths.Count == 0)
                 {
-                    paths.Add(item.FullPath);
+                    var item = GetContextTargetItem();
+                    if (item != null && ArchiveService.IsSupportedArchive(item.FullPath))
+                    {
+                        paths.Add(item.FullPath);
+                    }
                 }
+
+                ItemContextMenu.Hide();
+                CloseAllSubmenus();
+                if (CurrentTab == null || paths.Count == 0 || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
+
+                foreach (var path in paths)
+                {
+                    bool success = await PerformExtractWithDialogAsync(path, CurrentTab.CurrentPath, createSubFolder: true);
+                    if (!success) break; // ユーザーがキャンセルした場合は後続のアーカイブ展開も中止
+                }
+
+                CurrentTab.Refresh();
             }
-
-            ItemContextMenu.Hide();
-            CloseAllSubmenus();
-            if (CurrentTab == null || paths.Count == 0 || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
-
-            foreach (var path in paths)
+            catch (Exception ex)
             {
-                bool success = await PerformExtractWithDialogAsync(path, CurrentTab.CurrentPath, createSubFolder: true);
-                if (!success) break; // ユーザーがキャンセルした場合は後続のアーカイブ展開も中止
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] ExtractToFolder error: {ex.Message}");
             }
-
-            CurrentTab.Refresh();
         }
 
         private async void ContextMenuExtractZip_Click(object sender, RoutedEventArgs e)
@@ -326,25 +384,39 @@ namespace FastExplorer
 
         private async void ContextMenuNewFolder_Click(object sender, RoutedEventArgs e)
         {
-            if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
-
-            string? folderPath = await FileOperationService.CreateNewFolderAsync(CurrentTab.CurrentPath);
-            if (folderPath != null)
+            try
             {
-                CurrentTab.Refresh();
-                SelectAndRenameCreatedPath(folderPath);
+                if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
+
+                string? folderPath = await FileOperationService.CreateNewFolderAsync(CurrentTab.CurrentPath);
+                if (folderPath != null)
+                {
+                    CurrentTab.Refresh();
+                    SelectAndRenameCreatedPath(folderPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] NewFolder error: {ex.Message}");
             }
         }
 
         private async void ContextMenuNewTextFile_Click(object sender, RoutedEventArgs e)
         {
-            if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
-
-            string? filePath = await FileOperationService.CreateNewTextFileAsync(CurrentTab.CurrentPath);
-            if (filePath != null)
+            try
             {
-                CurrentTab.Refresh();
-                SelectAndRenameCreatedPath(filePath);
+                if (CurrentTab == null || CurrentTab.CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase)) return;
+
+                string? filePath = await FileOperationService.CreateNewTextFileAsync(CurrentTab.CurrentPath);
+                if (filePath != null)
+                {
+                    CurrentTab.Refresh();
+                    SelectAndRenameCreatedPath(filePath);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] NewTextFile error: {ex.Message}");
             }
         }
 

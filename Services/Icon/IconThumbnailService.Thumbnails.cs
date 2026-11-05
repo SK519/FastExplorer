@@ -56,67 +56,13 @@ namespace FastExplorer.Services
             return null;
         }
 
-        public static SoftwareBitmap? ExtractSkiaImageThumbnail(string fullPath, int targetSize = 96)
+        public static SoftwareBitmap? ExtractDirectImageThumbnail(string fullPath, uint targetSize = 96)
         {
             try
             {
                 if (!File.Exists(fullPath)) return null;
 
-                using var stream = File.Open(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                using var codec = SkiaSharp.SKCodec.Create(stream);
-                if (codec == null) return null;
-
-                int origW = codec.Info.Width;
-                int origH = codec.Info.Height;
-                if (origW <= 0 || origH <= 0) return null;
-
-                int targetW, targetH;
-                if (origW >= origH)
-                {
-                    targetW = targetSize;
-                    targetH = Math.Max(1, (int)((double)origH / origW * targetSize));
-                }
-                else
-                {
-                    targetH = targetSize;
-                    targetW = Math.Max(1, (int)((double)origW / origH * targetSize));
-                }
-
-                var imageInfo = new SkiaSharp.SKImageInfo(targetW, targetH, SkiaSharp.SKColorType.Bgra8888, SkiaSharp.SKAlphaType.Premul);
-                using var origBmp = SkiaSharp.SKBitmap.Decode(codec);
-                if (origBmp == null) return null;
-
-                using var resized = origBmp.Resize(imageInfo, SkiaSharp.SKSamplingOptions.Default);
-                if (resized == null) return null;
-
-                var pixelSpan = resized.GetPixelSpan();
-                int byteCount = pixelSpan.Length;
-                byte[] rentedArray = ArrayPool<byte>.Shared.Rent(byteCount);
-                try
-                {
-                    pixelSpan.CopyTo(rentedArray);
-                    var softwareBitmap = new SoftwareBitmap(BitmapPixelFormat.Bgra8, targetW, targetH, BitmapAlphaMode.Premultiplied);
-                    softwareBitmap.CopyFromBuffer(rentedArray.AsBuffer(0, byteCount));
-                    return softwareBitmap;
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(rentedArray);
-                }
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static SoftwareBitmap? ExtractDirectImageThumbnail(string fullPath, uint targetSize = 128)
-        {
-            try
-            {
-                if (!File.Exists(fullPath)) return null;
-
-                using var stream = File.OpenRead(fullPath);
+                using var stream = File.Open(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 using var randomStream = stream.AsRandomAccessStream();
                 var decoder = BitmapDecoder.CreateAsync(randomStream).AsTask().GetAwaiter().GetResult();
 

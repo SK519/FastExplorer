@@ -125,10 +125,10 @@ namespace FastExplorer
                     string rel = Path.GetRelativePath(targetFolder, leavingPath);
                     if (!rel.StartsWith("..") && !Path.IsPathRooted(rel))
                     {
-                        string topChild = rel.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries)[0];
-                        if (!string.IsNullOrEmpty(topChild))
+                        string[] parts = rel.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length > 0 && !string.IsNullOrEmpty(parts[0]))
                         {
-                            return topChild;
+                            return parts[0];
                         }
                     }
                 }

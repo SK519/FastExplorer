@@ -29,6 +29,7 @@ namespace FastExplorer
         private DateTime _dateDeleted;
         private string _formattedDateDeleted = "-";
         private bool _isRecycleBinItem;
+        private string? _extension;
 
         public bool HasCustomFolderAttribute { get; set; }
 
@@ -39,6 +40,7 @@ namespace FastExplorer
             {
                 if (SetField(ref _name, value))
                 {
+                    _extension = null;
                     _renameText = null;
                     OnPropertyChanged(nameof(RenameText));
                 }
@@ -528,8 +530,12 @@ namespace FastExplorer
             get
             {
                 if (_isDirectory) return string.Empty;
-                int dotIndex = _name.LastIndexOf('.');
-                return dotIndex >= 0 ? _name[dotIndex..].ToLowerInvariant() : string.Empty;
+                if (_extension == null)
+                {
+                    int dotIndex = _name.LastIndexOf('.');
+                    _extension = dotIndex >= 0 ? _name[dotIndex..].ToLowerInvariant() : string.Empty;
+                }
+                return _extension;
             }
         }
     }

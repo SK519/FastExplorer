@@ -53,7 +53,7 @@ namespace FastExplorer
                         Icon = new FontIcon { Glyph = "\uEDA2" }
                     };
                     string targetPath = drive.FullPath;
-                    menuItem.Click += (s, args) => CurrentTab.NavigateTo(targetPath);
+                    menuItem.Click += (s, args) => CurrentTab?.NavigateTo(targetPath);
                     flyout.Items.Add(menuItem);
                 }
             }
@@ -75,7 +75,7 @@ namespace FastExplorer
                             Text = distro,
                             Icon = new FontIcon { Glyph = "\uE74C" }
                         };
-                        menuItem.Click += (s, args) => CurrentTab.NavigateTo(distroPath);
+                        menuItem.Click += (s, args) => CurrentTab?.NavigateTo(distroPath);
                         flyout.Items.Add(menuItem);
                     }
                 }
@@ -101,7 +101,7 @@ namespace FastExplorer
                                 Icon = new FontIcon { Glyph = "\uE8B7" }
                             };
                             string targetPath = folder.FullPath;
-                            menuItem.Click += (s, args) => CurrentTab.NavigateTo(targetPath);
+                            menuItem.Click += (s, args) => CurrentTab?.NavigateTo(targetPath);
                             flyout.Items.Add(menuItem);
                         }
                     }

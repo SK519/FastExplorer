@@ -32,7 +32,7 @@ namespace FastExplorer.Services
             if (!ShellFileOperationHelper.HasWritePermission(destinationDirectory))
             {
                 Debug.WriteLine($"[FileOperation] Destination requires elevation: '{destinationDirectory}'. Delegating to IFileOperation.");
-                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove);
+                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove, DefaultOwnerHwnd, forceElevate: true);
             }
 
             // 初期化（直下ファイルのサイズ・項目数を同期的に即座に取得して初期値とする）
@@ -206,17 +206,17 @@ namespace FastExplorer.Services
             catch (UnauthorizedAccessException ex)
             {
                 Debug.WriteLine($"[FileOperation] Access denied during transfer, delegating to elevated IFileOperation: {ex.Message}");
-                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove);
+                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove, DefaultOwnerHwnd, forceElevate: true);
             }
             catch (IOException ex) when ((ex.HResult & 0xFFFF) == 5)
             {
                 Debug.WriteLine($"[FileOperation] ERROR_ACCESS_DENIED during transfer, delegating to elevated IFileOperation: {ex.Message}");
-                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove);
+                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove, DefaultOwnerHwnd, forceElevate: true);
             }
             catch (AggregateException ex) when (ex.InnerExceptions.Any(e => e is UnauthorizedAccessException || (e is IOException ioe && (ioe.HResult & 0xFFFF) == 5)))
             {
                 Debug.WriteLine($"[FileOperation] Access denied in parallel tasks, delegating to elevated IFileOperation: {ex.Message}");
-                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove);
+                return await ShellFileOperationHelper.ExecuteCopyOrMoveAsync(pathList, destinationDirectory, isMove, DefaultOwnerHwnd, forceElevate: true);
             }
             catch (Exception ex)
             {

@@ -562,27 +562,34 @@ namespace FastExplorer.Views.Settings
 
         private async void ResetAllSettings_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new ContentDialog
+            try
             {
-                Title = "すべての設定を初期化",
-                Content = "FastExplorer のすべての設定（外観、コンテキストメニュー、ショートカットキー、外部ツール等）を初期状態に戻しますか？",
-                PrimaryButtonText = "すべて初期化",
-                CloseButtonText = "キャンセル",
-                DefaultButton = ContentDialogButton.Close,
-                XamlRoot = this.XamlRoot
-            };
-
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-            {
-                ConfigService.ResetToDefaults();
-                LoadSettingsToUI();
-
-                if (App.CurrentWindow is global::FastExplorer.MainWindow window)
+                var dialog = new ContentDialog
                 {
-                    window.ApplyTheme(ConfigService.Current.Ui.Theme);
-                    window.ApplyItemCheckBoxesState();
-                    window.ApplyWallpaper();
+                    Title = "すべての設定を初期化",
+                    Content = "FastExplorer のすべての設定（外観、コンテキストメニュー、ショートカットキー、外部ツール等）を初期状態に戻しますか？",
+                    PrimaryButtonText = "すべて初期化",
+                    CloseButtonText = "キャンセル",
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = this.XamlRoot
+                };
+
+                if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    ConfigService.ResetToDefaults();
+                    LoadSettingsToUI();
+
+                    if (App.CurrentWindow is global::FastExplorer.MainWindow window)
+                    {
+                        window.ApplyTheme(ConfigService.Current.Ui.Theme);
+                        window.ApplyItemCheckBoxesState();
+                        window.ApplyWallpaper();
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Settings] ResetAllSettings error: {ex.Message}");
             }
         }
 

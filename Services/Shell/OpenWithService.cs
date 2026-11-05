@@ -289,7 +289,7 @@ namespace FastExplorer.Services
                             string ext = Path.GetExtension(resolved).ToLowerInvariant();
                             if (ext is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".webp")
                             {
-                                var imgBmp = IconThumbnailService.ExtractSkiaImageThumbnail(resolved, 24);
+                                var imgBmp = IconThumbnailService.ExtractDirectImageThumbnail(resolved, 24);
                                 if (imgBmp != null) return imgBmp;
                             }
 
@@ -325,7 +325,7 @@ namespace FastExplorer.Services
                         string ext = Path.GetExtension(expanded).ToLowerInvariant();
                         if (ext is ".png" or ".jpg" or ".jpeg" or ".bmp" or ".webp")
                         {
-                            var imgBmp = IconThumbnailService.ExtractSkiaImageThumbnail(expanded, 24);
+                            var imgBmp = IconThumbnailService.ExtractDirectImageThumbnail(expanded, 24);
                             if (imgBmp != null) return imgBmp;
                         }
 

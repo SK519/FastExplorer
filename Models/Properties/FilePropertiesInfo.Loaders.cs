@@ -209,6 +209,7 @@ namespace FastExplorer
         public void StartFolderSizeCalculation(IReadOnlyList<string> targetPaths)
         {
             _sizeCalculationCts?.Cancel();
+            _sizeCalculationCts?.Dispose();
             _sizeCalculationCts = new CancellationTokenSource();
             var token = _sizeCalculationCts.Token;
 
@@ -314,34 +315,22 @@ namespace FastExplorer
         {
             try
             {
-                if (TargetType == PropertyTargetType.Drive)
+                bool isDir = TargetType == PropertyTargetType.Drive || TargetType == PropertyTargetType.SingleFolder;
+                var bmp = IconThumbnailService.GetSoftwareBitmapForPath(FullPath, isDirectory: isDir, large: true);
+                if (bmp != null)
                 {
-                    var bmp = IconThumbnailService.GetSoftwareBitmapForPath(FullPath, isDirectory: true, large: true);
-                    if (bmp != null)
+                    try
                     {
                         var source = new SoftwareBitmapSource();
                         await source.SetBitmapAsync(bmp);
                         Icon = source;
                     }
-                }
-                else if (TargetType == PropertyTargetType.SingleFolder)
-                {
-                    var bmp = IconThumbnailService.GetSoftwareBitmapForPath(FullPath, isDirectory: true, large: true);
-                    if (bmp != null)
+                    finally
                     {
-                        var source = new SoftwareBitmapSource();
-                        await source.SetBitmapAsync(bmp);
-                        Icon = source;
-                    }
-                }
-                else if (TargetType == PropertyTargetType.SingleFile)
-                {
-                    var bmp = IconThumbnailService.GetSoftwareBitmapForPath(FullPath, isDirectory: false, large: true);
-                    if (bmp != null)
-                    {
-                        var source = new SoftwareBitmapSource();
-                        await source.SetBitmapAsync(bmp);
-                        Icon = source;
+                        if (!IconThumbnailService.IsSharedBitmap(bmp))
+                        {
+                            bmp.Dispose();
+                        }
                     }
                 }
             }

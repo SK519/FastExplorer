@@ -30,13 +30,6 @@ static void EnsureCapsLockOff()
     }
 }
 
-static VOID CALLBACK CapsLockWatchTimerProc(HWND hwnd, UINT uMsg, UINT_PTR idEvent, DWORD dwTime)
-{
-    if (IsCapsLockBlockingEnabledInRegistry())
-    {
-        EnsureCapsLockOff();
-    }
-}
 
 static LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
@@ -152,9 +145,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
     );
 
-    // CapsLock状態の定期監視タイマー (1秒間隔)
-    UINT_PTR capsTimerId = SetTimer(NULL, 0, 1000, CapsLockWatchTimerProc);
-
     LogWatcher(L"[Main] FastExplorerWatcher started. Hook=%p", g_hWinEventHook);
 
     MSG msg;
@@ -162,12 +152,6 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     {
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
-    }
-
-    if (capsTimerId != 0)
-    {
-        KillTimer(NULL, capsTimerId);
-        capsTimerId = 0;
     }
 
     if (g_hWinEventHook != NULL)

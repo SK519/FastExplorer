@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -258,7 +259,7 @@ namespace FastExplorer
             return ext is ".exe" or ".bat" or ".cmd" or ".ps1" or ".vbs" or ".lnk";
         }
 
-        private static readonly Dictionary<string, DateTime> _lastLaunchTimes = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, DateTime> _lastLaunchTimes = new(StringComparer.OrdinalIgnoreCase);
         private static readonly object _launchLock = new();
 
         private static void LaunchExecutableWithFiles(string exePath, IEnumerable<string> filePaths)

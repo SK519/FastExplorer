@@ -296,27 +296,34 @@ namespace FastExplorer.Views.Settings
 
         private async void ResetDetectedItems_Click(object sender, RoutedEventArgs e)
         {
-            var dict = ConfigService.Current.ShellMenu.ItemVisibilityState;
-            if (dict.Count == 0 && ConfigService.Current.ShellMenu.MenuOrder.Count == 0) return;
-
-            var dialog = new ContentDialog
+            try
             {
-                Title = "検出項目と並び順をリセット",
-                Content = "これまでに検出されたすべてのコンテキストメニュー項目、表示順序、および有効/無効設定を初期化しますか？\n\n（再度ファイルを右クリックした際に、OS メニューの項目が再検出されます）",
-                PrimaryButtonText = "リセット",
-                CloseButtonText = "キャンセル",
-                DefaultButton = ContentDialogButton.Close,
-                XamlRoot = this.XamlRoot
-            };
+                var dict = ConfigService.Current.ShellMenu.ItemVisibilityState;
+                if (dict.Count == 0 && ConfigService.Current.ShellMenu.MenuOrder.Count == 0) return;
 
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                var dialog = new ContentDialog
+                {
+                    Title = "検出項目と並び順をリセット",
+                    Content = "これまでに検出されたすべてのコンテキストメニュー項目、表示順序、および有効/無効設定を初期化しますか？\n\n（再度ファイルを右クリックした際に、OS メニューの項目が再検出されます）",
+                    PrimaryButtonText = "リセット",
+                    CloseButtonText = "キャンセル",
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = this.XamlRoot
+                };
+
+                if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    dict.Clear();
+                    ConfigService.Current.ShellMenu.MenuOrder.Clear();
+                    ConfigService.Save();
+                    SearchFilterBox.Text = string.Empty;
+                    EnsureMenuOrderInitialized();
+                    RenderDetectedItemsList();
+                }
+            }
+            catch (Exception ex)
             {
-                dict.Clear();
-                ConfigService.Current.ShellMenu.MenuOrder.Clear();
-                ConfigService.Save();
-                SearchFilterBox.Text = string.Empty;
-                EnsureMenuOrderInitialized();
-                RenderDetectedItemsList();
+                System.Diagnostics.Debug.WriteLine($"[Settings] ResetDetectedItems error: {ex.Message}");
             }
         }
     }

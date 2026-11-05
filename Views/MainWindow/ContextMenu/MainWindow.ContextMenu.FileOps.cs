@@ -69,50 +69,57 @@ namespace FastExplorer
 
         private async void ContextMenuDelete_Click(object sender, RoutedEventArgs e)
         {
-            var paths = GetSelectedPaths();
-            ItemContextMenu.Hide();
-            if (paths.Count == 0) return;
-
-            bool isRecycleBin = RecycleBinService.IsRecycleBinPath(CurrentTab?.CurrentPath);
-
-            if (isRecycleBin)
+            try
             {
-                var dialog = new ContentDialog
-                {
-                    Title = "完全に削除の確認",
-                    Content = $"{paths.Count} 個の項目をごみ箱から完全に削除しますか？\n（元に戻すことはできません）",
-                    PrimaryButtonText = "完全に削除",
-                    CloseButtonText = "キャンセル",
-                    XamlRoot = this.Content.XamlRoot
-                };
+                var paths = GetSelectedPaths();
+                ItemContextMenu.Hide();
+                if (paths.Count == 0) return;
 
-                if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-                {
-                    RecycleBinService.DeletePermanently(paths);
-                    CurrentTab?.Refresh();
-                }
-                return;
-            }
+                bool isRecycleBin = RecycleBinService.IsRecycleBinPath(CurrentTab?.CurrentPath);
 
-            if (ConfigService.Current.Ui.ConfirmDelete)
-            {
-                var dialog = new ContentDialog
+                if (isRecycleBin)
                 {
-                    Title = "削除の確認",
-                    Content = $"{paths.Count} 個の項目をゴミ箱に移動しますか？",
-                    PrimaryButtonText = "削除",
-                    CloseButtonText = "キャンセル",
-                    XamlRoot = this.Content.XamlRoot
-                };
+                    var dialog = new ContentDialog
+                    {
+                        Title = "完全に削除の確認",
+                        Content = $"{paths.Count} 個の項目をごみ箱から完全に削除しますか？\n（元に戻すことはできません）",
+                        PrimaryButtonText = "完全に削除",
+                        CloseButtonText = "キャンセル",
+                        XamlRoot = this.Content.XamlRoot
+                    };
 
-                if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-                {
+                    if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                    {
+                        RecycleBinService.DeletePermanently(paths);
+                        CurrentTab?.Refresh();
+                    }
                     return;
                 }
-            }
 
-            FileOperationService.MoveToRecycleBin(paths);
-            CurrentTab?.Refresh();
+                if (ConfigService.Current.Ui.ConfirmDelete)
+                {
+                    var dialog = new ContentDialog
+                    {
+                        Title = "削除の確認",
+                        Content = $"{paths.Count} 個の項目をゴミ箱に移動しますか？",
+                        PrimaryButtonText = "削除",
+                        CloseButtonText = "キャンセル",
+                        XamlRoot = this.Content.XamlRoot
+                    };
+
+                    if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+                    {
+                        return;
+                    }
+                }
+
+                FileOperationService.MoveToRecycleBin(paths);
+                CurrentTab?.Refresh();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] Delete error: {ex.Message}");
+            }
         }
 
         private void ContextMenuRestore_Click(object sender, RoutedEventArgs e)
@@ -138,29 +145,36 @@ namespace FastExplorer
 
         private async void DeletePermanentlyAction()
         {
-            var paths = GetSelectedPaths();
-            if (paths.Count == 0) return;
-
-            var dialog = new ContentDialog
+            try
             {
-                Title = "完全に削除の確認",
-                Content = $"{paths.Count} 個の項目を完全に削除しますか？\n（ゴミ箱には移動されません）",
-                PrimaryButtonText = "完全に削除",
-                CloseButtonText = "キャンセル",
-                XamlRoot = this.Content.XamlRoot
-            };
+                var paths = GetSelectedPaths();
+                if (paths.Count == 0) return;
 
-            if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                var dialog = new ContentDialog
+                {
+                    Title = "完全に削除の確認",
+                    Content = $"{paths.Count} 個の項目を完全に削除しますか？\n（ゴミ箱には移動されません）",
+                    PrimaryButtonText = "完全に削除",
+                    CloseButtonText = "キャンセル",
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    if (RecycleBinService.IsRecycleBinPath(CurrentTab?.CurrentPath))
+                    {
+                        RecycleBinService.DeletePermanently(paths);
+                    }
+                    else
+                    {
+                        FileOperationService.DeletePermanently(paths);
+                    }
+                    CurrentTab?.Refresh();
+                }
+            }
+            catch (Exception ex)
             {
-                if (RecycleBinService.IsRecycleBinPath(CurrentTab?.CurrentPath))
-                {
-                    RecycleBinService.DeletePermanently(paths);
-                }
-                else
-                {
-                    FileOperationService.DeletePermanently(paths);
-                }
-                CurrentTab?.Refresh();
+                System.Diagnostics.Debug.WriteLine($"[ContextMenu] DeletePermanently error: {ex.Message}");
             }
         }
 

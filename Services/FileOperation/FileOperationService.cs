@@ -101,8 +101,27 @@ namespace FastExplorer.Services
                         package.SetStorageItems(storageItems);
                     }
 
-                    Clipboard.SetContent(package);
-                    Clipboard.Flush();
+                    var dispatcherQueue = App.CurrentWindow?.DispatcherQueue ?? Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+                    if (dispatcherQueue != null && !dispatcherQueue.HasThreadAccess)
+                    {
+                        dispatcherQueue.TryEnqueue(() =>
+                        {
+                            try
+                            {
+                                Clipboard.SetContent(package);
+                                Clipboard.Flush();
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"[Clipboard] SetClipboardFiles UI enqueue error: {ex.Message}");
+                            }
+                        });
+                    }
+                    else
+                    {
+                        Clipboard.SetContent(package);
+                        Clipboard.Flush();
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -427,7 +446,7 @@ namespace FastExplorer.Services
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException || (ex is IOException ioe && (ioe.HResult & 0xFFFF) == 5))
             {
-                bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: true, DefaultOwnerHwnd);
+                bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: true, DefaultOwnerHwnd, forceElevate: true);
                 return ok ? targetPath : null;
             }
             catch
@@ -456,7 +475,7 @@ namespace FastExplorer.Services
             }
             catch (Exception ex) when (ex is UnauthorizedAccessException || (ex is IOException ioe && (ioe.HResult & 0xFFFF) == 5))
             {
-                bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: false, DefaultOwnerHwnd);
+                bool ok = await ShellFileOperationHelper.ExecuteNewItemAsync(parentDirectory, targetName, isDirectory: false, DefaultOwnerHwnd, forceElevate: true);
                 return ok ? targetPath : null;
             }
             catch

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -258,7 +259,123 @@ namespace FastExplorer.Core
             return driveItems;
         }
 
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string FileType, string GlyphIcon)> _fileInfoCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly FrozenDictionary<string, (string FileType, string GlyphIcon)> KnownExtensions =
+            new Dictionary<string, (string FileType, string GlyphIcon)>(StringComparer.OrdinalIgnoreCase)
+            {
+                // 画像
+                [".png"] = ("画像ファイル", "\uEB9F"),
+                [".jpg"] = ("画像ファイル", "\uEB9F"),
+                [".jpeg"] = ("画像ファイル", "\uEB9F"),
+                [".bmp"] = ("画像ファイル", "\uEB9F"),
+                [".gif"] = ("画像ファイル", "\uEB9F"),
+                [".webp"] = ("画像ファイル", "\uEB9F"),
+                [".ico"] = ("画像ファイル", "\uEB9F"),
+                [".svg"] = ("画像ファイル", "\uEB9F"),
+                [".heic"] = ("画像ファイル", "\uEB9F"),
+                [".tiff"] = ("画像ファイル", "\uEB9F"),
+                [".tif"] = ("画像ファイル", "\uEB9F"),
+
+                // 動画
+                [".mp4"] = ("動画ファイル", "\uE714"),
+                [".mkv"] = ("動画ファイル", "\uE714"),
+                [".avi"] = ("動画ファイル", "\uE714"),
+                [".mov"] = ("動画ファイル", "\uE714"),
+                [".wmv"] = ("動画ファイル", "\uE714"),
+                [".webm"] = ("動画ファイル", "\uE714"),
+                [".flv"] = ("動画ファイル", "\uE714"),
+                [".m4v"] = ("動画ファイル", "\uE714"),
+
+                // 音声
+                [".mp3"] = ("音声ファイル", "\uE8D6"),
+                [".wav"] = ("音声ファイル", "\uE8D6"),
+                [".flac"] = ("音声ファイル", "\uE8D6"),
+                [".aac"] = ("音声ファイル", "\uE8D6"),
+                [".m4a"] = ("音声ファイル", "\uE8D6"),
+                [".ogg"] = ("音声ファイル", "\uE8D6"),
+                [".wma"] = ("音声ファイル", "\uE8D6"),
+
+                // 圧縮
+                [".zip"] = ("圧縮フォルダー", "\uF012"),
+                [".7z"] = ("圧縮フォルダー", "\uF012"),
+                [".rar"] = ("圧縮フォルダー", "\uF012"),
+                [".tar"] = ("圧縮フォルダー", "\uF012"),
+                [".gz"] = ("圧縮フォルダー", "\uF012"),
+                [".bz2"] = ("圧縮フォルダー", "\uF012"),
+                [".iso"] = ("圧縮フォルダー", "\uF012"),
+
+                // 実行 / アプリ / スクリプト
+                [".exe"] = ("アプリケーション", "\uE756"),
+                [".dll"] = ("アプリケーション拡張", "\uE756"),
+                [".msi"] = ("スクリプト / コマンド", "\uE756"),
+                [".bat"] = ("スクリプト / コマンド", "\uE756"),
+                [".cmd"] = ("スクリプト / コマンド", "\uE756"),
+                [".ps1"] = ("スクリプト / コマンド", "\uE756"),
+                [".vbs"] = ("スクリプト / コマンド", "\uE756"),
+                [".reg"] = ("スクリプト / コマンド", "\uE756"),
+
+                // ドキュメント
+                [".pdf"] = ("PDF ドキュメント", "\uEA90"),
+                [".txt"] = ("テキスト ドキュメント", "\uE8A5"),
+                [".md"] = ("Markdown ドキュメント", "\uE8A5"),
+                [".docx"] = ("Word ドキュメント", "\uE8A5"),
+                [".doc"] = ("Word ドキュメント", "\uE8A5"),
+                [".odt"] = ("Word ドキュメント", "\uE8A5"),
+                [".rtf"] = ("Word ドキュメント", "\uE8A5"),
+                [".log"] = ("Word ドキュメント", "\uE8A5"),
+                [".xlsx"] = ("Excel / CSV ワークシート", "\uE80A"),
+                [".xls"] = ("Excel / CSV ワークシート", "\uE80A"),
+                [".csv"] = ("Excel / CSV ワークシート", "\uE80A"),
+                [".tsv"] = ("Excel / CSV ワークシート", "\uE80A"),
+                [".pptx"] = ("PowerPoint プレゼンテーション", "\uE8A5"),
+                [".ppt"] = ("PowerPoint プレゼンテーション", "\uE8A5"),
+                [".key"] = ("PowerPoint プレゼンテーション", "\uE8A5"),
+
+                // Web / マークアップ
+                [".html"] = ("HTML ドキュメント", "\uE774"),
+                [".htm"] = ("HTML ドキュメント", "\uE774"),
+                [".url"] = ("Web ショートカット", "\uE774"),
+                [".website"] = ("Web ショートカット", "\uE774"),
+
+                // 構成 / データ
+                [".json"] = ("JSON ファイル", "\uE943"),
+                [".xml"] = ("XML ファイル", "\uE943"),
+                [".ini"] = ("構成ファイル", "\uE713"),
+                [".inf"] = ("構成ファイル", "\uE713"),
+                [".cfg"] = ("構成ファイル", "\uE713"),
+                [".config"] = ("構成ファイル", "\uE713"),
+                [".yaml"] = ("構成ファイル", "\uE713"),
+                [".yml"] = ("構成ファイル", "\uE713"),
+                [".toml"] = ("構成ファイル", "\uE713"),
+
+                // フォント
+                [".ttf"] = ("フォント ファイル", "\uE8D2"),
+                [".otf"] = ("フォント ファイル", "\uE8D2"),
+                [".woff"] = ("フォント ファイル", "\uE8D2"),
+                [".woff2"] = ("フォント ファイル", "\uE8D2"),
+
+                // ソースコード
+                [".cs"] = ("C# ソース ファイル", "\uE943"),
+                [".cpp"] = ("C/C++ ソース ファイル", "\uE943"),
+                [".c"] = ("C/C++ ソース ファイル", "\uE943"),
+                [".h"] = ("C/C++ ソース ファイル", "\uE943"),
+                [".py"] = ("Python スクリプト", "\uE943"),
+                [".js"] = ("JavaScript / TypeScript ファイル", "\uE943"),
+                [".ts"] = ("JavaScript / TypeScript ファイル", "\uE943"),
+                [".css"] = ("スタイルシート", "\uE943"),
+                [".sln"] = ("開発ソース ファイル", "\uE943"),
+                [".slnx"] = ("開発ソース ファイル", "\uE943"),
+                [".csproj"] = ("開発ソース ファイル", "\uE943"),
+                [".xaml"] = ("開発ソース ファイル", "\uE943"),
+                [".sql"] = ("開発ソース ファイル", "\uE943"),
+                [".rs"] = ("開発ソース ファイル", "\uE943"),
+                [".go"] = ("開発ソース ファイル", "\uE943"),
+                [".java"] = ("開発ソース ファイル", "\uE943")
+            }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly FrozenDictionary<string, (string FileType, string GlyphIcon)>.AlternateLookup<ReadOnlySpan<char>> KnownExtensionsLookup =
+            KnownExtensions.GetAlternateLookup<ReadOnlySpan<char>>();
+
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string FileType, string GlyphIcon)> _dynamicFileInfoCache = new(StringComparer.OrdinalIgnoreCase);
 
         public static void GetFileInfoForExtension(ReadOnlySpan<char> extension, out string fileType, out string glyphIcon)
         {
@@ -269,242 +386,15 @@ namespace FastExplorer.Core
                 return;
             }
 
-            // 画像
-            if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".bmp", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".gif", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".webp", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".ico", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".svg", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".heic", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".tiff", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".tif", StringComparison.OrdinalIgnoreCase))
+            if (KnownExtensionsLookup.TryGetValue(extension, out var known))
             {
-                fileType = "画像ファイル";
-                glyphIcon = "\uEB9F";
-                return;
-            }
-
-            // 動画
-            if (extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".mkv", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".avi", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".mov", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".wmv", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".webm", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".flv", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".m4v", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "動画ファイル";
-                glyphIcon = "\uE714";
-                return;
-            }
-
-            // 音声
-            if (extension.Equals(".mp3", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".wav", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".flac", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".aac", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".m4a", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".ogg", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".wma", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "音声ファイル";
-                glyphIcon = "\uE8D6";
-                return;
-            }
-
-            // 圧縮
-            if (extension.Equals(".zip", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".7z", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".rar", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".tar", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".gz", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".bz2", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".iso", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "圧縮フォルダー";
-                glyphIcon = "\uF012";
-                return;
-            }
-
-            // 実行 / アプリケーション / スクリプト
-            if (extension.Equals(".exe", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "アプリケーション";
-                glyphIcon = "\uE756";
-                return;
-            }
-            if (extension.Equals(".dll", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "アプリケーション拡張";
-                glyphIcon = "\uE756";
-                return;
-            }
-            if (extension.Equals(".msi", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".bat", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".cmd", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".ps1", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".vbs", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".reg", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "スクリプト / コマンド";
-                glyphIcon = "\uE756";
-                return;
-            }
-
-            // ドキュメント
-            if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "PDF ドキュメント";
-                glyphIcon = "\uEA90";
-                return;
-            }
-            if (extension.Equals(".txt", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "テキスト ドキュメント";
-                glyphIcon = "\uE8A5";
-                return;
-            }
-            if (extension.Equals(".md", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "Markdown ドキュメント";
-                glyphIcon = "\uE8A5";
-                return;
-            }
-            if (extension.Equals(".docx", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".doc", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".odt", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".rtf", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".log", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "Word ドキュメント";
-                glyphIcon = "\uE8A5";
-                return;
-            }
-            if (extension.Equals(".xlsx", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".xls", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".csv", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".tsv", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "Excel / CSV ワークシート";
-                glyphIcon = "\uE80A";
-                return;
-            }
-            if (extension.Equals(".pptx", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".ppt", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".key", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "PowerPoint プレゼンテーション";
-                glyphIcon = "\uE8A5";
-                return;
-            }
-
-            // Web / マークアップ
-            if (extension.Equals(".html", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".htm", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "HTML ドキュメント";
-                glyphIcon = "\uE774";
-                return;
-            }
-            if (extension.Equals(".url", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".website", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "Web ショートカット";
-                glyphIcon = "\uE774";
-                return;
-            }
-
-            // 構成 / データ
-            if (extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "JSON ファイル";
-                glyphIcon = "\uE943";
-                return;
-            }
-            if (extension.Equals(".xml", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "XML ファイル";
-                glyphIcon = "\uE943";
-                return;
-            }
-            if (extension.Equals(".ini", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".inf", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".cfg", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".config", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".yaml", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".yml", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".toml", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "構成ファイル";
-                glyphIcon = "\uE713";
-                return;
-            }
-
-            // フォント
-            if (extension.Equals(".ttf", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".otf", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".woff", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".woff2", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "フォント ファイル";
-                glyphIcon = "\uE8D2";
-                return;
-            }
-
-            // ソースコード
-            if (extension.Equals(".cs", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "C# ソース ファイル";
-                glyphIcon = "\uE943";
-                return;
-            }
-            if (extension.Equals(".cpp", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".c", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".h", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "C/C++ ソース ファイル";
-                glyphIcon = "\uE943";
-                return;
-            }
-            if (extension.Equals(".py", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "Python スクリプト";
-                glyphIcon = "\uE943";
-                return;
-            }
-            if (extension.Equals(".js", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".ts", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "JavaScript / TypeScript ファイル";
-                glyphIcon = "\uE943";
-                return;
-            }
-            if (extension.Equals(".css", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "スタイルシート";
-                glyphIcon = "\uE943";
-                return;
-            }
-            if (extension.Equals(".sln", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".slnx", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".csproj", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".xaml", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".sql", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".rs", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".go", StringComparison.OrdinalIgnoreCase) ||
-                extension.Equals(".java", StringComparison.OrdinalIgnoreCase))
-            {
-                fileType = "開発ソース ファイル";
-                glyphIcon = "\uE943";
+                fileType = known.FileType;
+                glyphIcon = known.GlyphIcon;
                 return;
             }
 
             string extStr = extension.ToString();
-            if (_fileInfoCache.TryGetValue(extStr, out var cached))
+            if (_dynamicFileInfoCache.TryGetValue(extStr, out var cached))
             {
                 fileType = cached.FileType;
                 glyphIcon = cached.GlyphIcon;
@@ -513,7 +403,7 @@ namespace FastExplorer.Core
 
             string desc = extStr.Length > 1 ? $"{extStr[1..].ToUpperInvariant()} ファイル" : "ファイル";
             glyphIcon = "\uE7C3";
-            _fileInfoCache[extStr] = (desc, glyphIcon);
+            _dynamicFileInfoCache[extStr] = (desc, glyphIcon);
             fileType = desc;
         }
 
