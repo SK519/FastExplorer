@@ -285,7 +285,9 @@ namespace FastExplorer.Core
         public const uint FOFX_MOVEACROSSVOLUMES = 0x02000000;
         public const uint FOFX_DONTRENAMEEXISTING = 0x04000000;
         public const uint FOFX_REQUIREELEVATION = 0x10000000;
+        public const uint CLSCTX_INPROC_SERVER = 0x1;
         public const uint CLSCTX_LOCAL_SERVER = 0x4;
+        public const uint CLSCTX_ALL = 0x17;
 
         public static readonly Guid CLSID_FileOperation = new("3ad05575-8857-4850-9277-11b85bdb8e09");
         public static readonly Guid IID_IFileOperation = new("947aab5f-0a5c-4c13-b4d6-4bf7836fc9f8");

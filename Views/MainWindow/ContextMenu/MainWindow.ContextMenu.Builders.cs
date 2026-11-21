@@ -111,14 +111,9 @@ namespace FastExplorer
 
                     mItem.Click += (s, args) =>
                     {
-                        string? workingDir = targetPaths.Count > 0 ? (Directory.Exists(targetPaths[0]) ? targetPaths[0] : Path.GetDirectoryName(targetPaths[0])) : null;
-                        bool invoked = _activeShellSession?.InvokeCommand(capturedChild, workingDir) ?? false;
                         CloseAllSubmenus();
                         ItemContextMenu.Hide();
-                        if (!invoked)
-                        {
-                            ShellContextMenuService.InvokeShellCommand(WindowHandle, targetPaths, capturedChild);
-                        }
+                        ShellContextMenuService.InvokeShellCommand(WindowHandle, targetPaths, capturedChild);
                     };
 
                     flyout.Items.Add(mItem);
@@ -362,21 +357,20 @@ namespace FastExplorer
             flyout.Items.Add(chooseOtherItem);
         }
 
-        private async void SetOpenWithItemIcon(MenuFlyoutItem menuItem, OpenWithAppInfo app)
+        private void SetOpenWithItemIcon(MenuFlyoutItem menuItem, OpenWithAppInfo app)
         {
-            if (app.IconBitmap != null)
+            try
             {
-                try
+                var wb = IconThumbnailService.CreateWriteableBitmapFromSoftwareBitmap(app.IconBitmap);
+                if (wb != null)
                 {
-                    var source = new Microsoft.UI.Xaml.Media.Imaging.SoftwareBitmapSource();
-                    await source.SetBitmapAsync(app.IconBitmap);
-                    menuItem.Icon = new ImageIcon { Source = source };
+                    menuItem.Icon = new ImageIcon { Source = wb };
                     return;
                 }
-                catch { }
-            }
 
-            menuItem.Icon = new FontIcon { Glyph = "\uE7AC" };
+                menuItem.Icon = new FontIcon { Glyph = "\uE7AC" };
+            }
+            catch { }
         }
 
         private void AddCompressionLevelItem(MenuFlyout flyout, string text, ArchiveFormat format, ArchiveCompressionLevel compLevel, int level)

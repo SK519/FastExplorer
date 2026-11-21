@@ -1,6 +1,7 @@
 mod common;
 mod compress;
 mod extract;
+mod extract_single;
 mod fs_ops;
 mod list;
 

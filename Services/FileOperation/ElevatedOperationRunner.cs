@@ -380,16 +380,23 @@ namespace FastExplorer.Services
 
         private static bool TryRecycleWithIFileOperation(string path)
         {
-            Core.Win32Interop.IFileOperation? fileOp = null;
+            nint pFileOp = nint.Zero;
             try
             {
-                fileOp = (Core.Win32Interop.IFileOperation)new Core.Win32Interop.FileOperationClass();
+                int hrCreate = Core.Win32Interop.CoCreateInstance(
+                    in Core.Win32Interop.CLSID_FileOperation,
+                    nint.Zero,
+                    Core.Win32Interop.CLSCTX_ALL,
+                    in Core.Win32Interop.IID_IFileOperation,
+                    out pFileOp);
+                if (hrCreate != 0 || pFileOp == nint.Zero) return false;
+
                 uint flags = Core.Win32Interop.FOF_NOCONFIRMATION |
                              Core.Win32Interop.FOF_SILENT |
                              Core.Win32Interop.FOF_NOERRORUI |
                              Core.Win32Interop.FOFX_RECYCLEONDELETE |
                              Core.Win32Interop.FOF_ALLOWUNDO;
-                fileOp.SetOperationFlags(flags);
+                Core.Win32Interop.NativeCom.FileOperation_SetOperationFlags(pFileOp, flags);
 
                 int hr = Core.Win32Interop.SHCreateItemFromParsingName(
                     path, 0, in Core.Win32Interop.IID_IShellItem, out nint pItem);
@@ -397,12 +404,12 @@ namespace FastExplorer.Services
 
                 try
                 {
-                    fileOp.DeleteItem(pItem, 0);
-                    fileOp.PerformOperations();
+                    Core.Win32Interop.NativeCom.FileOperation_DeleteItem(pFileOp, pItem, 0);
+                    Core.Win32Interop.NativeCom.FileOperation_PerformOperations(pFileOp);
                 }
                 finally
                 {
-                    System.Runtime.InteropServices.Marshal.Release(pItem);
+                    Core.Win32Interop.NativeCom.Release(pItem);
                 }
 
                 return !File.Exists(path) && !Directory.Exists(path);
@@ -413,9 +420,9 @@ namespace FastExplorer.Services
             }
             finally
             {
-                if (fileOp != null)
+                if (pFileOp != nint.Zero)
                 {
-                    try { System.Runtime.InteropServices.Marshal.FinalReleaseComObject(fileOp); } catch { }
+                    try { Core.Win32Interop.NativeCom.Release(pFileOp); } catch { }
                 }
             }
         }

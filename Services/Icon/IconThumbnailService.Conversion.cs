@@ -13,6 +13,47 @@ namespace FastExplorer.Services
         private static readonly int BitmapHeaderSize = Marshal.SizeOf<Win32Interop.BITMAPINFOHEADER>();
         private static readonly int BitmapStructSize = Marshal.SizeOf<Win32Interop.BITMAP>();
 
+        /// <summary>
+        /// UI スレッド上で SoftwareBitmap から独立した WriteableBitmap を同期生成する。
+        /// WriteableBitmap はピクセルバッファを完全所有するため、生成直後に SoftwareBitmap.Dispose() しても
+        /// WinUI 3 の RO_E_CLOSED (0x80000013) / 0xc000027b クラッシュが一切発生しない。
+        /// </summary>
+        public static Microsoft.UI.Xaml.Media.Imaging.WriteableBitmap? CreateWriteableBitmapFromSoftwareBitmap(SoftwareBitmap? softwareBitmap)
+        {
+            if (softwareBitmap == null) return null;
+            try
+            {
+                int width = softwareBitmap.PixelWidth;
+                int height = softwareBitmap.PixelHeight;
+                if (width <= 0 || height <= 0) return null;
+
+                SoftwareBitmap? converted = null;
+                SoftwareBitmap source = softwareBitmap;
+                if (softwareBitmap.BitmapPixelFormat != BitmapPixelFormat.Bgra8 ||
+                    softwareBitmap.BitmapAlphaMode == BitmapAlphaMode.Straight)
+                {
+                    converted = SoftwareBitmap.Convert(softwareBitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
+                    source = converted;
+                }
+
+                try
+                {
+                    var wb = new Microsoft.UI.Xaml.Media.Imaging.WriteableBitmap(width, height);
+                    source.CopyToBuffer(wb.PixelBuffer);
+                    wb.Invalidate();
+                    return wb;
+                }
+                finally
+                {
+                    converted?.Dispose();
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public static SoftwareBitmap? ConvertHIconToSoftwareBitmap(nint hIcon)
         {
             if (hIcon == nint.Zero) return null;

@@ -134,10 +134,17 @@ namespace FastExplorer
                 if (e.PropertyName == nameof(NavigationTabItem.Header))
                 {
                     tabViewItem.Header = tab.Header;
+                    return;
                 }
-                if (s == CurrentTab)
+                if (s != CurrentTab) return;
+
+                if (e.PropertyName == nameof(NavigationTabItem.StatusText))
                 {
-                    UpdateToolbarState();
+                    if (StatusBar != null) StatusBar.StatusText = tab.StatusText;
+                }
+                else if (e.PropertyName is nameof(NavigationTabItem.CanGoBack) or nameof(NavigationTabItem.CanGoForward) or nameof(NavigationTabItem.CanGoUp))
+                {
+                    AddressBar?.UpdateNavigationButtons(tab.CanGoBack, tab.CanGoForward, tab.CanGoUp);
                 }
             };
 
@@ -369,8 +376,8 @@ namespace FastExplorer
 
                 if (tabViewItem.DataContext is NavigationTabItem tab)
                 {
-                    FileListView.ItemsSource = tab.Items;
-                    FileGridView.ItemsSource = tab.Items;
+                    // 非表示側コントロールの二重仮想化・レイアウト負荷と XAML クラッシュを防ぐため、
+                    // ItemsSource の紐付けは ApplyViewMode 内で可視コントロールにのみ行う
                     AddressBar?.SwitchToBreadcrumbs();
                     AddressBar?.SetBreadcrumbs(tab.Breadcrumbs);
                     AddressBar?.SetSearchFilterText(tab.FilterText);

@@ -18,8 +18,120 @@ namespace FastExplorer
         private ActiveShellMenuSession? _activeShellSession;
         private static Style? _cachedContextMenuItemButtonStyle;
 
+        // コンテキストメニュー事前読み込みキャッシュ & 非同期ロード世代管理
+        private readonly object _shellPrefetchLock = new();
+        private string? _prefetchedShellKey;
+        private List<ExtractedShellItem>? _prefetchedShellItems;
+        private long _prefetchedShellTimestamp;
+        private System.Threading.CancellationTokenSource? _shellPrefetchCts;
+        private System.Threading.CancellationTokenSource? _shellMenuLoadCts;
+        private int _contextMenuGeneration;
+        private bool _isItemContextMenuOpen;
+
+        private static string BuildShellPrefetchKey(IReadOnlyList<string> paths)
+        {
+            if (paths.Count == 1) return paths[0];
+            return string.Join("|", paths);
+        }
+
+        /// <summary>
+        /// 選択アイテム変更時にアイドル後（180ms デバウンス）バックグラウンド STA スレッドで
+        /// OS シェル拡張メニュー項目を事前読み込みし、右クリック時の 0ms 即時表示を実現する。
+        /// </summary>
+        private void ScheduleShellMenuPrefetch(IReadOnlyList<FileItem> selectedItems)
+        {
+            try
+            {
+                _shellPrefetchCts?.Cancel();
+                _shellPrefetchCts?.Dispose();
+                _shellPrefetchCts = null;
+
+                if (selectedItems == null || selectedItems.Count == 0 || selectedItems.Count > 16)
+                    return;
+
+                var paths = new List<string>(selectedItems.Count);
+                foreach (var item in selectedItems)
+                {
+                    string p = item.FullPath;
+                    if (string.IsNullOrEmpty(p) ||
+                        p.Equals("Home", StringComparison.OrdinalIgnoreCase) ||
+                        p.Equals("ThisPC", StringComparison.OrdinalIgnoreCase) ||
+                        p.StartsWith("shell:", StringComparison.OrdinalIgnoreCase) ||
+                        p.StartsWith("::", StringComparison.OrdinalIgnoreCase) ||
+                        p.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return;
+                    }
+                    paths.Add(p);
+                }
+
+                if (paths.Count == 0) return;
+
+                string key = BuildShellPrefetchKey(paths);
+                lock (_shellPrefetchLock)
+                {
+                    if (string.Equals(_prefetchedShellKey, key, StringComparison.OrdinalIgnoreCase) &&
+                        _prefetchedShellItems != null &&
+                        System.Diagnostics.Stopwatch.GetElapsedTime(_prefetchedShellTimestamp).TotalSeconds < 25)
+                    {
+                        return;
+                    }
+                }
+
+                var cts = new System.Threading.CancellationTokenSource();
+                _shellPrefetchCts = cts;
+                var token = cts.Token;
+                var hwnd = WindowHandle;
+
+                _ = System.Threading.Tasks.Task.Run(async () =>
+                {
+                    try
+                    {
+                        await System.Threading.Tasks.Task.Delay(180, token);
+                        if (token.IsCancellationRequested) return;
+
+                        var items = await ActiveShellMenuSession.ExtractItemsOnStaAsync(hwnd, paths, token);
+                        if (token.IsCancellationRequested) return;
+
+                        lock (_shellPrefetchLock)
+                        {
+                            _prefetchedShellKey = key;
+                            _prefetchedShellItems = items;
+                            _prefetchedShellTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                    catch { }
+                }, token);
+            }
+            catch { }
+        }
+
+        private bool TryGetPrefetchedShellItems(IReadOnlyList<string> paths, out List<ExtractedShellItem> items)
+        {
+            string key = BuildShellPrefetchKey(paths);
+            lock (_shellPrefetchLock)
+            {
+                if (string.Equals(_prefetchedShellKey, key, StringComparison.OrdinalIgnoreCase) &&
+                    _prefetchedShellItems != null &&
+                    System.Diagnostics.Stopwatch.GetElapsedTime(_prefetchedShellTimestamp).TotalSeconds < 30)
+                {
+                    items = _prefetchedShellItems;
+                    return true;
+                }
+            }
+            items = new List<ExtractedShellItem>();
+            return false;
+        }
+
         private void ItemContextMenu_Closed(object? sender, object e)
         {
+            _isItemContextMenuOpen = false;
+            System.Threading.Interlocked.Increment(ref _contextMenuGeneration);
+            _shellMenuLoadCts?.Cancel();
+            _shellMenuLoadCts?.Dispose();
+            _shellMenuLoadCts = null;
+
             UninstallMouseHook();
             CancelSubmenuOpen();
             HideActiveSubmenu();
@@ -216,57 +328,20 @@ namespace FastExplorer
 
                 // ==========================================
                 // エリア 2: 動的 OS シェルメニュー抽出 & 統合 (中央部)
+                // 事前読み込みキャッシュがあれば 0ms で即時挿入、未キャッシュ時は専用 STA スレッドで非同期ロード
                 // ==========================================
+                _isItemContextMenuOpen = true;
+                int menuGen = System.Threading.Interlocked.Increment(ref _contextMenuGeneration);
+                _shellMenuLoadCts?.Cancel();
+                _shellMenuLoadCts?.Dispose();
+                _shellMenuLoadCts = null;
                 _activeShellSession?.Dispose();
                 _activeShellSession = null;
 
-                var targetPaths = selectedItems.Select(x => x.FullPath).Where(p => !string.IsNullOrEmpty(p) && (File.Exists(p) || Directory.Exists(p))).ToList();
-                if (targetPaths.Count > 0)
-                {
-                    var session = new ActiveShellMenuSession(WindowHandle);
-                    if (session.Build(targetPaths) && session.ExtractedItems.Count > 0)
-                    {
-                        _activeShellSession = session;
-
-                        var orderedItems = SortExtractedItems(session.ExtractedItems, shellConfig.MenuOrder);
-                        if (orderedItems.Count > 0 && ContextMenuItemsPanel.Children.Count > 0)
-                        {
-                            ContextMenuItemsPanel.Children.Add(CreateContextMenuSeparator());
-                        }
-
-                        foreach (var shellItem in orderedItems)
-                        {
-                            var capturedItem = shellItem;
-                            if (capturedItem.IsSubmenu && capturedItem.Children.Count > 0)
-                            {
-                                var subFlyout = CreateShellSubFlyout(1, capturedItem, targetPaths, itemStyle);
-                                var subBtn = CreateContextSubmenuButton(capturedItem.Glyph, capturedItem.CleanText, subFlyout, itemStyle);
-                                ContextMenuItemsPanel.Children.Add(subBtn);
-                            }
-                            else
-                            {
-                                var btn = CreateContextButton(capturedItem.Glyph, capturedItem.CleanText, (s, args) =>
-                                {
-                                    string? workingDir = targetPaths.Count > 0 ? (Directory.Exists(targetPaths[0]) ? targetPaths[0] : Path.GetDirectoryName(targetPaths[0])) : null;
-                                    bool invoked = _activeShellSession?.InvokeCommand(capturedItem, workingDir) ?? false;
-                                    ItemContextMenu.Hide();
-                                    if (!invoked)
-                                    {
-                                        ShellContextMenuService.InvokeShellCommand(WindowHandle, targetPaths, capturedItem);
-                                    }
-                                }, itemStyle);
-                                ContextMenuItemsPanel.Children.Add(btn);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        session.Dispose();
-                    }
-                }
+                int shellInsertIndex = ContextMenuItemsPanel.Children.Count;
 
                 // ==========================================
-                // エリア 3: 最下部固定項目 (その他のオプションを表示)
+                // エリア 3: 最下部固定項目 (その他のオプションを表示) を先に配置して 0ms 表示
                 // ==========================================
                 if (shellConfig.ShowOsStandardOption)
                 {
@@ -278,10 +353,105 @@ namespace FastExplorer
                     var osBtn = CreateContextButton("\uE712", "その他のオプションを表示 (Shift+右クリック)", ContextMenuOsStandard_Click, itemStyle);
                     ContextMenuItemsPanel.Children.Add(osBtn);
                 }
+
+                // UI スレッド上で 9P/ネットワーク越し File.Exists を走らせないよう文字列フィルタのみで高速抽出
+                var targetPaths = selectedItems
+                    .Select(x => x.FullPath)
+                    .Where(p => !string.IsNullOrEmpty(p) &&
+                                !p.Equals("Home", StringComparison.OrdinalIgnoreCase) &&
+                                !p.Equals("ThisPC", StringComparison.OrdinalIgnoreCase) &&
+                                !p.StartsWith("shell:", StringComparison.OrdinalIgnoreCase) &&
+                                !p.StartsWith("::", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (targetPaths.Count > 0)
+                {
+                    if (TryGetPrefetchedShellItems(targetPaths, out var cachedShellItems))
+                    {
+                        InsertExtractedShellItemsToMenu(cachedShellItems, targetPaths, shellConfig, itemStyle, shellInsertIndex);
+                    }
+                    else
+                    {
+                        var cts = new System.Threading.CancellationTokenSource();
+                        _shellMenuLoadCts = cts;
+                        var token = cts.Token;
+                        var hwnd = WindowHandle;
+
+                        _ = System.Threading.Tasks.Task.Run(async () =>
+                        {
+                            try
+                            {
+                                var extracted = await ActiveShellMenuSession.ExtractItemsOnStaAsync(hwnd, targetPaths, token);
+                                if (token.IsCancellationRequested || extracted.Count == 0) return;
+
+                                // キャッシュにも保存（同じアイテムをすぐ再度右クリックしたときに 0ms ヒット）
+                                string key = BuildShellPrefetchKey(targetPaths);
+                                lock (_shellPrefetchLock)
+                                {
+                                    _prefetchedShellKey = key;
+                                    _prefetchedShellItems = extracted;
+                                    _prefetchedShellTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+                                }
+
+                                this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+                                {
+                                    if (!_isItemContextMenuOpen ||
+                                        menuGen != System.Threading.Volatile.Read(ref _contextMenuGeneration) ||
+                                        token.IsCancellationRequested)
+                                    {
+                                        return;
+                                    }
+
+                                    InsertExtractedShellItemsToMenu(extracted, targetPaths, shellConfig, itemStyle, shellInsertIndex);
+                                });
+                            }
+                            catch { }
+                        }, token);
+                    }
+                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[ItemContextMenu_Opening] Fatal error: {ex}");
+            }
+        }
+
+        private void InsertExtractedShellItemsToMenu(
+            List<ExtractedShellItem> extractedItems,
+            List<string> targetPaths,
+            ShellMenuConfig shellConfig,
+            Style? itemStyle,
+            int insertIndex)
+        {
+            if (extractedItems == null || extractedItems.Count == 0 || ContextMenuItemsPanel == null) return;
+
+            var orderedItems = SortExtractedItems(extractedItems, shellConfig.MenuOrder);
+            if (orderedItems.Count == 0) return;
+
+            int idx = Math.Clamp(insertIndex, 0, ContextMenuItemsPanel.Children.Count);
+            if (idx > 0)
+            {
+                ContextMenuItemsPanel.Children.Insert(idx++, CreateContextMenuSeparator());
+            }
+
+            foreach (var shellItem in orderedItems)
+            {
+                var capturedItem = shellItem;
+                if (capturedItem.IsSubmenu && capturedItem.Children.Count > 0)
+                {
+                    var subFlyout = CreateShellSubFlyout(1, capturedItem, targetPaths, itemStyle);
+                    var subBtn = CreateContextSubmenuButton(capturedItem.Glyph, capturedItem.CleanText, subFlyout, itemStyle);
+                    ContextMenuItemsPanel.Children.Insert(idx++, subBtn);
+                }
+                else
+                {
+                    var btn = CreateContextButton(capturedItem.Glyph, capturedItem.CleanText, (s, args) =>
+                    {
+                        ItemContextMenu.Hide();
+                        ShellContextMenuService.InvokeShellCommand(WindowHandle, targetPaths, capturedItem);
+                    }, itemStyle);
+                    ContextMenuItemsPanel.Children.Insert(idx++, btn);
+                }
             }
         }
 
@@ -386,22 +556,21 @@ namespace FastExplorer
             }
         }
 
-        private async void SetMenuItemExtensionIcon(MenuFlyoutItem menuItem, string extension, string fallbackGlyph)
+        private void SetMenuItemExtensionIcon(MenuFlyoutItem menuItem, string extension, string fallbackGlyph)
         {
-            var softwareBitmap = IconThumbnailService.GetSoftwareBitmapForExtension(extension);
-            if (softwareBitmap != null)
+            try
             {
-                try
+                var softwareBitmap = IconThumbnailService.GetSoftwareBitmapForExtension(extension);
+                var wb = IconThumbnailService.CreateWriteableBitmapFromSoftwareBitmap(softwareBitmap);
+                if (wb != null)
                 {
-                    var source = new SoftwareBitmapSource();
-                    await source.SetBitmapAsync(softwareBitmap);
-                    menuItem.Icon = new ImageIcon { Source = source };
+                    menuItem.Icon = new ImageIcon { Source = wb };
                     return;
                 }
-                catch { }
-            }
 
-            menuItem.Icon = new FontIcon { Glyph = fallbackGlyph };
+                menuItem.Icon = new FontIcon { Glyph = fallbackGlyph };
+            }
+            catch { }
         }
 
         #endregion

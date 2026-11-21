@@ -37,10 +37,9 @@ namespace FastExplorer.Models
             }
 
             // ディストリビューション内のパスはまず Win32 FindFirstFileExW (NativeFileScanner) で高速スキャンする
-            // (IconThumbnailService 側で 9P 越しの個別 Shell/File.Exists 呼び出しをスキップしているため、数秒の wsl.exe 起動より大幅に高速)
+            // (空ディレクトリでも列挙自体は成功するため、約5秒かかる wsl.exe フォールバックを確実に回避する)
             string cleanPath = wslUncPath.TrimEnd('\\');
-            var fastItems = NativeFileScanner.ScanDirectory(cleanPath, showHidden);
-            if (fastItems.Count > 0)
+            if (NativeFileScanner.TryScanDirectory(cleanPath, showHidden, out var fastItems, allowDotNetFallback: false))
             {
                 if (!showHidden)
                 {
@@ -49,7 +48,7 @@ namespace FastExplorer.Models
                 return fastItems;
             }
 
-            // 取得件数が 0 の場合（空ディレクトリまたは 9P 未マウント時のフォールバック）のみ wsl.exe を試行
+            // 9P 未マウント等で FindFirstFileExW 自体が失敗した場合のみ wsl.exe にフォールバック
             items.AddRange(ScanDistroPath(distroName, linuxPath, cleanPath, showHidden));
             return items;
         }

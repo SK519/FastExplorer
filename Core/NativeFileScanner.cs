@@ -13,10 +13,20 @@ namespace FastExplorer.Core
     {
         public static List<FileItem> ScanDirectory(string directoryPath, bool showHiddenFiles = false)
         {
-            var items = new List<FileItem>(1024);
+            TryScanDirectory(directoryPath, showHiddenFiles, out var items, allowDotNetFallback: true);
+            return items;
+        }
+
+        /// <summary>
+        /// FindFirstFileExW でディレクトリをスキャンする。
+        /// 戻り値が true の場合は「列挙成功（空ディレクトリ含む）」、false の場合は「パス到達不能または列挙失敗」を示す。
+        /// </summary>
+        public static bool TryScanDirectory(string directoryPath, bool showHiddenFiles, out List<FileItem> items, bool allowDotNetFallback = true)
+        {
+            items = new List<FileItem>(256);
 
             if (string.IsNullOrWhiteSpace(directoryPath))
-                return items;
+                return false;
 
             // ディレクトリの正規化 (UNC パス \\wsl.localhost 等を考慮)
             string normalizedPath = directoryPath;
@@ -49,6 +59,18 @@ namespace FastExplorer.Core
 
             if (hFind == nint.Zero || hFind == (nint)(-1))
             {
+                int lastErr = Marshal.GetLastWin32Error();
+                // ERROR_FILE_NOT_FOUND (2) / ERROR_NO_MORE_FILES (18) は空ディレクトリとして正常成功扱い
+                if (lastErr == 2 || lastErr == 18)
+                {
+                    return true;
+                }
+
+                if (!allowDotNetFallback)
+                {
+                    return false;
+                }
+
                 // アクセス拒否等の場合は .NET API でフォールバック試行
                 try
                 {
@@ -86,13 +108,12 @@ namespace FastExplorer.Core
                             GlyphIcon = GetGlyphIconForExtension(file.Extension)
                         });
                     }
+                    return true;
                 }
                 catch
                 {
-                    // ignored
+                    return false;
                 }
-
-                return items;
             }
 
             try
@@ -163,7 +184,7 @@ namespace FastExplorer.Core
                 Win32Interop.FindClose(hFind);
             }
 
-            return items;
+            return true;
         }
 
         public static List<FileItem> GetDrives() => GetDrivesInternal(false);

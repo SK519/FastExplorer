@@ -77,7 +77,7 @@ namespace FastExplorer.Services
 
                 if (_configUpdated)
                 {
-                    ConfigService.Save();
+                    _ = System.Threading.Tasks.Task.Run(ConfigService.Save);
                 }
 
                 return true;
@@ -88,6 +88,66 @@ namespace FastExplorer.Services
                 Dispose();
                 return false;
             }
+        }
+
+        /// <summary>
+        /// 専用バックグラウンド STA スレッド上で OS シェルコンテキストメニュー項目を非同期抽出し、
+        /// COM リソースを同一 STA スレッド上で確実に解放してからスナップショットを返す。
+        /// </summary>
+        public static System.Threading.Tasks.Task<List<ExtractedShellItem>> ExtractItemsOnStaAsync(
+            nint hwnd,
+            IReadOnlyList<string> filePaths,
+            System.Threading.CancellationToken cancellationToken = default)
+        {
+            var tcs = new System.Threading.Tasks.TaskCompletionSource<List<ExtractedShellItem>>(
+                System.Threading.Tasks.TaskCreationOptions.RunContinuationsAsynchronously);
+
+            if (filePaths == null || filePaths.Count == 0 || cancellationToken.IsCancellationRequested)
+            {
+                tcs.SetResult(new List<ExtractedShellItem>());
+                return tcs.Task;
+            }
+
+            var capturedPaths = filePaths.ToList();
+            var thread = new System.Threading.Thread(() =>
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    tcs.TrySetResult(new List<ExtractedShellItem>());
+                    return;
+                }
+
+                Win32Interop.OleInitialize(nint.Zero);
+                try
+                {
+                    using var session = new ActiveShellMenuSession(hwnd);
+                    if (session.Build(capturedPaths))
+                    {
+                        tcs.TrySetResult(new List<ExtractedShellItem>(session.ExtractedItems));
+                    }
+                    else
+                    {
+                        tcs.TrySetResult(new List<ExtractedShellItem>());
+                    }
+                }
+                catch
+                {
+                    tcs.TrySetResult(new List<ExtractedShellItem>());
+                }
+                finally
+                {
+                    Win32Interop.OleUninitialize();
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "ShellMenuExtractStaThread",
+                Priority = System.Threading.ThreadPriority.BelowNormal
+            };
+            thread.SetApartmentState(System.Threading.ApartmentState.STA);
+            thread.Start();
+
+            return tcs.Task;
         }
 
         private void ExtractMenuItems(nint hMenu, int itemCount, Models.ShellMenuConfig config)
@@ -156,9 +216,9 @@ namespace FastExplorer.Services
                     ShareCommandId = cmdId;
                 }
 
-                string? verb = (PContextMenu != nint.Zero && cmdId != uint.MaxValue) ? ShellCommandExecutor.GetVerbFromContextMenu(PContextMenu, cmdId) : null;
-
                 if (ShellMenuFilter.IsBuiltinDuplicate(cleanText)) continue;
+
+                string? verb = (PContextMenu != nint.Zero && cmdId != uint.MaxValue) ? ShellCommandExecutor.GetVerbFromContextMenu(PContextMenu, cmdId) : null;
 
                 // 新しく検出された OS 右クリックメニュー項目を状態辞書に自動登録
                 if (!config.ItemVisibilityState.ContainsKey(cleanText))

@@ -43,10 +43,13 @@ namespace FastExplorer
             bool isCurrentGrid = FileGridView != null && FileGridView.Visibility == Visibility.Visible;
             bool shouldBeGrid = mode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons or FolderViewMode.List or FolderViewMode.Tiles;
 
-            // UI に実際に適用されているモード・スケールと表示形式が完全に一致している場合のみ早期リターン
+            // UI に実際に適用されているモード・スケール・ItemsSource と表示形式が完全に一致している場合のみ早期リターン
             bool isCurrentList = FileListView != null && FileListView.Visibility == Visibility.Visible;
             bool isContainerMatched = shouldBeGrid ? isCurrentGrid : isCurrentList;
-            if (_appliedUiViewMode == mode && _appliedUiViewScale == scaleLevel && isContainerMatched && !saveConfig)
+            bool isItemsSourceMatched = shouldBeGrid
+                ? ReferenceEquals(FileGridView?.ItemsSource, CurrentTab.Items) && FileListView?.ItemsSource == null
+                : ReferenceEquals(FileListView?.ItemsSource, CurrentTab.Items) && FileGridView?.ItemsSource == null;
+            if (_appliedUiViewMode == mode && _appliedUiViewScale == scaleLevel && isContainerMatched && isItemsSourceMatched && !saveConfig)
             {
                 UpdateViewMenuCheckStates();
                 UpdateActionToolbarButtons();
@@ -61,6 +64,18 @@ namespace FastExplorer
             }
 
             if (FileListView == null || FileGridView == null) return;
+
+            // 表示中のリスト/グリッドにのみ ItemsSource を割り当て、非表示側は null にして二重負荷・XAML 仮想化クラッシュを防止
+            if (shouldBeGrid)
+            {
+                if (FileListView.ItemsSource != null) FileListView.ItemsSource = null;
+                if (!ReferenceEquals(FileGridView.ItemsSource, CurrentTab.Items)) FileGridView.ItemsSource = CurrentTab.Items;
+            }
+            else
+            {
+                if (FileGridView.ItemsSource != null) FileGridView.ItemsSource = null;
+                if (!ReferenceEquals(FileListView.ItemsSource, CurrentTab.Items)) FileListView.ItemsSource = CurrentTab.Items;
+            }
 
             switch (mode)
             {

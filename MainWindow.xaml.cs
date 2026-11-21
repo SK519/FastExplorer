@@ -75,6 +75,14 @@ namespace FastExplorer
                 if (createInitialTab) SaveWindowState();
                 NetworkLocationService.Instance.NetworkLocationChanged -= OnNetworkLocationChanged;
                 _wallpaperEvalCts?.Cancel();
+                _shellPrefetchCts?.Cancel();
+                _shellMenuLoadCts?.Cancel();
+                UninstallMouseHook();
+                RemoveContextMenuWindowSubclass();
+                CancelSubmenuOpen();
+                _submenuCloseCheckTimer?.Stop();
+                _activeShellSession?.Dispose();
+                _activeShellSession = null;
             };
 
             // サイドバー構築
@@ -324,19 +332,35 @@ namespace FastExplorer
             return null;
         }
 
+        private long _lastActivatedRefreshTimestamp;
+
         private void MainWindow_Activated(object sender, WindowActivatedEventArgs args)
         {
             if (args.WindowActivationState != WindowActivationState.Deactivated)
             {
                 if (_isInitialized)
                 {
-                    if (CurrentTab?.CurrentPath.Equals("Home", StringComparison.OrdinalIgnoreCase) == true)
+                    // コンテキストメニュー開閉や頻繁なフォーカス遷移時の連続リフレッシュをスロットリング
+                    if (_lastActivatedRefreshTimestamp != 0 &&
+                        System.Diagnostics.Stopwatch.GetElapsedTime(_lastActivatedRefreshTimestamp).TotalMilliseconds < 1500)
+                    {
+                        return;
+                    }
+                    _lastActivatedRefreshTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
+
+                    string? curPath = CurrentTab?.CurrentPath;
+                    if (string.IsNullOrEmpty(curPath)) return;
+
+                    if (curPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
                     {
                         RefreshHomeView();
                     }
-                    else if (CurrentTab != null)
+                    else if (!curPath.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase) &&
+                             !curPath.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) &&
+                             !curPath.Equals("Network", StringComparison.OrdinalIgnoreCase) &&
+                             !ArchiveService.IsArchiveOrSubPath(curPath, out _, out _))
                     {
-                        CurrentTab.Refresh();
+                        CurrentTab?.Refresh();
                     }
                 }
             }

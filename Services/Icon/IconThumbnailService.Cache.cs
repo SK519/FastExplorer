@@ -318,10 +318,10 @@ namespace FastExplorer.Services
             }
         }
 
-        private readonly ConcurrentDictionary<string, System.Threading.Tasks.Task<SoftwareBitmapSource>> _pendingSourceTasks = new(StringComparer.OrdinalIgnoreCase);
-
         /// <summary>
         /// UIスレッドへディスパッチし、成功すれば bitmap / semaphore の所有権を引き継ぐ。
+        /// WriteableBitmap へのピクセルコピー後に即座に SoftwareBitmap を Dispose するため、
+        /// SoftwareBitmapSource 特有の RO_E_CLOSED (0x80000013) クラッシュを完全に排除する。
         /// </summary>
         private bool SetIconToItem(
             FileItem item,
@@ -360,7 +360,7 @@ namespace FastExplorer.Services
                 return false;
             }
 
-            bool enqueued = _dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, async () =>
+            bool enqueued = _dispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
             {
                 try
                 {
@@ -376,24 +376,15 @@ namespace FastExplorer.Services
                         return;
                     }
 
-                    System.Threading.Tasks.Task<SoftwareBitmapSource> task;
-                    bool isOwnerOfTask = false;
-                    lock (_pendingSourceTasks)
+                    var wb = CreateWriteableBitmapFromSoftwareBitmap(softwareBitmap);
+                    if (wb != null)
                     {
-                        if (!_pendingSourceTasks.TryGetValue(cacheKey, out task!))
+                        AddSourceToCache(cacheKey, wb);
+                        if (gen == Volatile.Read(ref _queueGeneration))
                         {
-                            task = CreateSoftwareBitmapSourceAsync(softwareBitmap, cacheKey);
-                            _pendingSourceTasks[cacheKey] = task;
-                            isOwnerOfTask = true;
+                            item.Icon = wb;
                         }
                     }
-
-                    var source = await task;
-                    if (gen == Volatile.Read(ref _queueGeneration))
-                    {
-                        item.Icon = source;
-                    }
-                    _ = isOwnerOfTask;
                 }
                 catch (Exception ex)
                 {
@@ -407,27 +398,12 @@ namespace FastExplorer.Services
                     }
                     if (releaseSemaphore)
                     {
-                        _inFlightSemaphore.Release();
+                        try { _inFlightSemaphore.Release(); } catch { }
                     }
                 }
             });
 
             return enqueued;
-        }
-
-        private async System.Threading.Tasks.Task<SoftwareBitmapSource> CreateSoftwareBitmapSourceAsync(SoftwareBitmap softwareBitmap, string cacheKey)
-        {
-            try
-            {
-                var source = new SoftwareBitmapSource();
-                await source.SetBitmapAsync(softwareBitmap);
-                AddSourceToCache(cacheKey, source);
-                return source;
-            }
-            finally
-            {
-                _pendingSourceTasks.TryRemove(cacheKey, out _);
-            }
         }
     }
 }

@@ -13,6 +13,21 @@ namespace FastExplorer.Services
     public static class ShellFileOperationHelper
     {
         /// <summary>
+        /// 指定された HRESULT がアクセス権限不足・昇格要求を示すかを判定
+        /// </summary>
+        public static bool IsAccessDeniedHResult(int hresult)
+        {
+            uint hr = (uint)hresult;
+            // E_ACCESSDENIED (0x80070005), COPYENGINE_E_REQUIRES_ELEVATION (0x80270001),
+            // COPYENGINE_E_USER_CANCELLED ではなく権限関連コードのみを対象とする
+            return hr == 0x80070005 ||
+                   ((hr & 0xFFFF0000) == 0x80070000 && (hr & 0xFFFF) == 5) ||
+                   hr == 0x80270001 || // COPYENGINE_E_REQUIRES_ELEVATION
+                   hr == 0x80270002 || // COPYENGINE_E_CANT_REACH_SOURCE (elevation / access)
+                   hr == 0x80270016;   // COPYENGINE_E_ACCESS_DENIED_SRC
+        }
+
+        /// <summary>
         /// 指定された例外がアクセス権限不足（ERROR_ACCESS_DENIED / E_ACCESSDENIED）によるものかを正確に判定
         /// </summary>
         public static bool IsAccessDeniedException(Exception ex)
@@ -21,8 +36,7 @@ namespace FastExplorer.Services
             if (ex is IOException ioe && (ioe.HResult & 0xFFFF) == 5) return true;
             if (ex is COMException cex)
             {
-                uint hr = (uint)cex.HResult;
-                return hr == 0x80070005 || (hr & 0xFFFF) == 5 || hr == 0x80270000 || hr == 0x80270001;
+                return IsAccessDeniedHResult(cex.HResult);
             }
             return false;
         }
@@ -58,18 +72,121 @@ namespace FastExplorer.Services
         }
 
         /// <summary>
-        /// COM 操作を安全に STA スレッド上で実行
+        /// 指定されたパスを削除するための通常権限があるかを判定する（不要な UAC 昇格を防止）
         /// </summary>
-        public static async Task<T> RunInStaAsync<T>(Func<T> action)
+        public static bool HasDeletePermission(string targetPath)
         {
-            if (Thread.CurrentThread.GetApartmentState() == ApartmentState.STA)
-            {
-                return action();
-            }
+            if (string.IsNullOrWhiteSpace(targetPath)) return true;
 
-            var tcs = new TaskCompletionSource<T>();
+            try
+            {
+                string? parentDir = Path.GetDirectoryName(targetPath.TrimEnd('\\', '/'));
+                if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
+                {
+                    if (!HasWritePermission(parentDir))
+                    {
+                        return false;
+                    }
+                }
+
+                // ファイル自身に DELETE アクセス権があるか確認
+                if (File.Exists(targetPath))
+                {
+                    using var hFile = Win32Interop.CreateFileW(
+                        targetPath,
+                        0x00010000 /* DELETE */,
+                        Win32Interop.FILE_SHARE_READ | Win32Interop.FILE_SHARE_WRITE | Win32Interop.FILE_SHARE_DELETE,
+                        nint.Zero,
+                        Win32Interop.OPEN_EXISTING,
+                        0,
+                        nint.Zero);
+                    if (hFile.IsInvalid)
+                    {
+                        int err = Marshal.GetLastWin32Error();
+                        if (err == 5) return false; // ERROR_ACCESS_DENIED
+                    }
+                }
+                else if (Directory.Exists(targetPath))
+                {
+                    using var hDir = Win32Interop.CreateFileW(
+                        targetPath,
+                        0x00010000 /* DELETE */,
+                        Win32Interop.FILE_SHARE_READ | Win32Interop.FILE_SHARE_WRITE | Win32Interop.FILE_SHARE_DELETE,
+                        nint.Zero,
+                        Win32Interop.OPEN_EXISTING,
+                        0x02000000 /* FILE_FLAG_BACKUP_SEMANTICS */,
+                        nint.Zero);
+                    if (hDir.IsInvalid)
+                    {
+                        int err = Marshal.GetLastWin32Error();
+                        if (err == 5) return false; // ERROR_ACCESS_DENIED
+                    }
+                }
+
+                return true;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return false;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        /// <summary>
+        /// 通常権限で ReadOnly 属性を解除する（.git オブジェクト等での誤アクセス拒否を防止）
+        /// </summary>
+        public static void TryClearReadOnlyAttributesNormal(string path)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    var attr = File.GetAttributes(path);
+                    if ((attr & FileAttributes.ReadOnly) != 0)
+                    {
+                        File.SetAttributes(path, attr & ~FileAttributes.ReadOnly);
+                    }
+                }
+                else if (Directory.Exists(path))
+                {
+                    foreach (var entry in Directory.EnumerateFileSystemEntries(path, "*", new EnumerationOptions
+                    {
+                        RecurseSubdirectories = true,
+                        IgnoreInaccessible = true
+                    }))
+                    {
+                        try
+                        {
+                            var attr = File.GetAttributes(entry);
+                            if ((attr & FileAttributes.ReadOnly) != 0)
+                            {
+                                File.SetAttributes(entry, attr & ~FileAttributes.ReadOnly);
+                            }
+                        }
+                        catch { }
+                    }
+                    var dirAttr = File.GetAttributes(path);
+                    if ((dirAttr & FileAttributes.ReadOnly) != 0)
+                    {
+                        File.SetAttributes(path, dirAttr & ~FileAttributes.ReadOnly);
+                    }
+                }
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// COM 操作を専用のバックグラウンド STA スレッド上で非同期実行（UI スレッドをブロックしない）
+        /// </summary>
+        public static Task<T> RunInStaAsync<T>(Func<T> action)
+        {
+            var tcs = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
             var thread = new Thread(() =>
             {
+                Win32Interop.OleInitialize(nint.Zero);
                 try
                 {
                     tcs.SetResult(action());
@@ -78,11 +195,18 @@ namespace FastExplorer.Services
                 {
                     tcs.SetException(ex);
                 }
-            });
+                finally
+                {
+                    Win32Interop.OleUninitialize();
+                }
+            })
+            {
+                IsBackground = true,
+                Name = "ShellFileOpStaThread"
+            };
             thread.SetApartmentState(ApartmentState.STA);
-            thread.IsBackground = true;
             thread.Start();
-            return await tcs.Task;
+            return tcs.Task;
         }
 
         /// <summary>
@@ -205,64 +329,135 @@ namespace FastExplorer.Services
             bool recycle,
             nint ownerHwnd)
         {
-            Win32Interop.IFileOperation? fileOp = null;
+            bool isAccessDenied = false;
+            bool aborted = false;
+
+            // 1. NativeCom 直接 vtable 呼び出しによる IFileOperation（Trimming / AOT / Release 安全）
+            nint pFileOp = nint.Zero;
             try
             {
-                fileOp = (Win32Interop.IFileOperation)new Win32Interop.FileOperationClass();
+                int hrCreate = Win32Interop.CoCreateInstance(
+                    in Win32Interop.CLSID_FileOperation,
+                    nint.Zero,
+                    Win32Interop.CLSCTX_ALL,
+                    in Win32Interop.IID_IFileOperation,
+                    out pFileOp);
 
-                // Windows 独自の昇格・エラーポップアップを出さずサイレント実行し、失敗時は FastExplorer 側で判別する
-                uint flags = Win32Interop.FOF_NOCONFIRMATION |
-                             Win32Interop.FOF_SILENT |
-                             Win32Interop.FOF_NOERRORUI;
-
-                if (recycle)
+                if (hrCreate == 0 && pFileOp != nint.Zero)
                 {
-                    flags |= Win32Interop.FOFX_RECYCLEONDELETE | Win32Interop.FOF_ALLOWUNDO;
-                }
+                    // Windows 独自の昇格・エラーポップアップを出さずサイレント実行し、失敗時は FastExplorer 側で判別する
+                    uint flags = Win32Interop.FOF_NOCONFIRMATION |
+                                 Win32Interop.FOF_SILENT |
+                                 Win32Interop.FOF_NOERRORUI;
 
-                fileOp.SetOperationFlags(flags);
-                if (ownerHwnd != 0) fileOp.SetOwnerWindow(ownerHwnd);
-
-                bool addedAny = false;
-                foreach (var path in validPaths)
-                {
-                    int hr = Win32Interop.SHCreateItemFromParsingName(
-                        path, 0, in Win32Interop.IID_IShellItem, out nint pItem);
-                    if (hr == 0 && pItem != 0)
+                    if (recycle)
                     {
-                        try
+                        flags |= Win32Interop.FOFX_RECYCLEONDELETE | Win32Interop.FOF_ALLOWUNDO;
+                    }
+
+                    Win32Interop.NativeCom.FileOperation_SetOperationFlags(pFileOp, flags);
+
+                    bool addedAny = false;
+                    foreach (var path in validPaths)
+                    {
+                        int hr = Win32Interop.SHCreateItemFromParsingName(
+                            path, 0, in Win32Interop.IID_IShellItem, out nint pItem);
+                        if (hr == 0 && pItem != 0)
                         {
-                            fileOp.DeleteItem(pItem, 0);
-                            addedAny = true;
+                            try
+                            {
+                                Win32Interop.NativeCom.FileOperation_DeleteItem(pFileOp, pItem, 0);
+                                addedAny = true;
+                            }
+                            finally
+                            {
+                                Win32Interop.NativeCom.Release(pItem);
+                            }
                         }
-                        finally
+                    }
+
+                    if (addedAny)
+                    {
+                        int hrPerform = Win32Interop.NativeCom.FileOperation_PerformOperations(pFileOp);
+                        Win32Interop.NativeCom.FileOperation_GetAnyOperationsAborted(pFileOp, out aborted);
+
+                        if (hrPerform < 0 && IsAccessDeniedHResult(hrPerform))
                         {
-                            Marshal.Release(pItem);
+                            isAccessDenied = true;
+                        }
+
+                        bool anyStillExists = validPaths.Any(p => File.Exists(p) || Directory.Exists(p));
+                        if (!anyStillExists)
+                        {
+                            return (true, false, false);
                         }
                     }
                 }
-
-                if (!addedAny) return (false, false, false);
-
-                fileOp.PerformOperations();
-                bool aborted = fileOp.GetAnyOperationsAborted();
-
-                bool anyStillExists = validPaths.Any(p => File.Exists(p) || Directory.Exists(p));
-                return (!aborted && !anyStillExists, aborted, false);
             }
             catch (Exception ex)
             {
-                bool isDenied = IsAccessDeniedException(ex);
-                Debug.WriteLine($"[ShellFileOp] Normal delete error (isDenied={isDenied}): {ex.Message}");
-                return (false, false, isDenied);
+                if (IsAccessDeniedException(ex)) isAccessDenied = true;
+                Debug.WriteLine($"[ShellFileOp] Normal IFileOperation delete error (isDenied={isAccessDenied}): {ex.Message}");
             }
             finally
             {
-                if (fileOp != null)
+                if (pFileOp != nint.Zero)
                 {
-                    try { Marshal.FinalReleaseComObject(fileOp); } catch { }
+                    try { Win32Interop.NativeCom.Release(pFileOp); } catch { }
                 }
             }
+
+            // 2. 残存項目がある場合、ReadOnly 属性を通常権限で解除して SHFileOperationW で通常権限フォールバック
+            var remaining = validPaths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+            if (remaining.Count == 0) return (true, false, false);
+
+            foreach (var path in remaining)
+            {
+                TryClearReadOnlyAttributesNormal(path);
+            }
+
+            try
+            {
+                string multiPath = string.Join("\0", remaining) + "\0\0";
+                ushort shFlags = (ushort)(Win32Interop.FOF_NOCONFIRMATION |
+                                          Win32Interop.FOF_SILENT |
+                                          Win32Interop.FOF_NOERRORUI);
+                if (recycle)
+                {
+                    shFlags |= Win32Interop.FOF_ALLOWUNDO;
+                }
+
+                var op = new Win32Interop.SHFILEOPSTRUCTW
+                {
+                    hwnd = nint.Zero,
+                    wFunc = Win32Interop.FO_DELETE,
+                    pFrom = multiPath,
+                    pTo = null,
+                    fFlags = shFlags,
+                    fAnyOperationsAborted = false,
+                    hNameMappings = nint.Zero,
+                    lpszProgressTitle = null
+                };
+                int shRes = Win32Interop.SHFileOperationW(ref op);
+                if (shRes == 5 || shRes == 0x78 /* DE_ACCESSDENIEDSRC */)
+                {
+                    isAccessDenied = true;
+                }
+                if (op.fAnyOperationsAborted) aborted = true;
+
+                bool anyStillExists = remaining.Any(p => File.Exists(p) || Directory.Exists(p));
+                if (!anyStillExists)
+                {
+                    return (true, false, false);
+                }
+            }
+            catch (Exception ex)
+            {
+                if (IsAccessDeniedException(ex)) isAccessDenied = true;
+                Debug.WriteLine($"[ShellFileOp] Normal SHFileOperationW fallback error: {ex.Message}");
+            }
+
+            return (false, aborted, isAccessDenied);
         }
     }
 }

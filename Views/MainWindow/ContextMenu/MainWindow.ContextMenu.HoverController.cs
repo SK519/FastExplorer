@@ -121,7 +121,7 @@ namespace FastExplorer
 
         private nint LowLevelMouseHookCallback(int nCode, nuint wParam, nint lParam)
         {
-            if (nCode >= 0 && (uint)wParam == Win32Interop.WM_MOUSEWHEEL)
+            if (nCode >= 0 && (uint)wParam == Win32Interop.WM_MOUSEWHEEL && _isItemContextMenuOpen)
             {
                 try
                 {
@@ -129,27 +129,33 @@ namespace FastExplorer
                     var cursorPos = hookStruct.pt;
                     short delta = (short)((hookStruct.mouseData >> 16) & 0xFFFF);
 
-                    if (ContextMenuItemsPanel != null && TryGetElementScreenRect(ContextMenuItemsPanel, out var parentMenuRect))
+                    if (delta != 0)
                     {
-                        // マウスがメインメニュー（親メニュー）領域内にある場合
-                        if (cursorPos.X >= parentMenuRect.Left - 15 && cursorPos.X <= parentMenuRect.Right + 15 &&
-                            cursorPos.Y >= parentMenuRect.Top - 60 && cursorPos.Y <= parentMenuRect.Bottom + 15)
+                        // WH_MOUSE_LL コールバック内で XAML API を直接呼ぶと再入クラッシュ (0xc000027b) や
+                        // OS 全体のマウス応答遅延の原因になるため、UI 操作は必ず DispatcherQueue 経由で非同期実行する
+                        this.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
                         {
-                            // 開いているサブメニューを即座に閉じる
-                            if (_activeSubmenuChain.Count > 0)
+                            try
                             {
-                                HideActiveSubmenu();
-                            }
+                                if (!_isItemContextMenuOpen || ContextMenuItemsPanel == null) return;
+                                if (TryGetElementScreenRect(ContextMenuItemsPanel, out var parentMenuRect) &&
+                                    cursorPos.X >= parentMenuRect.Left - 15 && cursorPos.X <= parentMenuRect.Right + 15 &&
+                                    cursorPos.Y >= parentMenuRect.Top - 60 && cursorPos.Y <= parentMenuRect.Bottom + 15)
+                                {
+                                    if (_activeSubmenuChain.Count > 0)
+                                    {
+                                        HideActiveSubmenu();
+                                    }
 
-                            // メインメニューの ScrollViewer をスクロール
-                            if (ContextMenuScrollViewer != null && delta != 0)
-                            {
-                                double newOffset = ContextMenuScrollViewer.VerticalOffset - (delta * 0.4);
-                                ContextMenuScrollViewer.ChangeView(null, newOffset, null, true);
+                                    if (ContextMenuScrollViewer != null)
+                                    {
+                                        double newOffset = ContextMenuScrollViewer.VerticalOffset - (delta * 0.4);
+                                        ContextMenuScrollViewer.ChangeView(null, newOffset, null, true);
+                                    }
+                                }
                             }
-
-                            return (nint)1;
-                        }
+                            catch { }
+                        });
                     }
                 }
                 catch
@@ -167,6 +173,20 @@ namespace FastExplorer
             _contextMenuSubclassProc = ContextMenuWndProc;
             Win32Interop.SetWindowSubclass(WindowHandle, _contextMenuSubclassProc, 101, 0);
             _isSubclassInstalled = true;
+        }
+
+        private void RemoveContextMenuWindowSubclass()
+        {
+            if (_isSubclassInstalled && WindowHandle != 0 && _contextMenuSubclassProc != null)
+            {
+                try
+                {
+                    Win32Interop.RemoveWindowSubclass(WindowHandle, _contextMenuSubclassProc, 101);
+                }
+                catch { }
+                _isSubclassInstalled = false;
+                _contextMenuSubclassProc = null;
+            }
         }
 
         private nint ContextMenuWndProc(nint hWnd, uint uMsg, nuint wParam, nint lParam, nuint uIdSubclass, nuint dwRefData)

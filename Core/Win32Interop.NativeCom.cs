@@ -275,6 +275,56 @@ namespace FastExplorer.Core
                 var func = (delegate* unmanaged[Stdcall]<nint, nint, int>)vtbl[8];
                 return func(pHandler, pDataObject);
             }
+
+            // IFileOperation direct vtable invokers (Trim / AOT safe)
+            // vtable: 0=QI, 1=AddRef, 2=Release, 3=Advise, 4=Unadvise, 5=SetOperationFlags,
+            //         6=SetProgressMessage, 7=SetProgressDialog, 8=SetProperties, 9=SetOwnerWindow,
+            //         10=ApplyPropertiesToItem, 11=ApplyPropertiesToItems, 12=RenameItem, 13=RenameItems,
+            //         14=MoveItem, 15=MoveItems, 16=CopyItem, 17=CopyItems, 18=DeleteItem, 19=DeleteItems,
+            //         20=NewItem, 21=PerformOperations, 22=GetAnyOperationsAborted
+            public static int FileOperation_SetOperationFlags(nint pFileOp, uint dwOperationFlags)
+            {
+                if (pFileOp == nint.Zero) return unchecked((int)0x80004003);
+                var vtbl = *(nint**)pFileOp;
+                var func = (delegate* unmanaged[Stdcall]<nint, uint, int>)vtbl[5];
+                return func(pFileOp, dwOperationFlags);
+            }
+
+            public static int FileOperation_SetOwnerWindow(nint pFileOp, nint hwndOwner)
+            {
+                if (pFileOp == nint.Zero) return unchecked((int)0x80004003);
+                var vtbl = *(nint**)pFileOp;
+                var func = (delegate* unmanaged[Stdcall]<nint, nint, int>)vtbl[9];
+                return func(pFileOp, hwndOwner);
+            }
+
+            public static int FileOperation_DeleteItem(nint pFileOp, nint pShellItem, nint pfopsItem)
+            {
+                if (pFileOp == nint.Zero) return unchecked((int)0x80004003);
+                var vtbl = *(nint**)pFileOp;
+                var func = (delegate* unmanaged[Stdcall]<nint, nint, nint, int>)vtbl[18];
+                return func(pFileOp, pShellItem, pfopsItem);
+            }
+
+            public static int FileOperation_PerformOperations(nint pFileOp)
+            {
+                if (pFileOp == nint.Zero) return unchecked((int)0x80004003);
+                var vtbl = *(nint**)pFileOp;
+                var func = (delegate* unmanaged[Stdcall]<nint, int>)vtbl[21];
+                return func(pFileOp);
+            }
+
+            public static int FileOperation_GetAnyOperationsAborted(nint pFileOp, out bool aborted)
+            {
+                aborted = false;
+                if (pFileOp == nint.Zero) return unchecked((int)0x80004003);
+                int fAborted = 0;
+                var vtbl = *(nint**)pFileOp;
+                var func = (delegate* unmanaged[Stdcall]<nint, int*, int>)vtbl[22];
+                int hr = func(pFileOp, &fAborted);
+                aborted = fAborted != 0;
+                return hr;
+            }
         }
 
         #endregion

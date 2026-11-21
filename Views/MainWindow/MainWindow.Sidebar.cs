@@ -272,7 +272,7 @@ namespace FastExplorer
         private bool _isNetworkExpanded = false;
         private bool _isWslExpanded = false;
 
-        private static List<string> GetWslDistros()
+        private static List<string> GetWslDistros(bool allowUncFallback = true)
         {
             var distros = new List<string>();
             try
@@ -292,7 +292,7 @@ namespace FastExplorer
             }
             catch { }
 
-            if (distros.Count == 0)
+            if (distros.Count == 0 && allowUncFallback)
             {
                 try
                 {
@@ -361,7 +361,8 @@ namespace FastExplorer
                 _isWslExpanded = item.IsExpanded;
                 if (item.IsExpanded)
                 {
-                    var distros = GetWslDistros();
+                    // UI スレッド上で \\wsl.localhost への同期アクセスを行わない（レジストリのみ高速参照）
+                    var distros = GetWslDistros(allowUncFallback: false);
                     if (distros.Count == 0) distros.Add("Ubuntu");
                     for (int i = 0; i < distros.Count; i++)
                     {

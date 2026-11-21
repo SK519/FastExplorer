@@ -56,6 +56,9 @@ namespace FastExplorer.Services
             return null;
         }
 
+        // 4K 等の高解像度画像デコード時のメモリスパイクを抑える同時デコード制限
+        private static readonly System.Threading.SemaphoreSlim _directDecodeSemaphore = new(2, 2);
+
         public static SoftwareBitmap? ExtractDirectImageThumbnail(string fullPath, uint targetSize = 96)
         {
             try
@@ -63,8 +66,8 @@ namespace FastExplorer.Services
                 var fi = new FileInfo(fullPath);
                 if (!fi.Exists || fi.Length == 0) return null;
 
-                // 20MB 超の超高解像度画像はまず Windows シェル既存サムネイルキャッシュのみをゼロデコード試行
-                if (fi.Length > 20L * 1024 * 1024)
+                // 1MB 超の画像（4K 写真・高解像度 PNG 等）はまず Windows シェル既存サムネイルキャッシュのみをゼロデコード試行
+                if (fi.Length > 1L * 1024 * 1024)
                 {
                     var cachedThumb = ExtractThumbnailViaShellItem(
                         fullPath,
@@ -76,35 +79,43 @@ namespace FastExplorer.Services
                     }
                 }
 
-                using var stream = File.Open(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                using var randomStream = stream.AsRandomAccessStream();
-                var decoder = BitmapDecoder.CreateAsync(randomStream).AsTask().GetAwaiter().GetResult();
-
-                var transform = new BitmapTransform();
-                uint origW = decoder.PixelWidth;
-                uint origH = decoder.PixelHeight;
-                if (origW > targetSize || origH > targetSize)
+                _directDecodeSemaphore.Wait();
+                try
                 {
-                    if (origW >= origH)
-                    {
-                        transform.ScaledWidth = targetSize;
-                        transform.ScaledHeight = Math.Max(1, (uint)((double)origH / origW * targetSize));
-                    }
-                    else
-                    {
-                        transform.ScaledHeight = targetSize;
-                        transform.ScaledWidth = Math.Max(1, (uint)((double)origW / origH * targetSize));
-                    }
-                    transform.InterpolationMode = BitmapInterpolationMode.Linear;
-                }
+                    using var stream = File.Open(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    using var randomStream = stream.AsRandomAccessStream();
+                    var decoder = BitmapDecoder.CreateAsync(randomStream).AsTask().GetAwaiter().GetResult();
 
-                return decoder.GetSoftwareBitmapAsync(
-                    BitmapPixelFormat.Bgra8,
-                    BitmapAlphaMode.Premultiplied,
-                    transform,
-                    ExifOrientationMode.RespectExifOrientation,
-                    ColorManagementMode.ColorManageToSRgb
-                ).AsTask().GetAwaiter().GetResult();
+                    var transform = new BitmapTransform();
+                    uint origW = decoder.PixelWidth;
+                    uint origH = decoder.PixelHeight;
+                    if (origW > targetSize || origH > targetSize)
+                    {
+                        if (origW >= origH)
+                        {
+                            transform.ScaledWidth = targetSize;
+                            transform.ScaledHeight = Math.Max(1, (uint)((double)origH / origW * targetSize));
+                        }
+                        else
+                        {
+                            transform.ScaledHeight = targetSize;
+                            transform.ScaledWidth = Math.Max(1, (uint)((double)origW / origH * targetSize));
+                        }
+                        transform.InterpolationMode = BitmapInterpolationMode.Linear;
+                    }
+
+                    return decoder.GetSoftwareBitmapAsync(
+                        BitmapPixelFormat.Bgra8,
+                        BitmapAlphaMode.Premultiplied,
+                        transform,
+                        ExifOrientationMode.RespectExifOrientation,
+                        ColorManagementMode.DoNotColorManage
+                    ).AsTask().GetAwaiter().GetResult();
+                }
+                finally
+                {
+                    _directDecodeSemaphore.Release();
+                }
             }
             catch
             {

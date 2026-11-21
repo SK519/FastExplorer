@@ -10,6 +10,8 @@ namespace FastExplorer
 {
     public partial class NavigationTabItem
     {
+        private int _refreshGeneration;
+
         public void Refresh()
         {
             RefreshIncremental();
@@ -17,12 +19,54 @@ namespace FastExplorer
 
         public void RefreshIncremental()
         {
+            // 初回読み込み中の場合は重複スキャンをスキップ
+            if (IsLoading) return;
+
+            int capturedLoadGen = System.Threading.Volatile.Read(ref _loadGeneration);
+            int refreshGen = System.Threading.Interlocked.Increment(ref _refreshGeneration);
+            string targetPath = CurrentPath;
+
+            // ディスク/WSL/ネットワーク走査は必ずバックグラウンドスレッドで実行し、UIスレッドのフリーズを完全排除
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                List<FileItem> newScanned;
+                try
+                {
+                    newScanned = ScanPath(targetPath)
+                        .DistinctBy(x => x.FullPath, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                }
+                catch
+                {
+                    return;
+                }
+
+                if (capturedLoadGen != System.Threading.Volatile.Read(ref _loadGeneration) ||
+                    refreshGen != System.Threading.Volatile.Read(ref _refreshGeneration))
+                {
+                    return;
+                }
+
+                var dq = DispatcherQueue;
+                if (dq == null) return;
+
+                dq.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+                {
+                    if (capturedLoadGen != System.Threading.Volatile.Read(ref _loadGeneration) ||
+                        refreshGen != System.Threading.Volatile.Read(ref _refreshGeneration))
+                    {
+                        return;
+                    }
+
+                    ApplyIncrementalDiffOnUiThread(newScanned);
+                });
+            });
+        }
+
+        private void ApplyIncrementalDiffOnUiThread(List<FileItem> newScanned)
+        {
             try
             {
-                var newScanned = ScanCurrentPath()
-                    .DistinctBy(x => x.FullPath, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-
                 // 既存の _allItems 内に重複があれば事前に除去
                 var seenExisting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 for (int i = _allItems.Count - 1; i >= 0; i--)
@@ -102,30 +146,32 @@ namespace FastExplorer
             }
         }
 
-        private List<FileItem> ScanCurrentPath()
+        private List<FileItem> ScanCurrentPath() => ScanPath(CurrentPath);
+
+        private static List<FileItem> ScanPath(string path)
         {
-            var scanned = new List<FileItem>(1024);
+            var scanned = new List<FileItem>(256);
 
             try
             {
-                if (CurrentPath.Equals("Home", StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrEmpty(path) || path.Equals("Home", StringComparison.OrdinalIgnoreCase))
                 {
                     // ホーム画面は専用の HomeViewControl で描画されるため、通常リスト向けの重い COM 走査をスキップ
                     return scanned;
                 }
-                else if (CurrentPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
+                else if (path.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
                 {
                     scanned.AddRange(NativeFileScanner.GetDrives());
                 }
-                else if (RecycleBinService.IsRecycleBinPath(CurrentPath))
+                else if (RecycleBinService.IsRecycleBinPath(path))
                 {
                     scanned.AddRange(RecycleBinService.GetRecycleBinItems());
                 }
-                else if (CurrentPath.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || CurrentPath.Equals("Network", StringComparison.OrdinalIgnoreCase))
+                else if (path.Equals("shell:NetworkPlacesFolder", StringComparison.OrdinalIgnoreCase) || path.Equals("Network", StringComparison.OrdinalIgnoreCase))
                 {
                     scanned.AddRange(NativeFileScanner.GetNetworkPlaces());
                 }
-                else if (ArchiveService.IsArchiveOrSubPath(CurrentPath, out string archiveFile, out string internalSubPath))
+                else if (ArchiveService.IsArchiveOrSubPath(path, out string archiveFile, out string internalSubPath))
                 {
                     scanned.AddRange(ArchiveService.GetArchiveFolderItems(archiveFile, internalSubPath));
                 }
@@ -133,14 +179,13 @@ namespace FastExplorer
                 {
                     bool showHidden = ConfigService.Current.Ui.ShowHiddenFiles;
 
-                    // WSL パスは wsl.exe 経由でスキャン (UNC パスの直接スキャンは数分かかる場合があるため)
-                    if (CurrentPath.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase))
+                    if (path.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase))
                     {
-                        scanned.AddRange(WslScanner.ScanWslPath(CurrentPath, showHidden));
+                        scanned.AddRange(WslScanner.ScanWslPath(path, showHidden));
                     }
                     else
                     {
-                        scanned.AddRange(NativeFileScanner.ScanDirectory(CurrentPath, showHidden));
+                        scanned.AddRange(NativeFileScanner.ScanDirectory(path, showHidden));
                     }
                 }
             }
@@ -338,10 +383,10 @@ namespace FastExplorer
 
             System.Threading.Tasks.Task.Run(() =>
             {
-                var scanned = new List<FileItem>(1024);
+                var scanned = new List<FileItem>(256);
                 try
                 {
-                    scanned = ScanCurrentPath();
+                    scanned = ScanPath(targetPath);
                 }
                 catch
                 {
@@ -444,218 +489,6 @@ namespace FastExplorer
                         });
                     }
                 });
-            });
-        }
-
-        private void StartSubfolderSearch(string searchKeyword, string rootPath)
-        {
-            CancelSubfolderSearch();
-            var cts = new System.Threading.CancellationTokenSource();
-            _searchCts = cts;
-            var token = cts.Token;
-            _isSearchingSubfolders = true;
-
-            // 初期探索対象のサブフォルダー一覧 (直下の通常フォルダー)
-            var initialDirs = new List<string>();
-            var existingUiPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            lock (_allItems)
-            {
-                foreach (var item in _allItems)
-                {
-                    existingUiPaths.Add(item.FullPath);
-                    if (item.IsDirectory && !item.IsReparsePoint && !string.IsNullOrEmpty(item.FullPath))
-                    {
-                        initialDirs.Add(item.FullPath);
-                    }
-                }
-            }
-
-            UpdateStatusText();
-
-            System.Threading.Tasks.Task.Run(() =>
-            {
-                try
-                {
-                    bool showHidden = ConfigService.Current.Ui.ShowHiddenFiles;
-
-                    // Rust ネイティブ並列サブフォルダー検索 (非ヒットファイルのマネージドアロケーションゼロ & マルチコア並列)
-                    if (NativeArchiveInterop.SearchSubfolders(
-                            rootPath,
-                            searchKeyword,
-                            showHidden,
-                            skipRootDirect: true,
-                            hits =>
-                            {
-                                if (token.IsCancellationRequested) return;
-                                var converted = new List<FileItem>(hits.Count);
-                                foreach (var h in hits)
-                                {
-                                    bool isHidden = (h.Attributes & Win32Interop.FILE_ATTRIBUTE_HIDDEN) != 0;
-                                    bool isSystem = (h.Attributes & Win32Interop.FILE_ATTRIBUTE_SYSTEM) != 0;
-                                    bool isReadOnly = (h.Attributes & Win32Interop.FILE_ATTRIBUTE_READONLY) != 0;
-                                    bool isReparse = (h.Attributes & Win32Interop.FILE_ATTRIBUTE_REPARSE_POINT) != 0;
-
-                                    string fileType;
-                                    string glyphIcon;
-                                    if (h.IsDirectory)
-                                    {
-                                        fileType = "フォルダ";
-                                        glyphIcon = "\uE8B7";
-                                    }
-                                    else
-                                    {
-                                        NativeFileScanner.GetFileInfoForExtension(Path.GetExtension(h.Name.AsSpan()), out fileType, out glyphIcon);
-                                    }
-
-                                    converted.Add(new FileItem
-                                    {
-                                        Name = h.Name,
-                                        FullPath = h.FullPath,
-                                        IsDirectory = h.IsDirectory,
-                                        IsReparsePoint = isReparse,
-                                        HasCustomFolderAttribute = h.IsDirectory && (isReadOnly || isSystem),
-                                        SizeInBytes = h.IsDirectory ? 0 : h.Size,
-                                        DateModified = h.LastModifiedTime,
-                                        FileType = fileType,
-                                        IsHidden = isHidden,
-                                        IsReadOnly = isReadOnly,
-                                        GlyphIcon = glyphIcon
-                                    });
-                                }
-
-                                if (converted.Count > 0)
-                                {
-                                    EnqueueBatchToUI(converted, searchKeyword, existingUiPaths, token);
-                                }
-                            },
-                            token))
-                    {
-                        return;
-                    }
-
-                    var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { rootPath };
-                    var dirQueue = new Queue<string>(initialDirs);
-                    var batch = new List<FileItem>(64);
-                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
-                    while (dirQueue.Count > 0)
-                    {
-                        if (token.IsCancellationRequested) return;
-
-                        string currentDir = dirQueue.Dequeue();
-                        if (!visitedDirs.Add(currentDir)) continue;
-
-                        List<FileItem> scanned;
-                        try
-                        {
-                            scanned = NativeFileScanner.ScanDirectory(currentDir, showHidden);
-                        }
-                        catch
-                        {
-                            continue;
-                        }
-
-                        foreach (var item in scanned)
-                        {
-                            if (token.IsCancellationRequested) return;
-
-                            // サブフォルダーの再帰キュー追加 (ジャンクション・リパースポイントは無限ループ防止のため除外)
-                            if (item.IsDirectory && !item.IsReparsePoint && !string.IsNullOrEmpty(item.FullPath))
-                            {
-                                string dirName = item.Name;
-                                if (!dirName.Equals("$Recycle.Bin", StringComparison.OrdinalIgnoreCase) &&
-                                    !dirName.Equals("System Volume Information", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    dirQueue.Enqueue(item.FullPath);
-                                }
-                            }
-
-                            // 検索キーワードとのマッチング判定
-                            if (item.Name.Contains(searchKeyword, StringComparison.OrdinalIgnoreCase))
-                            {
-                                batch.Add(item);
-
-                                // 30件蓄積、または150ms経過でUIへ逐次反映
-                                if (batch.Count >= 30 || (batch.Count > 0 && stopwatch.ElapsedMilliseconds >= 150))
-                                {
-                                    var currentBatch = batch;
-                                    batch = new List<FileItem>(64);
-                                    stopwatch.Restart();
-
-                                    EnqueueBatchToUI(currentBatch, searchKeyword, existingUiPaths, token);
-                                }
-                            }
-                        }
-                    }
-
-                    // 残りのバッチを反映
-                    if (batch.Count > 0 && !token.IsCancellationRequested)
-                    {
-                        EnqueueBatchToUI(batch, searchKeyword, existingUiPaths, token);
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // 検索キャンセル時は静かに終了
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[SubfolderSearch] Exception: {ex.Message}");
-                }
-                finally
-                {
-                    if (!token.IsCancellationRequested)
-                    {
-                        DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-                        {
-                            if (!token.IsCancellationRequested && _searchCts == cts)
-                            {
-                                _isSearchingSubfolders = false;
-                                UpdateStatusText();
-                            }
-                        });
-                    }
-                }
-            }, token);
-        }
-
-        private void EnqueueBatchToUI(List<FileItem> batch, string searchKeyword, HashSet<string> existingSet, System.Threading.CancellationToken token)
-        {
-            DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
-            {
-                if (token.IsCancellationRequested || !string.Equals(_filterText, searchKeyword, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                bool isGrid = ViewMode is FolderViewMode.SmallIcons or FolderViewMode.MediumIcons or FolderViewMode.LargeIcons or FolderViewMode.ExtraLargeIcons;
-                bool allowThumb = IconThumbnailService.IsImageOrientedMode(_viewMode);
-
-                var toAdd = new List<FileItem>(batch.Count);
-
-                foreach (var item in batch)
-                {
-                    if (existingSet.Add(item.FullPath))
-                    {
-                        item.IsCut = FileOperationService.IsPathCut(item.FullPath);
-                        item.AllowThumbnail = allowThumb;
-                        IconThumbnailService.Instance.ApplyImmediateDefaultIcon(item);
-                        ApplySizeToItem(item, CustomSize, isGrid, ViewMode);
-                        item.ApplyDetailsScale(_viewScale);
-                        toAdd.Add(item);
-                    }
-                }
-
-                if (toAdd.Count > 0)
-                {
-                    Items.AddRange(toAdd);
-                    foreach (var item in toAdd)
-                    {
-                        IconThumbnailService.Instance.Enqueue(item);
-                    }
-                }
-
-                UpdateStatusText();
             });
         }
     }
