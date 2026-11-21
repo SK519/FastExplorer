@@ -42,6 +42,10 @@ ARM64/
 Output/
 *.exe.WebView2/
 
+## Rust Native Crates
+Native/*/target/
+target/
+
 ## OS & IDE Generated Files
 Thumbs.db
 ehthumbs.db

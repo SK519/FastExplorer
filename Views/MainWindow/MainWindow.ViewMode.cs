@@ -186,15 +186,30 @@ namespace FastExplorer
                 FileListContainer.Visibility = Visibility.Visible;
             }
 
-            // モードによる画像プレビュー許可状態の同期とアイコン再取得
+            // モードによる画像プレビュー許可状態の同期とアイコン再取得 (画面内オンデマンド優先でメモリスパイクを防止)
             bool wasImageOriented = IconThumbnailService.IsImageOrientedMode(oldMode);
             bool isNowImageOriented = IconThumbnailService.IsImageOrientedMode(mode);
             if (wasImageOriented != isNowImageOriented && CurrentTab != null)
             {
+                IconThumbnailService.Instance.ClearQueue();
+                if (!isNowImageOriented)
+                {
+                    IconThumbnailService.Instance.TrimThumbnailCache(0);
+                }
+
+                int prefetched = 0;
                 foreach (var item in CurrentTab.Items)
                 {
                     item.AllowThumbnail = isNowImageOriented;
-                    IconThumbnailService.Instance.Enqueue(item, force: true);
+                    if (!isNowImageOriented && !item.IsDirectory && !item.IsDrive)
+                    {
+                        IconThumbnailService.Instance.ResetToDefaultIcon(item);
+                    }
+                    else if (prefetched < 48)
+                    {
+                        IconThumbnailService.Instance.Enqueue(item);
+                        prefetched++;
+                    }
                 }
             }
 

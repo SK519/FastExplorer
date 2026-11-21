@@ -161,6 +161,9 @@ namespace FastExplorer.Core
         [DllImport("user32.dll")]
         public static extern nint SendMessage(nint hWnd, uint msg, nuint wParam, nint lParam);
 
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern nint FindWindowW(string? lpClassName, string? lpWindowName);
+
         [DllImport("user32.dll")]
         public static extern nint LoadCursorW(nint hInstance, nint lpCursorName);
 

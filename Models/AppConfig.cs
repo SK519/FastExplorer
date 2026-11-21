@@ -41,6 +41,11 @@ namespace FastExplorer.Models
         public double BackgroundOpacity { get; set; } = 0.35;
         public string BackgroundFit { get; set; } = "UniformToFill";
         public double BackgroundTintOpacity { get; set; } = 0.3;
+
+        // 自宅外検知による壁紙一時無効化設定
+        public bool DisableWallpaperOutsideHome { get; set; } = false;
+        public List<string> HomeSsids { get; set; } = new();
+        public List<string> HomeMacs { get; set; } = new();
     }
 
     public enum ArchiveCompressionLevel

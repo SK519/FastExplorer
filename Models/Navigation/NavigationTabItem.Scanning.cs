@@ -320,7 +320,15 @@ namespace FastExplorer
             int currentGen = System.Threading.Interlocked.Increment(ref _loadGeneration);
             CancelSubfolderSearch();
             IconThumbnailService.Instance.ClearQueue();
+            IconThumbnailService.Instance.TrimThumbnailCache(80);
             IsLoading = true;
+            foreach (var oldItem in _allItems)
+            {
+                if (oldItem.AllowThumbnail && !oldItem.IsDirectory)
+                {
+                    oldItem.Icon = null;
+                }
+            }
             _allItems.Clear();
             Items.Clear();
 
@@ -382,10 +390,11 @@ namespace FastExplorer
                     ApplyFilter();
                     IsLoading = false;
 
-                    // キューへの投入はUI描画後に非同期実行
-                    foreach (var item in _allItems)
+                    // 可視範囲は ContainerContentChanging でオンデマンド読み込みするため、初期プリフェッチは先頭48件のみに制限
+                    int prefetchLimit = Math.Min(_allItems.Count, 48);
+                    for (int i = 0; i < prefetchLimit; i++)
                     {
-                        IconThumbnailService.Instance.Enqueue(item);
+                        IconThumbnailService.Instance.Enqueue(_allItems[i]);
                     }
 
                     if (!string.IsNullOrEmpty(selectTargetName))
@@ -467,9 +476,65 @@ namespace FastExplorer
             {
                 try
                 {
+                    bool showHidden = ConfigService.Current.Ui.ShowHiddenFiles;
+
+                    // Rust ネイティブ並列サブフォルダー検索 (非ヒットファイルのマネージドアロケーションゼロ & マルチコア並列)
+                    if (NativeArchiveInterop.SearchSubfolders(
+                            rootPath,
+                            searchKeyword,
+                            showHidden,
+                            skipRootDirect: true,
+                            hits =>
+                            {
+                                if (token.IsCancellationRequested) return;
+                                var converted = new List<FileItem>(hits.Count);
+                                foreach (var h in hits)
+                                {
+                                    bool isHidden = (h.Attributes & Win32Interop.FILE_ATTRIBUTE_HIDDEN) != 0;
+                                    bool isSystem = (h.Attributes & Win32Interop.FILE_ATTRIBUTE_SYSTEM) != 0;
+                                    bool isReadOnly = (h.Attributes & Win32Interop.FILE_ATTRIBUTE_READONLY) != 0;
+                                    bool isReparse = (h.Attributes & Win32Interop.FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+
+                                    string fileType;
+                                    string glyphIcon;
+                                    if (h.IsDirectory)
+                                    {
+                                        fileType = "フォルダ";
+                                        glyphIcon = "\uE8B7";
+                                    }
+                                    else
+                                    {
+                                        NativeFileScanner.GetFileInfoForExtension(Path.GetExtension(h.Name.AsSpan()), out fileType, out glyphIcon);
+                                    }
+
+                                    converted.Add(new FileItem
+                                    {
+                                        Name = h.Name,
+                                        FullPath = h.FullPath,
+                                        IsDirectory = h.IsDirectory,
+                                        IsReparsePoint = isReparse,
+                                        HasCustomFolderAttribute = h.IsDirectory && (isReadOnly || isSystem),
+                                        SizeInBytes = h.IsDirectory ? 0 : h.Size,
+                                        DateModified = h.LastModifiedTime,
+                                        FileType = fileType,
+                                        IsHidden = isHidden,
+                                        IsReadOnly = isReadOnly,
+                                        GlyphIcon = glyphIcon
+                                    });
+                                }
+
+                                if (converted.Count > 0)
+                                {
+                                    EnqueueBatchToUI(converted, searchKeyword, existingUiPaths, token);
+                                }
+                            },
+                            token))
+                    {
+                        return;
+                    }
+
                     var visitedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { rootPath };
                     var dirQueue = new Queue<string>(initialDirs);
-                    bool showHidden = ConfigService.Current.Ui.ShowHiddenFiles;
                     var batch = new List<FileItem>(64);
                     var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 

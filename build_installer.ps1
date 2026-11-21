@@ -1,4 +1,4 @@
-# FastExplorer Installer Build Script
+﻿# FastExplorer Installer Build Script
 param(
     [string]$Arch = "x64",          # "x64" or "arm64"
     [string]$Version = "1.0.0",
@@ -37,9 +37,14 @@ dotnet publish -c Release -r "win-$Arch" /p:Platform=$Arch --self-contained true
 # Copy icon.ico to publish directory
 Copy-Item "icon.ico" "bin\Release\net10.0-windows10.0.19041.0\win-$Arch\publish\" -Force
 
-# Build C++ FastExplorerWatcher.exe and copy to publish directory
-Write-Host "`n1.5. Building C++ FastExplorerWatcher..." -ForegroundColor Cyan
-& "$ProjectDir\build_watcher.ps1"
+# Build Rust fast_archive.dll and copy to publish directory
+Write-Host "`n1.4. Building Rust fast_archive.dll..." -ForegroundColor Cyan
+& "$ProjectDir\build_archive.ps1" -Arch $Arch
+Copy-Item "$ProjectDir\Native\fast_archive\bin\win-$Arch\fast_archive.dll" "bin\Release\net10.0-windows10.0.19041.0\win-$Arch\publish\" -Force
+
+# Build Rust FastExplorerWatcher.exe and copy to publish directory
+Write-Host "`n1.5. Building Rust FastExplorerWatcher..." -ForegroundColor Cyan
+& "$ProjectDir\build_watcher.ps1" -Arch $Arch
 Copy-Item "$ProjectDir\Watcher\bin\FastExplorerWatcher.exe" "bin\Release\net10.0-windows10.0.19041.0\win-$Arch\publish\" -Force
 
 # Clean up unnecessary language folders and unused files from publish directory

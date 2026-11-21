@@ -6,13 +6,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using FastExplorer.Core;
 using FastExplorer.Models;
-using SharpCompress.Archives;
-using SharpCompress.Common;
-using SharpCompress.Readers;
-using SharpCompress.Writers;
-using SharpCompress.Writers.SevenZip;
 
 namespace FastExplorer.Services
 {
@@ -23,7 +17,7 @@ namespace FastExplorer.Services
             ".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".bz2", ".tbz2", ".xz", ".txz", ".zst"
         };
 
-        private const int BufferSize = 128 * 1024; // 128 KB buffer for smooth progress
+        private const int BufferSize = 128 * 1024; // 128 KB buffer for managed fallback
 
         /// <summary>
         /// 指定されたパスの拡張子が対応アーカイブ形式かどうかを判定
@@ -95,8 +89,7 @@ namespace FastExplorer.Services
                     try
                     {
                         var rootDi = new DirectoryInfo(path);
-                        string rootName = rootDi.Name;
-                        CollectDirectoryFiles(rootDi, rootName, result);
+                        CollectDirectoryFiles(rootDi, rootDi.Name, result);
                     }
                     catch { }
                 }
@@ -131,10 +124,20 @@ namespace FastExplorer.Services
             catch { }
         }
 
+        private static string GetOutputBaseName(List<string> pathList)
+        {
+            string baseName = pathList.Count == 1
+                ? (Directory.Exists(pathList[0])
+                    ? Path.GetFileName(pathList[0].TrimEnd('\\', '/'))
+                    : Path.GetFileNameWithoutExtension(pathList[0]))
+                : "アーカイブ";
+            return string.IsNullOrWhiteSpace(baseName) ? "アーカイブ" : baseName;
+        }
+
         #region ZIP Compression
 
         /// <summary>
-        /// 指定されたファイル・フォルダー群を指定された圧縮レベルで ZIP ファイルに圧縮
+        /// 指定されたファイル・フォルダー群を指定された圧縮レベルで ZIP ファイルに圧縮 (Rust ネイティブ優先)
         /// </summary>
         public static async Task<string?> CompressToZipAsync(
             IEnumerable<string> paths,
@@ -146,13 +149,46 @@ namespace FastExplorer.Services
             var pathList = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (pathList.Count == 0 || !Directory.Exists(destinationDirectory)) return null;
 
-            string baseName = pathList.Count == 1
-                ? (Directory.Exists(pathList[0]) ? Path.GetFileName(pathList[0].TrimEnd('\\', '/')) : Path.GetFileNameWithoutExtension(pathList[0]))
-                : "アーカイブ";
-
-            if (string.IsNullOrWhiteSpace(baseName)) baseName = "アーカイブ";
+            string baseName = GetOutputBaseName(pathList);
             string zipPath = FileOperationService.GetUniqueDestinationPath(destinationDirectory, baseName + ".zip");
 
+            bool success = await Task.Run(() =>
+            {
+                if (NativeArchiveInterop.IsAvailable)
+                {
+                    int code = NativeArchiveInterop.CompressZip(pathList, zipPath, level, destinationDirectory, progress, controller, out string? err);
+                    if (code == NativeArchiveInterop.FA_OK)
+                    {
+                        return true;
+                    }
+                    Debug.WriteLine($"[CompressToZipAsync] Native Rust failed ({code}): {err}");
+                    if (code == NativeArchiveInterop.FA_ERR_CANCELLED || controller?.IsCancelled == true)
+                    {
+                        return false;
+                    }
+                }
+
+                // マネージド .NET ZipArchive フォールバック
+                return CompressToZipManaged(pathList, zipPath, destinationDirectory, level, progress, controller);
+            });
+
+            if (!success)
+            {
+                TryDeleteFile(zipPath);
+                return null;
+            }
+
+            return zipPath;
+        }
+
+        private static bool CompressToZipManaged(
+            List<string> pathList,
+            string zipPath,
+            string destinationDirectory,
+            ArchiveCompressionLevel level,
+            IProgress<FileTransferProgress>? progress,
+            FileTransferController? controller)
+        {
             var netCompressionLevel = level switch
             {
                 ArchiveCompressionLevel.Store => CompressionLevel.NoCompression,
@@ -162,117 +198,80 @@ namespace FastExplorer.Services
                 _ => CompressionLevel.Optimal
             };
 
-            bool success = await Task.Run(() =>
+            var sourceFiles = CollectSourceFiles(pathList);
+            long totalBytes = sourceFiles.Sum(f => f.Size);
+            int totalFiles = sourceFiles.Count;
+
+            var progressState = new FileTransferProgress
             {
-                var sourceFiles = CollectSourceFiles(pathList);
-                long totalBytes = sourceFiles.Sum(f => f.Size);
-                int totalFiles = sourceFiles.Count;
+                CustomTitle = "ZIPに圧縮中",
+                TotalBytes = totalBytes,
+                TotalFiles = Math.Max(1, totalFiles),
+                DestinationDirectory = destinationDirectory,
+                IsSizeCalculating = false
+            };
 
-                var progressState = new FileTransferProgress
+            long bytesTransferred = 0;
+            int filesTransferred = 0;
+            var sw = Stopwatch.StartNew();
+            long lastReportTick = 0;
+            byte[] buffer = new byte[BufferSize];
+
+            try
+            {
+                using (var fileStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var archive = new ZipArchive(fileStream, ZipArchiveMode.Create, leaveOpen: false, System.Text.Encoding.UTF8))
                 {
-                    CustomTitle = "ZIPに圧縮中",
-                    TotalBytes = totalBytes,
-                    TotalFiles = Math.Max(1, totalFiles),
-                    DestinationDirectory = destinationDirectory,
-                    IsSizeCalculating = false
-                };
-
-                long bytesTransferred = 0;
-                int filesTransferred = 0;
-                var sw = Stopwatch.StartNew();
-                long lastReportTick = 0;
-                byte[] buffer = new byte[BufferSize];
-
-                try
-                {
-                    using (var fileStream = new FileStream(zipPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                    using (var archive = new ZipArchive(fileStream, ZipArchiveMode.Create, leaveOpen: false, System.Text.Encoding.UTF8))
+                    foreach (var file in sourceFiles)
                     {
-                        foreach (var file in sourceFiles)
+                        controller?.WaitIfPaused();
+                        if (controller?.IsCancelled == true) return false;
+
+                        progressState.CurrentFileName = Path.GetFileName(file.PhysicalPath);
+                        progressState.SourceDirectory = Path.GetDirectoryName(file.PhysicalPath) ?? "";
+                        progressState.FilesTransferred = filesTransferred;
+                        progressState.BytesTransferred = bytesTransferred;
+                        UpdateRateAndEta(progressState, bytesTransferred, totalBytes, sw);
+                        progress?.Report(progressState);
+
+                        var entry = archive.CreateEntry(file.EntryName.Replace('\\', '/'), netCompressionLevel);
+                        using (var entryStream = entry.Open())
+                        using (var sourceStream = new FileStream(file.PhysicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                         {
-                            controller?.WaitIfPaused();
-                            if (controller?.IsCancelled == true)
+                            int read;
+                            while ((read = sourceStream.Read(buffer, 0, buffer.Length)) > 0)
                             {
-                                return false;
-                            }
+                                controller?.WaitIfPaused();
+                                if (controller?.IsCancelled == true) return false;
 
-                            progressState.CurrentFileName = Path.GetFileName(file.PhysicalPath);
-                            progressState.SourceDirectory = Path.GetDirectoryName(file.PhysicalPath) ?? "";
-                            progressState.FilesTransferred = filesTransferred;
-                            progressState.BytesTransferred = bytesTransferred;
+                                entryStream.Write(buffer, 0, read);
+                                bytesTransferred += read;
 
-                            double elapsedSec = Math.Max(0.1, sw.Elapsed.TotalSeconds);
-                            progressState.BytesPerSecond = bytesTransferred / elapsedSec;
-                            if (progressState.BytesPerSecond > 0 && totalBytes > bytesTransferred)
-                            {
-                                progressState.EstimatedTimeRemaining = TimeSpan.FromSeconds((totalBytes - bytesTransferred) / progressState.BytesPerSecond);
-                            }
-                            progress?.Report(progressState);
-
-                            var entry = archive.CreateEntry(file.EntryName, netCompressionLevel);
-                            using (var entryStream = entry.Open())
-                            using (var sourceStream = new FileStream(file.PhysicalPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-                            {
-                                int read;
-                                while ((read = sourceStream.Read(buffer, 0, buffer.Length)) > 0)
+                                if (sw.ElapsedMilliseconds - lastReportTick >= 100)
                                 {
-                                    controller?.WaitIfPaused();
-                                    if (controller?.IsCancelled == true)
-                                    {
-                                        return false;
-                                    }
-
-                                    entryStream.Write(buffer, 0, read);
-                                    bytesTransferred += read;
-
-                                    if (sw.ElapsedMilliseconds - lastReportTick >= 100)
-                                    {
-                                        lastReportTick = sw.ElapsedMilliseconds;
-                                        progressState.BytesTransferred = bytesTransferred;
-                                        elapsedSec = Math.Max(0.1, sw.Elapsed.TotalSeconds);
-                                        progressState.BytesPerSecond = bytesTransferred / elapsedSec;
-                                        if (progressState.BytesPerSecond > 0 && totalBytes > bytesTransferred)
-                                        {
-                                            progressState.EstimatedTimeRemaining = TimeSpan.FromSeconds((totalBytes - bytesTransferred) / progressState.BytesPerSecond);
-                                        }
-                                        progress?.Report(progressState);
-                                    }
+                                    lastReportTick = sw.ElapsedMilliseconds;
+                                    progressState.BytesTransferred = bytesTransferred;
+                                    UpdateRateAndEta(progressState, bytesTransferred, totalBytes, sw);
+                                    progress?.Report(progressState);
                                 }
                             }
-
-                            filesTransferred++;
                         }
-                    }
 
-                    // 100% 完了報告
-                    progressState.BytesTransferred = totalBytes;
-                    progressState.FilesTransferred = totalFiles;
-                    progressState.EstimatedTimeRemaining = TimeSpan.Zero;
-                    progress?.Report(progressState);
-
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[CompressToZipAsync] Error: {ex.Message}");
-                    return false;
-                }
-            });
-
-            if (!success)
-            {
-                try
-                {
-                    if (File.Exists(zipPath))
-                    {
-                        File.Delete(zipPath);
+                        filesTransferred++;
                     }
                 }
-                catch { }
-                return null;
+
+                progressState.BytesTransferred = totalBytes;
+                progressState.FilesTransferred = totalFiles;
+                progressState.EstimatedTimeRemaining = TimeSpan.Zero;
+                progress?.Report(progressState);
+                return true;
             }
-
-            return zipPath;
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[CompressToZipManaged] Error: {ex.Message}");
+                return false;
+            }
         }
 
         #endregion
@@ -280,7 +279,7 @@ namespace FastExplorer.Services
         #region 7-Zip Compression
 
         /// <summary>
-        /// 指定されたファイル・フォルダー群を指定された圧縮レベルで 7-Zip (.7z) ファイルに圧縮
+        /// 指定されたファイル・フォルダー群を指定された圧縮レベルで 7-Zip (.7z) ファイルに圧縮 (Rust ネイティブ LZMA2)
         /// </summary>
         public static async Task<string?> CompressTo7zAsync(
             IEnumerable<string> paths,
@@ -292,103 +291,29 @@ namespace FastExplorer.Services
             var pathList = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (pathList.Count == 0 || !Directory.Exists(destinationDirectory)) return null;
 
-            string baseName = pathList.Count == 1
-                ? (Directory.Exists(pathList[0]) ? Path.GetFileName(pathList[0].TrimEnd('\\', '/')) : Path.GetFileNameWithoutExtension(pathList[0]))
-                : "アーカイブ";
-
-            if (string.IsNullOrWhiteSpace(baseName)) baseName = "アーカイブ";
+            string baseName = GetOutputBaseName(pathList);
             string sevenZipPath = FileOperationService.GetUniqueDestinationPath(destinationDirectory, baseName + ".7z");
-
-            int compLevel = level switch
-            {
-                ArchiveCompressionLevel.Store => 0,
-                ArchiveCompressionLevel.Fast => 1,
-                ArchiveCompressionLevel.Normal => 5,
-                ArchiveCompressionLevel.Ultra => 9,
-                _ => 5
-            };
 
             bool success = await Task.Run(() =>
             {
-                var sourceFiles = CollectSourceFiles(pathList);
-                long totalBytes = sourceFiles.Sum(f => f.Size);
-                int totalFiles = sourceFiles.Count;
-
-                var progressState = new FileTransferProgress
+                if (!NativeArchiveInterop.IsAvailable)
                 {
-                    CustomTitle = "7-Zipに圧縮中",
-                    TotalBytes = totalBytes,
-                    TotalFiles = Math.Max(1, totalFiles),
-                    DestinationDirectory = destinationDirectory,
-                    IsSizeCalculating = false
-                };
-
-                long bytesTransferred = 0;
-                int filesTransferred = 0;
-                var sw = Stopwatch.StartNew();
-
-                try
-                {
-                    var writerOptions = new SevenZipWriterOptions(CompressionType.LZMA2)
-                    {
-                        CompressionLevel = compLevel
-                    };
-
-                    using (var writer = (SevenZipWriter)WriterFactory.OpenWriter(sevenZipPath, ArchiveType.SevenZip, writerOptions))
-                    {
-                        foreach (var file in sourceFiles)
-                        {
-                            controller?.WaitIfPaused();
-                            if (controller?.IsCancelled == true)
-                            {
-                                return false;
-                            }
-
-                            progressState.CurrentFileName = Path.GetFileName(file.PhysicalPath);
-                            progressState.SourceDirectory = Path.GetDirectoryName(file.PhysicalPath) ?? "";
-                            progressState.FilesTransferred = filesTransferred;
-                            progressState.BytesTransferred = bytesTransferred;
-
-                            double elapsedSec = Math.Max(0.1, sw.Elapsed.TotalSeconds);
-                            progressState.BytesPerSecond = bytesTransferred / elapsedSec;
-                            if (progressState.BytesPerSecond > 0 && totalBytes > bytesTransferred)
-                            {
-                                progressState.EstimatedTimeRemaining = TimeSpan.FromSeconds((totalBytes - bytesTransferred) / progressState.BytesPerSecond);
-                            }
-                            progress?.Report(progressState);
-
-                            writer.Write(file.EntryName, file.PhysicalPath);
-
-                            bytesTransferred += file.Size;
-                            filesTransferred++;
-                        }
-                    }
-
-                    // 100% 完了報告
-                    progressState.BytesTransferred = totalBytes;
-                    progressState.FilesTransferred = totalFiles;
-                    progressState.EstimatedTimeRemaining = TimeSpan.Zero;
-                    progress?.Report(progressState);
-
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[CompressTo7zAsync] Error: {ex.Message}");
+                    Debug.WriteLine("[CompressTo7zAsync] fast_archive.dll is unavailable.");
                     return false;
                 }
+
+                int code = NativeArchiveInterop.Compress7z(pathList, sevenZipPath, level, destinationDirectory, progress, controller, out string? err);
+                if (code != NativeArchiveInterop.FA_OK)
+                {
+                    Debug.WriteLine($"[CompressTo7zAsync] Native Rust failed ({code}): {err}");
+                    return false;
+                }
+                return true;
             });
 
             if (!success)
             {
-                try
-                {
-                    if (File.Exists(sevenZipPath))
-                    {
-                        File.Delete(sevenZipPath);
-                    }
-                }
-                catch { }
+                TryDeleteFile(sevenZipPath);
                 return null;
             }
 
@@ -400,7 +325,7 @@ namespace FastExplorer.Services
         #region TAR & TAR.GZ Compression
 
         /// <summary>
-        /// 指定されたファイル・フォルダー群を TAR (.tar) ファイルに圧縮（アーカイブ化）
+        /// 指定されたファイル・フォルダー群を TAR (.tar) ファイルに圧縮 (Rust ネイティブ優先)
         /// </summary>
         public static async Task<string?> CompressToTarAsync(
             IEnumerable<string> paths,
@@ -411,89 +336,25 @@ namespace FastExplorer.Services
             var pathList = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (pathList.Count == 0 || !Directory.Exists(destinationDirectory)) return null;
 
-            string baseName = pathList.Count == 1
-                ? (Directory.Exists(pathList[0]) ? Path.GetFileName(pathList[0].TrimEnd('\\', '/')) : Path.GetFileNameWithoutExtension(pathList[0]))
-                : "アーカイブ";
-
-            if (string.IsNullOrWhiteSpace(baseName)) baseName = "アーカイブ";
+            string baseName = GetOutputBaseName(pathList);
             string tarPath = FileOperationService.GetUniqueDestinationPath(destinationDirectory, baseName + ".tar");
 
             bool success = await Task.Run(() =>
             {
-                var sourceFiles = CollectSourceFiles(pathList);
-                long totalBytes = sourceFiles.Sum(f => f.Size);
-                int totalFiles = sourceFiles.Count;
-
-                var progressState = new FileTransferProgress
+                if (NativeArchiveInterop.IsAvailable)
                 {
-                    CustomTitle = "TARに圧縮中",
-                    TotalBytes = totalBytes,
-                    TotalFiles = Math.Max(1, totalFiles),
-                    DestinationDirectory = destinationDirectory,
-                    IsSizeCalculating = false
-                };
-
-                long bytesTransferred = 0;
-                int filesTransferred = 0;
-                var sw = Stopwatch.StartNew();
-
-                try
-                {
-                    using (var fileStream = new FileStream(tarPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                    using (var writer = new System.Formats.Tar.TarWriter(fileStream, System.Formats.Tar.TarEntryFormat.Pax, leaveOpen: false))
-                    {
-                        foreach (var file in sourceFiles)
-                        {
-                            controller?.WaitIfPaused();
-                            if (controller?.IsCancelled == true)
-                            {
-                                return false;
-                            }
-
-                            progressState.CurrentFileName = Path.GetFileName(file.PhysicalPath);
-                            progressState.SourceDirectory = Path.GetDirectoryName(file.PhysicalPath) ?? "";
-                            progressState.FilesTransferred = filesTransferred;
-                            progressState.BytesTransferred = bytesTransferred;
-
-                            double elapsedSec = Math.Max(0.1, sw.Elapsed.TotalSeconds);
-                            progressState.BytesPerSecond = bytesTransferred / elapsedSec;
-                            if (progressState.BytesPerSecond > 0 && totalBytes > bytesTransferred)
-                            {
-                                progressState.EstimatedTimeRemaining = TimeSpan.FromSeconds((totalBytes - bytesTransferred) / progressState.BytesPerSecond);
-                            }
-                            progress?.Report(progressState);
-
-                            writer.WriteEntry(file.PhysicalPath, file.EntryName.Replace('\\', '/'));
-
-                            bytesTransferred += file.Size;
-                            filesTransferred++;
-                        }
-                    }
-
-                    progressState.BytesTransferred = totalBytes;
-                    progressState.FilesTransferred = totalFiles;
-                    progressState.EstimatedTimeRemaining = TimeSpan.Zero;
-                    progress?.Report(progressState);
-
-                    return true;
+                    int code = NativeArchiveInterop.CompressTar(pathList, tarPath, gzipLevel: -1, "TARに圧縮中", destinationDirectory, progress, controller, out string? err);
+                    if (code == NativeArchiveInterop.FA_OK) return true;
+                    Debug.WriteLine($"[CompressToTarAsync] Native Rust failed ({code}): {err}");
+                    if (code == NativeArchiveInterop.FA_ERR_CANCELLED || controller?.IsCancelled == true) return false;
                 }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[CompressToTarAsync] Error: {ex.Message}");
-                    return false;
-                }
+
+                return CompressToTarManaged(pathList, tarPath, destinationDirectory, gzipLevel: null, progress, controller);
             });
 
             if (!success)
             {
-                try
-                {
-                    if (File.Exists(tarPath))
-                    {
-                        File.Delete(tarPath);
-                    }
-                }
-                catch { }
+                TryDeleteFile(tarPath);
                 return null;
             }
 
@@ -501,7 +362,7 @@ namespace FastExplorer.Services
         }
 
         /// <summary>
-        /// 指定されたファイル・フォルダー群を指定された圧縮レベルで TAR.GZ (.tar.gz) ファイルに圧縮
+        /// 指定されたファイル・フォルダー群を指定された圧縮レベルで TAR.GZ (.tar.gz) ファイルに圧縮 (Rust ネイティブ優先)
         /// </summary>
         public static async Task<string?> CompressToTarGzAsync(
             IEnumerable<string> paths,
@@ -513,111 +374,120 @@ namespace FastExplorer.Services
             var pathList = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (pathList.Count == 0 || !Directory.Exists(destinationDirectory)) return null;
 
-            string baseName = pathList.Count == 1
-                ? (Directory.Exists(pathList[0]) ? Path.GetFileName(pathList[0].TrimEnd('\\', '/')) : Path.GetFileNameWithoutExtension(pathList[0]))
-                : "アーカイブ";
-
-            if (string.IsNullOrWhiteSpace(baseName)) baseName = "アーカイブ";
+            string baseName = GetOutputBaseName(pathList);
             string tarGzPath = FileOperationService.GetUniqueDestinationPath(destinationDirectory, baseName + ".tar.gz");
-
-            var netCompressionLevel = level switch
-            {
-                ArchiveCompressionLevel.Store => CompressionLevel.NoCompression,
-                ArchiveCompressionLevel.Fast => CompressionLevel.Fastest,
-                ArchiveCompressionLevel.Normal => CompressionLevel.Optimal,
-                ArchiveCompressionLevel.Ultra => CompressionLevel.SmallestSize,
-                _ => CompressionLevel.Optimal
-            };
 
             bool success = await Task.Run(() =>
             {
-                var sourceFiles = CollectSourceFiles(pathList);
-                long totalBytes = sourceFiles.Sum(f => f.Size);
-                int totalFiles = sourceFiles.Count;
-
-                var progressState = new FileTransferProgress
+                if (NativeArchiveInterop.IsAvailable)
                 {
-                    CustomTitle = "TAR.GZに圧縮中",
-                    TotalBytes = totalBytes,
-                    TotalFiles = Math.Max(1, totalFiles),
-                    DestinationDirectory = destinationDirectory,
-                    IsSizeCalculating = false
-                };
-
-                long bytesTransferred = 0;
-                int filesTransferred = 0;
-                var sw = Stopwatch.StartNew();
-
-                try
-                {
-                    using (var fileStream = new FileStream(tarGzPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                    using (var gzStream = new GZipStream(fileStream, netCompressionLevel, leaveOpen: false))
-                    using (var writer = new System.Formats.Tar.TarWriter(gzStream, System.Formats.Tar.TarEntryFormat.Pax, leaveOpen: false))
-                    {
-                        foreach (var file in sourceFiles)
-                        {
-                            controller?.WaitIfPaused();
-                            if (controller?.IsCancelled == true)
-                            {
-                                return false;
-                            }
-
-                            progressState.CurrentFileName = Path.GetFileName(file.PhysicalPath);
-                            progressState.SourceDirectory = Path.GetDirectoryName(file.PhysicalPath) ?? "";
-                            progressState.FilesTransferred = filesTransferred;
-                            progressState.BytesTransferred = bytesTransferred;
-
-                            double elapsedSec = Math.Max(0.1, sw.Elapsed.TotalSeconds);
-                            progressState.BytesPerSecond = bytesTransferred / elapsedSec;
-                            if (progressState.BytesPerSecond > 0 && totalBytes > bytesTransferred)
-                            {
-                                progressState.EstimatedTimeRemaining = TimeSpan.FromSeconds((totalBytes - bytesTransferred) / progressState.BytesPerSecond);
-                            }
-                            progress?.Report(progressState);
-
-                            writer.WriteEntry(file.PhysicalPath, file.EntryName.Replace('\\', '/'));
-
-                            bytesTransferred += file.Size;
-                            filesTransferred++;
-                        }
-                    }
-
-                    progressState.BytesTransferred = totalBytes;
-                    progressState.FilesTransferred = totalFiles;
-                    progressState.EstimatedTimeRemaining = TimeSpan.Zero;
-                    progress?.Report(progressState);
-
-                    return true;
+                    int code = NativeArchiveInterop.CompressTar(pathList, tarGzPath, gzipLevel: (int)level, "TAR.GZに圧縮中", destinationDirectory, progress, controller, out string? err);
+                    if (code == NativeArchiveInterop.FA_OK) return true;
+                    Debug.WriteLine($"[CompressToTarGzAsync] Native Rust failed ({code}): {err}");
+                    if (code == NativeArchiveInterop.FA_ERR_CANCELLED || controller?.IsCancelled == true) return false;
                 }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[CompressToTarGzAsync] Error: {ex.Message}");
-                    return false;
-                }
+
+                return CompressToTarManaged(pathList, tarGzPath, destinationDirectory, gzipLevel: level, progress, controller);
             });
 
             if (!success)
             {
-                try
-                {
-                    if (File.Exists(tarGzPath))
-                    {
-                        File.Delete(tarGzPath);
-                    }
-                }
-                catch { }
+                TryDeleteFile(tarGzPath);
                 return null;
             }
 
             return tarGzPath;
         }
 
+        private static bool CompressToTarManaged(
+            List<string> pathList,
+            string outputPath,
+            string destinationDirectory,
+            ArchiveCompressionLevel? gzipLevel,
+            IProgress<FileTransferProgress>? progress,
+            FileTransferController? controller)
+        {
+            var sourceFiles = CollectSourceFiles(pathList);
+            long totalBytes = sourceFiles.Sum(f => f.Size);
+            int totalFiles = sourceFiles.Count;
+
+            var progressState = new FileTransferProgress
+            {
+                CustomTitle = gzipLevel.HasValue ? "TAR.GZに圧縮中" : "TARに圧縮中",
+                TotalBytes = totalBytes,
+                TotalFiles = Math.Max(1, totalFiles),
+                DestinationDirectory = destinationDirectory,
+                IsSizeCalculating = false
+            };
+
+            long bytesTransferred = 0;
+            int filesTransferred = 0;
+            var sw = Stopwatch.StartNew();
+
+            try
+            {
+                using var fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                Stream targetStream = fileStream;
+                GZipStream? gzStream = null;
+                if (gzipLevel.HasValue)
+                {
+                    var netLevel = gzipLevel.Value switch
+                    {
+                        ArchiveCompressionLevel.Store => CompressionLevel.NoCompression,
+                        ArchiveCompressionLevel.Fast => CompressionLevel.Fastest,
+                        ArchiveCompressionLevel.Normal => CompressionLevel.Optimal,
+                        ArchiveCompressionLevel.Ultra => CompressionLevel.SmallestSize,
+                        _ => CompressionLevel.Optimal
+                    };
+                    gzStream = new GZipStream(fileStream, netLevel, leaveOpen: false);
+                    targetStream = gzStream;
+                }
+
+                try
+                {
+                    using var writer = new System.Formats.Tar.TarWriter(targetStream, System.Formats.Tar.TarEntryFormat.Pax, leaveOpen: false);
+                    foreach (var file in sourceFiles)
+                    {
+                        controller?.WaitIfPaused();
+                        if (controller?.IsCancelled == true) return false;
+
+                        progressState.CurrentFileName = Path.GetFileName(file.PhysicalPath);
+                        progressState.SourceDirectory = Path.GetDirectoryName(file.PhysicalPath) ?? "";
+                        progressState.FilesTransferred = filesTransferred;
+                        progressState.BytesTransferred = bytesTransferred;
+                        UpdateRateAndEta(progressState, bytesTransferred, totalBytes, sw);
+                        progress?.Report(progressState);
+
+                        writer.WriteEntry(file.PhysicalPath, file.EntryName.Replace('\\', '/'));
+
+                        bytesTransferred += file.Size;
+                        filesTransferred++;
+                    }
+                }
+                finally
+                {
+                    gzStream?.Dispose();
+                }
+
+                progressState.BytesTransferred = totalBytes;
+                progressState.FilesTransferred = totalFiles;
+                progressState.EstimatedTimeRemaining = TimeSpan.Zero;
+                progress?.Report(progressState);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[CompressToTarManaged] Error: {ex.Message}");
+                return false;
+            }
+        }
+
         #endregion
 
-        #region Extraction (ZIP, 7-Zip, RAR, TAR, GZ, etc.)
+        #region Extraction (ZIP, 7-Zip, RAR, TAR, GZ, BZ2, XZ, ZST)
 
         /// <summary>
-        /// アーカイブファイルを指定されたディレクトリに解凍・展開
+        /// アーカイブファイルを指定されたディレクトリに解凍・展開 (Rust ネイティブ優先)
         /// </summary>
         public static async Task<bool> ExtractAsync(
             string archivePath,
@@ -653,362 +523,39 @@ namespace FastExplorer.Services
                         createdDirs.Add(targetDir);
                     }
 
-                    var readerOptions = new ReaderOptions
+                    if (NativeArchiveInterop.IsAvailable)
                     {
-                        ArchiveEncoding = new ArchiveEncoding { Default = System.Text.Encoding.UTF8 }
-                    };
+                        int code = NativeArchiveInterop.ExtractAll(
+                            archivePath,
+                            targetDir,
+                            "アーカイブを展開中",
+                            progress,
+                            controller,
+                            out string? err);
 
-                    using (var archive = ArchiveFactory.OpenArchive(archivePath, readerOptions))
-                    {
-                        var entries = archive.Entries.ToList();
-
-                        long totalBytes = entries.Where(e => !e.IsDirectory).Sum(e => e.Size);
-                        int totalFiles = entries.Count(e => !e.IsDirectory);
-
-                        var progressState = new FileTransferProgress
+                        if (code == NativeArchiveInterop.FA_OK)
                         {
-                            CustomTitle = "アーカイブを展開中",
-                            TotalBytes = totalBytes,
-                            TotalFiles = Math.Max(1, totalFiles),
-                            SourceDirectory = Path.GetDirectoryName(archivePath) ?? "",
-                            DestinationDirectory = targetDir,
-                            IsSizeCalculating = false
-                        };
-
-                        long bytesTransferred = 0;
-                        int filesTransferred = 0;
-                        var sw = Stopwatch.StartNew();
-                        long lastReportTick = 0;
-                        byte[] buffer = new byte[BufferSize];
-
-                        foreach (var entry in entries)
-                        {
-                            controller?.WaitIfPaused();
-                            if (controller?.IsCancelled == true)
-                            {
-                                return false;
-                            }
-
-                            if (string.IsNullOrEmpty(entry.Key)) continue;
-
-                            string relativePath = entry.Key.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
-                            if (relativePath.Contains(':')) continue;
-                            string destinationPath = Path.GetFullPath(Path.Combine(targetDir, relativePath));
-                            string fullTarget = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-                            if (!destinationPath.StartsWith(fullTarget, StringComparison.OrdinalIgnoreCase))
-                            {
-                                continue;
-                            }
-
-                            if (File.Exists(destinationPath) && (File.GetAttributes(destinationPath) & FileAttributes.ReparsePoint) != 0)
-                            {
-                                continue;
-                            }
-
-                            if (entry.IsDirectory)
-                            {
-                                if (!Directory.Exists(destinationPath))
-                                {
-                                    Directory.CreateDirectory(destinationPath);
-                                    createdDirs.Add(destinationPath);
-                                }
-                                continue;
-                            }
-
-                            string? parentDir = Path.GetDirectoryName(destinationPath);
-                            if (!string.IsNullOrEmpty(parentDir) && !Directory.Exists(parentDir))
-                            {
-                                Directory.CreateDirectory(parentDir);
-                                createdDirs.Add(parentDir);
-                            }
-
-                            progressState.CurrentFileName = Path.GetFileName(destinationPath);
-                            progressState.FilesTransferred = filesTransferred;
-                            progressState.BytesTransferred = bytesTransferred;
-
-                            double elapsedSec = Math.Max(0.1, sw.Elapsed.TotalSeconds);
-                            progressState.BytesPerSecond = bytesTransferred / elapsedSec;
-                            if (progressState.BytesPerSecond > 0 && totalBytes > bytesTransferred)
-                            {
-                                progressState.EstimatedTimeRemaining = TimeSpan.FromSeconds((totalBytes - bytesTransferred) / progressState.BytesPerSecond);
-                            }
-                            progress?.Report(progressState);
-
-                            bool fileExisted = File.Exists(destinationPath);
-                            if (!fileExisted)
-                            {
-                                createdFiles.Add(destinationPath);
-                            }
-
-                            using (var entryStream = entry.OpenEntryStream())
-                            using (var outStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                            {
-                                int read;
-                                while ((read = entryStream.Read(buffer, 0, buffer.Length)) > 0)
-                                {
-                                    controller?.WaitIfPaused();
-                                    if (controller?.IsCancelled == true)
-                                    {
-                                        return false;
-                                    }
-
-                                    outStream.Write(buffer, 0, read);
-                                    bytesTransferred += read;
-
-                                    if (sw.ElapsedMilliseconds - lastReportTick >= 100)
-                                    {
-                                        lastReportTick = sw.ElapsedMilliseconds;
-                                        progressState.BytesTransferred = bytesTransferred;
-                                        elapsedSec = Math.Max(0.1, sw.Elapsed.TotalSeconds);
-                                        progressState.BytesPerSecond = bytesTransferred / elapsedSec;
-                                        if (progressState.BytesPerSecond > 0 && totalBytes > bytesTransferred)
-                                        {
-                                            progressState.EstimatedTimeRemaining = TimeSpan.FromSeconds((totalBytes - bytesTransferred) / progressState.BytesPerSecond);
-                                        }
-                                        progress?.Report(progressState);
-                                    }
-                                }
-                            }
-
-                            filesTransferred++;
+                            return true;
                         }
 
-                        // 100% 完了報告
-                        progressState.BytesTransferred = totalBytes;
-                        progressState.FilesTransferred = totalFiles;
-                        progressState.EstimatedTimeRemaining = TimeSpan.Zero;
-                        progress?.Report(progressState);
-
-                        return true;
+                        Debug.WriteLine($"[ArchiveService.ExtractAsync] Native Rust failed ({code}): {err}");
+                        if (code == NativeArchiveInterop.FA_ERR_CANCELLED || controller?.IsCancelled == true)
+                        {
+                            return false;
+                        }
                     }
+
+                    // フォールバック: 標準 ZIP の場合は .NET ZipFile で展開
+                    if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return ExtractZipManaged(archivePath, targetDir, progress, controller, createdFiles, createdDirs);
+                    }
+
+                    return false;
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[ArchiveService.ExtractAsync] SharpCompress error: {ex.Message}");
-
-                    if (controller?.IsCancelled == true)
-                    {
-                        return false;
-                    }
-
-                    // SharpCompress で失敗した場合、標準 ZIP であれば ZipFile によるフォールバックを試みる
-                    if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                    {
-                        try
-                        {
-                            using var zip = ZipFile.OpenRead(archivePath);
-                            long totalBytes = zip.Entries.Sum(e => e.Length);
-                            int totalFiles = zip.Entries.Count(e => !e.FullName.EndsWith("/") && !e.FullName.EndsWith("\\"));
-
-                            var progressState = new FileTransferProgress
-                            {
-                                CustomTitle = "ZIPアーカイブを展開中",
-                                TotalBytes = totalBytes,
-                                TotalFiles = Math.Max(1, totalFiles),
-                                SourceDirectory = Path.GetDirectoryName(archivePath) ?? "",
-                                DestinationDirectory = targetDir,
-                                IsSizeCalculating = false
-                            };
-
-                            long bytesTransferred = 0;
-                            int filesTransferred = 0;
-                            var sw = Stopwatch.StartNew();
-                            long lastReportTick = 0;
-                            byte[] buffer = new byte[BufferSize];
-
-                            foreach (var entry in zip.Entries)
-                            {
-                                controller?.WaitIfPaused();
-                                if (controller?.IsCancelled == true)
-                                {
-                                    return false;
-                                }
-
-                                string relativePath = entry.FullName.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
-                                if (relativePath.Contains(':')) continue;
-                                string destinationPath = Path.GetFullPath(Path.Combine(targetDir, relativePath));
-                                string fullTarget = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-                                if (!destinationPath.StartsWith(fullTarget, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    continue;
-                                }
-
-                                if (File.Exists(destinationPath) && (File.GetAttributes(destinationPath) & FileAttributes.ReparsePoint) != 0)
-                                {
-                                    continue;
-                                }
-                                if (entry.FullName.EndsWith("/") || entry.FullName.EndsWith("\\"))
-                                {
-                                    if (!Directory.Exists(destinationPath))
-                                    {
-                                        Directory.CreateDirectory(destinationPath);
-                                        createdDirs.Add(destinationPath);
-                                    }
-                                    continue;
-                                }
-
-                                string? parentDir = Path.GetDirectoryName(destinationPath);
-                                if (!string.IsNullOrEmpty(parentDir) && !Directory.Exists(parentDir))
-                                {
-                                    Directory.CreateDirectory(parentDir);
-                                    createdDirs.Add(parentDir);
-                                }
-
-                                progressState.CurrentFileName = entry.Name;
-                                progressState.FilesTransferred = filesTransferred;
-                                progress?.Report(progressState);
-
-                                bool fileExisted = File.Exists(destinationPath);
-                                if (!fileExisted)
-                                {
-                                    createdFiles.Add(destinationPath);
-                                }
-
-                                using (var entryStream = entry.Open())
-                                using (var outStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                                {
-                                    int read;
-                                    while ((read = entryStream.Read(buffer, 0, buffer.Length)) > 0)
-                                    {
-                                        controller?.WaitIfPaused();
-                                        if (controller?.IsCancelled == true)
-                                        {
-                                            return false;
-                                        }
-
-                                        outStream.Write(buffer, 0, read);
-                                        bytesTransferred += read;
-
-                                        if (sw.ElapsedMilliseconds - lastReportTick >= 100)
-                                        {
-                                            lastReportTick = sw.ElapsedMilliseconds;
-                                            progressState.BytesTransferred = bytesTransferred;
-                                            double elapsedSec = Math.Max(0.1, sw.Elapsed.TotalSeconds);
-                                            progressState.BytesPerSecond = bytesTransferred / elapsedSec;
-                                            if (progressState.BytesPerSecond > 0 && totalBytes > bytesTransferred)
-                                            {
-                                                progressState.EstimatedTimeRemaining = TimeSpan.FromSeconds((totalBytes - bytesTransferred) / progressState.BytesPerSecond);
-                                            }
-                                            progress?.Report(progressState);
-                                        }
-                                    }
-                                }
-
-                                filesTransferred++;
-                            }
-
-                            progressState.BytesTransferred = totalBytes;
-                            progressState.FilesTransferred = totalFiles;
-                            progress?.Report(progressState);
-
-                            return true;
-                        }
-                        catch (Exception fallbackEx)
-                        {
-                            Debug.WriteLine($"[ArchiveService.ExtractAsync] Fallback ZipFile error: {fallbackEx.Message}");
-                        }
-                    }
-
-                    // RAR (ソリッドアーカイブ含む), TAR, TAR.GZ 等で ArchiveFactory のランダムアクセスが失敗した場合の
-                    // ReaderFactory によるシーケンシャルストリーム読み出しフォールバック
-                    try
-                    {
-                        var fallbackReaderOptions = new ReaderOptions
-                        {
-                            ArchiveEncoding = new ArchiveEncoding { Default = System.Text.Encoding.UTF8 }
-                        };
-                        using var fs = new FileStream(archivePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                        using var reader = ReaderFactory.OpenReader(fs, fallbackReaderOptions);
-
-                        var progressState = new FileTransferProgress
-                        {
-                            CustomTitle = "アーカイブを展開中",
-                            TotalBytes = 0,
-                            TotalFiles = 1,
-                            SourceDirectory = Path.GetDirectoryName(archivePath) ?? "",
-                            DestinationDirectory = targetDir,
-                            IsSizeCalculating = false
-                        };
-
-                        long bytesTransferred = 0;
-                        int filesTransferred = 0;
-                        var sw = Stopwatch.StartNew();
-                        long lastReportTick = 0;
-                        byte[] buffer = new byte[BufferSize];
-
-                        while (reader.MoveToNextEntry())
-                        {
-                            controller?.WaitIfPaused();
-                            if (controller?.IsCancelled == true) return false;
-
-                            var entry = reader.Entry;
-                            if (string.IsNullOrEmpty(entry.Key)) continue;
-
-                            string relativePath = entry.Key.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
-                            if (relativePath.Contains(':')) continue;
-                            string destinationPath = Path.GetFullPath(Path.Combine(targetDir, relativePath));
-                            string fullTarget = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-                            if (!destinationPath.StartsWith(fullTarget, StringComparison.OrdinalIgnoreCase)) continue;
-
-                            if (File.Exists(destinationPath) && (File.GetAttributes(destinationPath) & FileAttributes.ReparsePoint) != 0) continue;
-
-                            if (entry.IsDirectory)
-                            {
-                                if (!Directory.Exists(destinationPath))
-                                {
-                                    Directory.CreateDirectory(destinationPath);
-                                    createdDirs.Add(destinationPath);
-                                }
-                                continue;
-                            }
-
-                            string? parentDir = Path.GetDirectoryName(destinationPath);
-                            if (!string.IsNullOrEmpty(parentDir) && !Directory.Exists(parentDir))
-                            {
-                                Directory.CreateDirectory(parentDir);
-                                createdDirs.Add(parentDir);
-                            }
-
-                            progressState.CurrentFileName = Path.GetFileName(destinationPath);
-                            progressState.FilesTransferred = filesTransferred;
-                            progress?.Report(progressState);
-
-                            bool fileExisted = File.Exists(destinationPath);
-                            if (!fileExisted) createdFiles.Add(destinationPath);
-
-                            using (var entryStream = reader.OpenEntryStream())
-                            using (var outStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                            {
-                                int read;
-                                while ((read = entryStream.Read(buffer, 0, buffer.Length)) > 0)
-                                {
-                                    controller?.WaitIfPaused();
-                                    if (controller?.IsCancelled == true) return false;
-
-                                    outStream.Write(buffer, 0, read);
-                                    bytesTransferred += read;
-
-                                    if (sw.ElapsedMilliseconds - lastReportTick >= 100)
-                                    {
-                                        lastReportTick = sw.ElapsedMilliseconds;
-                                        progressState.BytesTransferred = bytesTransferred;
-                                        progress?.Report(progressState);
-                                    }
-                                }
-                            }
-                            filesTransferred++;
-                        }
-
-                        progressState.BytesTransferred = bytesTransferred;
-                        progressState.FilesTransferred = filesTransferred;
-                        progress?.Report(progressState);
-                        return true;
-                    }
-                    catch (Exception streamEx)
-                    {
-                        Debug.WriteLine($"[ArchiveService.ExtractAsync] ReaderFactory fallback error: {streamEx.Message}");
-                    }
-
+                    Debug.WriteLine($"[ArchiveService.ExtractAsync] Error: {ex.Message}");
                     return false;
                 }
             });
@@ -1020,6 +567,132 @@ namespace FastExplorer.Services
             }
 
             return true;
+        }
+
+        private static bool ExtractZipManaged(
+            string archivePath,
+            string targetDir,
+            IProgress<FileTransferProgress>? progress,
+            FileTransferController? controller,
+            List<string> createdFiles,
+            List<string> createdDirs)
+        {
+            try
+            {
+                using var zip = ZipFile.OpenRead(archivePath);
+                long totalBytes = zip.Entries.Sum(e => e.Length);
+                int totalFiles = zip.Entries.Count(e => !e.FullName.EndsWith("/") && !e.FullName.EndsWith("\\"));
+
+                var progressState = new FileTransferProgress
+                {
+                    CustomTitle = "ZIPアーカイブを展開中",
+                    TotalBytes = totalBytes,
+                    TotalFiles = Math.Max(1, totalFiles),
+                    SourceDirectory = Path.GetDirectoryName(archivePath) ?? "",
+                    DestinationDirectory = targetDir,
+                    IsSizeCalculating = false
+                };
+
+                long bytesTransferred = 0;
+                int filesTransferred = 0;
+                var sw = Stopwatch.StartNew();
+                long lastReportTick = 0;
+                byte[] buffer = new byte[BufferSize];
+                string fullTarget = Path.GetFullPath(targetDir).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+
+                foreach (var entry in zip.Entries)
+                {
+                    controller?.WaitIfPaused();
+                    if (controller?.IsCancelled == true) return false;
+
+                    string relativePath = entry.FullName.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar);
+                    if (relativePath.Contains(':')) continue;
+                    string destinationPath = Path.GetFullPath(Path.Combine(targetDir, relativePath));
+                    if (!destinationPath.StartsWith(fullTarget, StringComparison.OrdinalIgnoreCase)) continue;
+                    if (File.Exists(destinationPath) && (File.GetAttributes(destinationPath) & FileAttributes.ReparsePoint) != 0) continue;
+
+                    if (entry.FullName.EndsWith("/") || entry.FullName.EndsWith("\\"))
+                    {
+                        if (!Directory.Exists(destinationPath))
+                        {
+                            Directory.CreateDirectory(destinationPath);
+                            createdDirs.Add(destinationPath);
+                        }
+                        continue;
+                    }
+
+                    string? parentDir = Path.GetDirectoryName(destinationPath);
+                    if (!string.IsNullOrEmpty(parentDir) && !Directory.Exists(parentDir))
+                    {
+                        Directory.CreateDirectory(parentDir);
+                        createdDirs.Add(parentDir);
+                    }
+
+                    progressState.CurrentFileName = entry.Name;
+                    progressState.FilesTransferred = filesTransferred;
+                    progress?.Report(progressState);
+
+                    if (!File.Exists(destinationPath)) createdFiles.Add(destinationPath);
+
+                    using (var entryStream = entry.Open())
+                    using (var outStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        int read;
+                        while ((read = entryStream.Read(buffer, 0, buffer.Length)) > 0)
+                        {
+                            controller?.WaitIfPaused();
+                            if (controller?.IsCancelled == true) return false;
+
+                            outStream.Write(buffer, 0, read);
+                            bytesTransferred += read;
+
+                            if (sw.ElapsedMilliseconds - lastReportTick >= 100)
+                            {
+                                lastReportTick = sw.ElapsedMilliseconds;
+                                progressState.BytesTransferred = bytesTransferred;
+                                UpdateRateAndEta(progressState, bytesTransferred, totalBytes, sw);
+                                progress?.Report(progressState);
+                            }
+                        }
+                    }
+
+                    filesTransferred++;
+                }
+
+                progressState.BytesTransferred = totalBytes;
+                progressState.FilesTransferred = totalFiles;
+                progressState.EstimatedTimeRemaining = TimeSpan.Zero;
+                progress?.Report(progressState);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ArchiveService.ExtractZipManaged] Error: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static void UpdateRateAndEta(FileTransferProgress state, long bytesTransferred, long totalBytes, Stopwatch sw)
+        {
+            double elapsedSec = Math.Max(0.1, sw.Elapsed.TotalSeconds);
+            state.BytesPerSecond = bytesTransferred / elapsedSec;
+            if (state.BytesPerSecond > 0 && totalBytes > bytesTransferred)
+            {
+                state.EstimatedTimeRemaining = TimeSpan.FromSeconds((totalBytes - bytesTransferred) / state.BytesPerSecond);
+            }
+            else
+            {
+                state.EstimatedTimeRemaining = TimeSpan.Zero;
+            }
+        }
+
+        private static void TryDeleteFile(string path)
+        {
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
+            catch { }
         }
 
         private static void CleanupExtractedItems(

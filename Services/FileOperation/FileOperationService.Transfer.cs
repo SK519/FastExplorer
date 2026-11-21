@@ -662,10 +662,24 @@ namespace FastExplorer.Services
 
         private static (long TotalBytes, int TotalFiles) CalculateTotalSize(IEnumerable<string> paths, CancellationToken ct = default)
         {
+            var pathList = paths as IReadOnlyList<string> ?? paths.ToList();
+
+            // Rust ネイティブ並列集計を優先 (アクセス拒否フォルダーを安全スキップ & マルチコア高速集計)
+            if (NativeArchiveInterop.CalcFolderSize(
+                    pathList,
+                    onProgress: null,
+                    ct,
+                    out long nativeBytes,
+                    out long nativeFiles,
+                    out _))
+            {
+                return (nativeBytes, Math.Max(1, (int)Math.Min(int.MaxValue, nativeFiles)));
+            }
+
             long totalBytes = 0;
             int totalFiles = 0;
 
-            foreach (var path in paths)
+            foreach (var path in pathList)
             {
                 if (ct.IsCancellationRequested) break;
                 try

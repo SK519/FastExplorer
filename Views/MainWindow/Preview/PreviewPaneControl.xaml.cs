@@ -29,6 +29,18 @@ namespace FastExplorer.Views.MainWindow.Preview
             this.InitializeComponent();
         }
 
+        private static async Task SetCopiedBitmapSafeAsync(Image target, SoftwareBitmap sourceBitmap)
+        {
+            try
+            {
+                var copy = SoftwareBitmap.Copy(sourceBitmap);
+                var src = new SoftwareBitmapSource();
+                await src.SetBitmapAsync(copy);
+                target.Source = src;
+            }
+            catch { }
+        }
+
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
             CloseRequested?.Invoke(this, e);
@@ -80,14 +92,8 @@ namespace FastExplorer.Views.MainWindow.Preview
                 }
                 else if (IconThumbnailService.DefaultFolderBitmap != null)
                 {
-                    try
-                    {
-                        var src = new SoftwareBitmapSource();
-                        _ = src.SetBitmapAsync(SoftwareBitmap.Copy(IconThumbnailService.DefaultFolderBitmap));
-                        PreviewLargeImageIcon.Source = src;
-                        PreviewLargeImageIcon.Visibility = Visibility.Visible;
-                    }
-                    catch { }
+                    PreviewLargeImageIcon.Visibility = Visibility.Visible;
+                    _ = SetCopiedBitmapSafeAsync(PreviewLargeImageIcon, IconThumbnailService.DefaultFolderBitmap);
                 }
                 LoadFolderDetailsAndSizeAsync(item.FullPath, ct);
             }
@@ -127,21 +133,9 @@ namespace FastExplorer.Views.MainWindow.Preview
             var defaultFolder = IconThumbnailService.DefaultFolderBitmap;
             if (defaultFolder != null)
             {
-                try
-                {
-                    var copy = SoftwareBitmap.Copy(defaultFolder);
-                    var source = new SoftwareBitmapSource();
-                    _ = source.SetBitmapAsync(copy);
-                    PreviewLargeImageIcon.Source = source;
-                    PreviewLargeImageIcon.Visibility = Visibility.Visible;
-                    PreviewLargeFontIcon.Visibility = Visibility.Collapsed;
-                }
-                catch
-                {
-                    PreviewLargeFontIcon.Visibility = Visibility.Visible;
-                    PreviewLargeFontIcon.Glyph = "\uE8B7";
-                    PreviewLargeImageIcon.Visibility = Visibility.Collapsed;
-                }
+                PreviewLargeImageIcon.Visibility = Visibility.Visible;
+                PreviewLargeFontIcon.Visibility = Visibility.Collapsed;
+                _ = SetCopiedBitmapSafeAsync(PreviewLargeImageIcon, defaultFolder);
             }
             else
             {
@@ -181,7 +175,41 @@ namespace FastExplorer.Views.MainWindow.Preview
             _currentPreviewPath = folderPath;
             ResetPreviewControls();
 
-            if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath))
+            if (string.IsNullOrEmpty(folderPath))
+            {
+                PreviewItemNameText.Text = "アイテム未選択";
+                PreviewItemTypeText.Text = "-";
+                PreviewItemSizeText.Text = "-";
+                PreviewItemModifiedText.Text = "-";
+                PreviewItemPathText.Text = "-";
+                return;
+            }
+
+            // WSL パスは 9P 越しの同期 Directory.Exists / 再帰走査を避けて即時表示
+            if (folderPath.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase))
+            {
+                string trimmed = folderPath.TrimEnd('\\');
+                string[] parts = trimmed.Split('\\', StringSplitOptions.RemoveEmptyEntries);
+                PreviewItemNameText.Text = parts.Length > 0 ? parts[^1] : "Linux (WSL)";
+                PreviewItemTypeText.Text = parts.Length <= 2 ? "WSL ディストリビューション" : "フォルダー";
+                PreviewItemSizeText.Text = "-";
+                PreviewItemModifiedText.Text = "-";
+                PreviewItemPathText.Text = folderPath;
+
+                var wslBmp = parts.Length <= 2
+                    ? (IconThumbnailService.DefaultWslBitmap ?? IconThumbnailService.DefaultFolderBitmap)
+                    : IconThumbnailService.DefaultFolderBitmap;
+                if (wslBmp != null)
+                {
+                    PreviewLargeIconGrid.Visibility = Visibility.Visible;
+                    PreviewLargeImageIcon.Visibility = Visibility.Visible;
+                    PreviewLargeFontIcon.Visibility = Visibility.Collapsed;
+                    _ = SetCopiedBitmapSafeAsync(PreviewLargeImageIcon, wslBmp);
+                }
+                return;
+            }
+
+            if (!Directory.Exists(folderPath))
             {
                 PreviewItemNameText.Text = "アイテム未選択";
                 PreviewItemTypeText.Text = "-";
@@ -204,21 +232,9 @@ namespace FastExplorer.Views.MainWindow.Preview
                 var bmp = IconThumbnailService.GetSoftwareBitmapForPath(folderPath, true, true);
                 if (bmp != null)
                 {
-                    try
-                    {
-                        var copy = SoftwareBitmap.Copy(bmp);
-                        var source = new SoftwareBitmapSource();
-                        _ = source.SetBitmapAsync(copy);
-                        PreviewLargeImageIcon.Source = source;
-                        PreviewLargeImageIcon.Visibility = Visibility.Visible;
-                        PreviewLargeFontIcon.Visibility = Visibility.Collapsed;
-                    }
-                    catch
-                    {
-                        PreviewLargeFontIcon.Visibility = Visibility.Visible;
-                        PreviewLargeFontIcon.Glyph = "\uE838";
-                        PreviewLargeImageIcon.Visibility = Visibility.Collapsed;
-                    }
+                    PreviewLargeImageIcon.Visibility = Visibility.Visible;
+                    PreviewLargeFontIcon.Visibility = Visibility.Collapsed;
+                    _ = SetCopiedBitmapSafeAsync(PreviewLargeImageIcon, bmp);
                 }
                 else
                 {
@@ -333,27 +349,16 @@ namespace FastExplorer.Views.MainWindow.Preview
                 if (ct.IsCancellationRequested) return;
 
                 // WIC で取得できなかった場合の Shell サムネイルフォールバック
-                SoftwareBitmap? shellBmp = null;
-                try
+                using var shellBmp = await Task.Run(() => IconThumbnailService.ExtractThumbnailViaShellItem(filePath, 384), ct);
+                if (shellBmp != null && !ct.IsCancellationRequested)
                 {
-                    shellBmp = await Task.Run(() => IconThumbnailService.ExtractThumbnailViaShellItem(filePath, 384), ct);
-                    if (shellBmp != null && !ct.IsCancellationRequested)
+                    var source = new SoftwareBitmapSource();
+                    await source.SetBitmapAsync(shellBmp);
+                    if (!ct.IsCancellationRequested)
                     {
-                        var source = new SoftwareBitmapSource();
-                        await source.SetBitmapAsync(shellBmp);
-                        if (!ct.IsCancellationRequested)
-                        {
-                            PreviewImage.Source = source;
-                            PreviewImage.Visibility = Visibility.Visible;
-                            return;
-                        }
-                    }
-                }
-                finally
-                {
-                    if (shellBmp != null && !IconThumbnailService.IsSharedBitmap(shellBmp))
-                    {
-                        shellBmp.Dispose();
+                        PreviewImage.Source = source;
+                        PreviewImage.Visibility = Visibility.Visible;
+                        return;
                     }
                 }
 
@@ -382,7 +387,7 @@ namespace FastExplorer.Views.MainWindow.Preview
                 await Task.Delay(40, ct);
                 if (ct.IsCancellationRequested) return;
 
-                var shellBmp = await Task.Run(() => IconThumbnailService.ExtractThumbnailViaShellItem(filePath, 384), ct);
+                using var shellBmp = await Task.Run(() => IconThumbnailService.ExtractThumbnailViaShellItem(filePath, 384), ct);
                 if (shellBmp != null && !ct.IsCancellationRequested)
                 {
                     var source = new SoftwareBitmapSource();
@@ -528,11 +533,9 @@ namespace FastExplorer.Views.MainWindow.Preview
                 var bmp = await Task.Run(() => IconThumbnailService.GetSoftwareBitmapForPath(item.FullPath, item.IsDirectory, true), ct);
                 if (bmp != null && !ct.IsCancellationRequested)
                 {
-                    var source = new SoftwareBitmapSource();
-                    await source.SetBitmapAsync(SoftwareBitmap.Copy(bmp));
+                    await SetCopiedBitmapSafeAsync(PreviewLargeImageIcon, bmp);
                     if (!ct.IsCancellationRequested)
                     {
-                        PreviewLargeImageIcon.Source = source;
                         PreviewLargeImageIcon.Visibility = Visibility.Visible;
                         PreviewLargeFontIcon.Visibility = Visibility.Collapsed;
                     }
@@ -564,6 +567,11 @@ namespace FastExplorer.Views.MainWindow.Preview
 
         private async void LoadFolderDetailsAndSizeAsync(string folderPath, CancellationToken ct)
         {
+            if (folderPath.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
             try
             {
                 var di = await Task.Run(() => new DirectoryInfo(folderPath), ct);

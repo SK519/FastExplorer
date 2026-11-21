@@ -302,28 +302,44 @@ namespace FastExplorer.Services
 
         #region Recycle Bin & Deletion
 
+        public sealed class DeleteFailureInfo
+        {
+            public required string Path { get; init; }
+            public required string FileName { get; init; }
+            public bool IsInUse { get; init; }
+            public List<string> LockingProcesses { get; init; } = new();
+            public string Reason { get; init; } = string.Empty;
+        }
+
+        public sealed class DeleteOperationResult
+        {
+            public bool AllSucceeded => Failures.Count == 0 && !Cancelled;
+            public bool Cancelled { get; set; }
+            public List<DeleteFailureInfo> Failures { get; } = new();
+        }
+
         public static bool MoveToRecycleBin(IEnumerable<string> paths)
         {
-            var validPaths = paths.Where(p => File.Exists(p) || Directory.Exists(p)).Select(Path.GetFullPath).ToList();
-            if (validPaths.Count == 0) return true;
+            var res = MoveToRecycleBinAsync(paths).GetAwaiter().GetResult();
+            return res.AllSucceeded;
+        }
 
-            // 1. まず通常権限の IFileOperation によるゴミ箱移動を試行 (0ms 高速処理 & ダイアログ不要)
+        public static async Task<DeleteOperationResult> MoveToRecycleBinAsync(IEnumerable<string> paths)
+        {
+            var result = new DeleteOperationResult();
+            var validPaths = paths.Where(p => File.Exists(p) || Directory.Exists(p)).Select(Path.GetFullPath).ToList();
+            if (validPaths.Count == 0) return result;
+
+            // 1. まず通常権限の IFileOperation による高速ゴミ箱移動を試行 (完全サイレント実行)
+            //    ※ サイレント実行でアクセス拒否になると GetAnyOperationsAborted() が true になるため、
+            //       aborted を理由に中断せず、残存ファイルがあれば必ずステップ2(使用中/権限不足判定)へ進む
             try
             {
-                var (success, aborted, isAccessDenied) = ShellFileOperationHelper.TryExecuteDeleteDirect(validPaths, recycle: true, DefaultOwnerHwnd, elevated: false);
+                var (success, _, _) = await ShellFileOperationHelper.RunInStaAsync(() =>
+                    ShellFileOperationHelper.TryExecuteDeleteDirect(validPaths, recycle: true, DefaultOwnerHwnd, elevated: false));
                 if (success)
                 {
-                    return true;
-                }
-                if (aborted)
-                {
-                    return false;
-                }
-
-                // 明確にアクセス拒否（権限不足）の場合のみ管理者権限昇格で削除
-                if (isAccessDenied)
-                {
-                    return ShellFileOperationHelper.ExecuteDeleteAsync(validPaths, recycle: true, DefaultOwnerHwnd, forceElevate: true).GetAwaiter().GetResult();
+                    return result;
                 }
             }
             catch (Exception ex)
@@ -331,65 +347,71 @@ namespace FastExplorer.Services
                 Debug.WriteLine($"Shell delete error: {ex.Message}");
             }
 
-            // 2. フォールバック: Microsoft.VisualBasic.FileIO.FileSystem (SendToRecycleBin)
-            bool allSuccess = true;
+            // 2. 残存しているアイテムを分類（使用中ロック vs 権限不足）
+            var remaining = validPaths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             var deniedPaths = new List<string>();
-            foreach (var path in validPaths)
+
+            foreach (var path in remaining)
             {
-                try
+                // 2a. 使用中ロックを最優先チェック（管理者権限でも消せないため即座に警告対象へ）
+                bool isLocked = FileLockInspector.IsFileLocked(path);
+                var lockingProcs = isLocked || Directory.Exists(path)
+                    ? FileLockInspector.GetLockingProcesses(path)
+                    : new List<string>();
+
+                if (isLocked || lockingProcs.Count > 0)
                 {
-                    if (File.Exists(path))
+                    result.Failures.Add(new DeleteFailureInfo
                     {
-                        Microsoft.VisualBasic.FileIO.FileSystem.DeleteFile(
-                            path,
-                            Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
-                            Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
-                    }
-                    else if (Directory.Exists(path))
-                    {
-                        Microsoft.VisualBasic.FileIO.FileSystem.DeleteDirectory(
-                            path,
-                            Microsoft.VisualBasic.FileIO.UIOption.OnlyErrorDialogs,
-                            Microsoft.VisualBasic.FileIO.RecycleOption.SendToRecycleBin);
-                    }
+                        Path = path,
+                        FileName = Path.GetFileName(path),
+                        IsInUse = true,
+                        LockingProcesses = lockingProcs,
+                        Reason = "別のプロセスがこのファイルを使用しているため削除できません。"
+                    });
+                    continue;
                 }
-                catch (UnauthorizedAccessException)
-                {
-                    deniedPaths.Add(path);
-                    allSuccess = false;
-                }
-                catch (IOException ex) when ((ex.HResult & 0xFFFF) == 5)
-                {
-                    deniedPaths.Add(path);
-                    allSuccess = false;
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"FileSystem fallback error for {path}: {ex.Message}");
-                    allSuccess = false;
-                }
+
+                // 2b. 使用中ではないのに通常権限の IFileOperation で消えなかった項目は権限不足として昇格対象へ
+                deniedPaths.Add(path);
             }
 
-            // 3. VisualBasic でもアクセス拒否された項目のみ管理者権限で実行
+            // 3. 権限不足の項目を管理者権限でゴミ箱移動
             if (deniedPaths.Count > 0)
             {
-                try
+                var elevRes = await ShellFileOperationHelper.ExecuteDeleteWithResultAsync(deniedPaths, recycle: true);
+                if (elevRes.Cancelled)
                 {
-                    return ShellFileOperationHelper.ExecuteDeleteAsync(deniedPaths, recycle: true, DefaultOwnerHwnd, forceElevate: true).GetAwaiter().GetResult();
+                    result.Cancelled = true;
                 }
-                catch { }
+                foreach (var f in elevRes.Failures)
+                {
+                    result.Failures.Add(new DeleteFailureInfo
+                    {
+                        Path = f.Path,
+                        FileName = Path.GetFileName(f.Path),
+                        IsInUse = f.IsInUse,
+                        LockingProcesses = f.IsInUse ? FileLockInspector.GetLockingProcesses(f.Path) : new List<string>(),
+                        Reason = f.Message
+                    });
+                }
             }
 
-            return allSuccess;
+            return result;
         }
 
         public static void DeletePermanently(IEnumerable<string> paths)
         {
-            var pathList = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
-            if (pathList.Count == 0) return;
+            _ = DeletePermanentlyAsync(paths).GetAwaiter().GetResult();
+        }
 
-            // 通常削除を試行、管理者権限が必要な場合はシェル削除にフォールバック
-            var failedPaths = new List<string>();
+        public static async Task<DeleteOperationResult> DeletePermanentlyAsync(IEnumerable<string> paths)
+        {
+            var result = new DeleteOperationResult();
+            var pathList = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+            if (pathList.Count == 0) return result;
+
+            var deniedPaths = new List<string>();
             foreach (var path in pathList)
             {
                 try
@@ -403,28 +425,70 @@ namespace FastExplorer.Services
                         File.Delete(path);
                     }
                 }
-                catch (UnauthorizedAccessException)
+                catch (Exception ex) when (FileLockInspector.IsSharingOrLockViolation(ex))
                 {
-                    failedPaths.Add(path);
+                    result.Failures.Add(new DeleteFailureInfo
+                    {
+                        Path = path,
+                        FileName = Path.GetFileName(path),
+                        IsInUse = true,
+                        LockingProcesses = FileLockInspector.GetLockingProcesses(path),
+                        Reason = ex.Message
+                    });
                 }
-                catch (IOException ex) when ((ex.HResult & 0xFFFF) == 5)
+                catch (Exception ex) when (ShellFileOperationHelper.IsAccessDeniedException(ex))
                 {
-                    failedPaths.Add(path);
+                    if (FileLockInspector.IsFileLocked(path))
+                    {
+                        result.Failures.Add(new DeleteFailureInfo
+                        {
+                            Path = path,
+                            FileName = Path.GetFileName(path),
+                            IsInUse = true,
+                            LockingProcesses = FileLockInspector.GetLockingProcesses(path),
+                            Reason = "別のプロセスがこのファイルを使用しているため削除できません。"
+                        });
+                    }
+                    else
+                    {
+                        deniedPaths.Add(path);
+                    }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // ignored
+                    var locking = FileLockInspector.GetLockingProcesses(path);
+                    result.Failures.Add(new DeleteFailureInfo
+                    {
+                        Path = path,
+                        FileName = Path.GetFileName(path),
+                        IsInUse = locking.Count > 0 || FileLockInspector.IsFileLocked(path),
+                        LockingProcesses = locking,
+                        Reason = ex.Message
+                    });
                 }
             }
 
-            if (failedPaths.Count > 0)
+            if (deniedPaths.Count > 0)
             {
-                try
+                var elevRes = await ShellFileOperationHelper.ExecuteDeleteWithResultAsync(deniedPaths, recycle: false);
+                if (elevRes.Cancelled)
                 {
-                    ShellFileOperationHelper.ExecuteDeleteAsync(failedPaths, recycle: false, DefaultOwnerHwnd, forceElevate: true).GetAwaiter().GetResult();
+                    result.Cancelled = true;
                 }
-                catch { }
+                foreach (var f in elevRes.Failures)
+                {
+                    result.Failures.Add(new DeleteFailureInfo
+                    {
+                        Path = f.Path,
+                        FileName = Path.GetFileName(f.Path),
+                        IsInUse = f.IsInUse,
+                        LockingProcesses = f.IsInUse ? FileLockInspector.GetLockingProcesses(f.Path) : new List<string>(),
+                        Reason = f.Message
+                    });
+                }
             }
+
+            return result;
         }
 
         #endregion

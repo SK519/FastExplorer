@@ -213,6 +213,39 @@
                                         <ComboBoxItem Content="元の画像サイズ (等倍)" Tag="None"/>
                                     </ComboBox>
                                 </Grid>
+
+                                <Rectangle Height="1" Fill="{ThemeResource CardStrokeColorDefaultBrush}"/>
+
+                                <!-- 自宅外検知による壁紙一時無効化 -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                                        <TextBlock Text="自宅外では壁紙を一時的に無効にする" FontWeight="Medium"/>
+                                        <TextBlock Text="自宅以外の Wi-Fi や有線ゲートウェイ・オフライン時は Mica 背景に戻してメモリを節約します" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                                    </StackPanel>
+                                    <ToggleSwitch x:Name="DisableWallpaperOutsideHomeToggle" Grid.Column="1" OnContent="オン" OffContent="オフ" Toggled="DisableWallpaperOutsideHomeToggle_Toggled"/>
+                                </Grid>
+
+                                <StackPanel x:Name="OutsideHomeConfigPanel" Spacing="10" Visibility="Collapsed">
+                                    <Grid ColumnSpacing="8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="自宅ネットワーク判定リスト (Wi-Fi SSID / BSSID・ゲートウェイ MAC)" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"/>
+                                        <Button Grid.Column="1" Click="ImportWallpaperConfigToml_Click">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon Glyph="&#xE8E5;" FontSize="13"/>
+                                                <TextBlock Text="config.toml からインポート..."/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                    <TextBox x:Name="HomeSsidsTextBox" Header="自宅 Wi-Fi SSID (カンマまたは改行区切り)" PlaceholderText="例: MyHome-5G, MyHome-2.4G" AcceptsReturn="True" TextWrapping="Wrap" LostFocus="HomeNetworkTextBox_LostFocus"/>
+                                    <TextBox x:Name="HomeMacsTextBox" Header="自宅 MAC アドレス / BSSID / ゲートウェイ (カンマまたは改行区切り)" PlaceholderText="例: AA-BB-CC-DD-EE-FF, 11:22:33:44:55:66" AcceptsReturn="True" TextWrapping="Wrap" LostFocus="HomeNetworkTextBox_LostFocus"/>
+                                </StackPanel>
                             </StackPanel>
                         </StackPanel>
                     </Border>

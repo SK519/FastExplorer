@@ -113,8 +113,7 @@ namespace FastExplorer
                     }
                 }
 
-                FileOperationService.MoveToRecycleBin(paths);
-                CurrentTab?.Refresh();
+                await ExecuteDeleteWithRetryAsync(paths, permanent: false);
             }
             catch (Exception ex)
             {
@@ -164,18 +163,103 @@ namespace FastExplorer
                     if (RecycleBinService.IsRecycleBinPath(CurrentTab?.CurrentPath))
                     {
                         RecycleBinService.DeletePermanently(paths);
+                        CurrentTab?.Refresh();
                     }
                     else
                     {
-                        FileOperationService.DeletePermanently(paths);
+                        await ExecuteDeleteWithRetryAsync(paths, permanent: true);
                     }
-                    CurrentTab?.Refresh();
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[ContextMenu] DeletePermanently error: {ex.Message}");
             }
+        }
+
+        private async System.Threading.Tasks.Task ExecuteDeleteWithRetryAsync(List<string> paths, bool permanent)
+        {
+            var pendingPaths = paths;
+            while (pendingPaths.Count > 0)
+            {
+                var result = permanent
+                    ? await FileOperationService.DeletePermanentlyAsync(pendingPaths)
+                    : await FileOperationService.MoveToRecycleBinAsync(pendingPaths);
+
+                CurrentTab?.Refresh();
+
+                if (result.Failures.Count == 0 || result.Cancelled)
+                {
+                    break;
+                }
+
+                bool retry = await ShowDeleteFailureDialogAsync(result.Failures);
+                if (!retry)
+                {
+                    break;
+                }
+
+                pendingPaths = result.Failures.Select(f => f.Path).ToList();
+            }
+        }
+
+        private async System.Threading.Tasks.Task<bool> ShowDeleteFailureDialogAsync(List<FileOperationService.DeleteFailureInfo> failures)
+        {
+            bool anyInUse = failures.Any(f => f.IsInUse);
+            string title = anyInUse ? "ファイルは使用中のため削除できません" : "削除できない項目があります";
+
+            var sb = new System.Text.StringBuilder();
+            if (anyInUse)
+            {
+                sb.AppendLine("別のプログラムで開かれているため、以下の項目を削除できませんでした。該当するプログラムを閉じてから「再試行」してください。\n");
+            }
+            else
+            {
+                sb.AppendLine("以下の項目を削除できませんでした。\n");
+            }
+
+            int shown = 0;
+            foreach (var f in failures)
+            {
+                if (shown >= 6)
+                {
+                    sb.AppendLine($"…他 {failures.Count - shown} 件");
+                    break;
+                }
+
+                sb.Append($"• {f.FileName}");
+                if (f.LockingProcesses.Count > 0)
+                {
+                    sb.Append($"（使用中: {string.Join(", ", f.LockingProcesses)}）");
+                }
+                else if (f.IsInUse)
+                {
+                    sb.Append("（別のプロセスが使用中）");
+                }
+                else if (!string.IsNullOrWhiteSpace(f.Reason))
+                {
+                    sb.Append($"（{f.Reason}）");
+                }
+                sb.AppendLine();
+                shown++;
+            }
+
+            var dlg = new ContentDialog
+            {
+                Title = title,
+                Content = new TextBlock
+                {
+                    Text = sb.ToString().TrimEnd(),
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxWidth = 440
+                },
+                PrimaryButtonText = "再試行",
+                CloseButtonText = "キャンセル",
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = this.Content.XamlRoot
+            };
+
+            return await dlg.ShowAsync() == ContentDialogResult.Primary;
         }
 
         private void ContextMenuProperties_Click(object sender, RoutedEventArgs e)

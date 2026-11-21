@@ -221,6 +221,7 @@ namespace FastExplorer
                 if (disposeModel)
                 {
                     navTab.Dispose();
+                    IconThumbnailService.Instance.TrimCache(300);
                 }
             }
 

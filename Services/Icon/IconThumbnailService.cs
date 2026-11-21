@@ -17,12 +17,20 @@ namespace FastExplorer.Services
 
         private readonly ConcurrentDictionary<string, SoftwareBitmap> _lruCache = new();
         private readonly ConcurrentDictionary<string, Microsoft.UI.Xaml.Media.ImageSource> _imageSourceCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, Microsoft.UI.Xaml.Media.ImageSource> _thumbnailSourceCache = new(StringComparer.OrdinalIgnoreCase);
         private readonly LinkedList<string> _lruKeys = new();
         private readonly LinkedList<string> _imageSourceKeys = new();
+        private readonly LinkedList<string> _thumbnailSourceKeys = new();
         private readonly object _lruLock = new();
-        private const int MaxCacheEntries = 2000;
+        private const int MaxCacheEntries = 500;
+        private const int MaxThumbnailCacheEntries = 240;
+        private const int MaxWorkQueueSize = 512;
 
-        private readonly BlockingCollection<FileItem> _workQueue = new();
+        // UI反映待ちの未解放 SoftwareBitmap 数を制限するバックプレッシャー (ネイティブメモリスパイク & 0xc000027b クラッシュ防止)
+        private readonly SemaphoreSlim _inFlightSemaphore = new(16, 16);
+        private int _queueGeneration = 0;
+
+        private readonly BlockingCollection<(FileItem Item, int Generation)> _workQueue = new();
         private readonly ConcurrentDictionary<string, byte> _queuedPaths = new(StringComparer.OrdinalIgnoreCase);
         private readonly List<Thread> _workerThreads = [];
         private readonly ManualResetEventSlim _initEvent = new(false);
@@ -81,7 +89,7 @@ namespace FastExplorer.Services
             lock (_workerLock)
             {
                 if (_workersStarted) return;
-                int workerCount = Math.Clamp(Environment.ProcessorCount / 2, 2, 4);
+                int workerCount = Math.Clamp(Environment.ProcessorCount / 2, 2, 3);
                 for (int i = 0; i < workerCount; i++)
                 {
                     int workerIndex = i;
@@ -276,6 +284,13 @@ namespace FastExplorer.Services
             return false;
         }
 
+        public static bool IsWslUncPath(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            return path.StartsWith(@"\\wsl.localhost\", StringComparison.OrdinalIgnoreCase) ||
+                   path.StartsWith(@"\\wsl$\", StringComparison.OrdinalIgnoreCase);
+        }
+
         public static Microsoft.UI.Xaml.Controls.IconSource GetIconSourceForNavigationPath(string path)
         {
             if (string.IsNullOrEmpty(path))
@@ -392,11 +407,38 @@ namespace FastExplorer.Services
             }
         }
 
+        /// <summary>
+        /// 画面外へリサイクルされたアイテムやビュー切替時に、個別の画像サムネイル参照を外してデフォルト/拡張子アイコンへ戻す
+        /// </summary>
+        public void ResetToDefaultIcon(FileItem item)
+        {
+            if (item.IsDirectory || item.IsDrive) return;
+
+            string ext = item.Extension;
+            if (!string.IsNullOrEmpty(ext) && _extensionSourceCache.TryGetValue(ext, out var extSrc))
+            {
+                item.Icon = extSrc;
+            }
+            else if (_defaultFileSource != null)
+            {
+                item.Icon = _defaultFileSource;
+            }
+            else
+            {
+                item.Icon = null;
+            }
+        }
+
         public void Enqueue(FileItem item, bool force = false)
         {
             EnsureWorkersStarted();
 
             string key = GetCacheKey(item);
+            if (_thumbnailSourceCache.TryGetValue(key, out var cachedThumbSource))
+            {
+                item.Icon = cachedThumbSource;
+                return;
+            }
             if (_imageSourceCache.TryGetValue(key, out var cachedSource))
             {
                 item.Icon = cachedSource;
@@ -404,12 +446,39 @@ namespace FastExplorer.Services
             }
             if (_lruCache.TryGetValue(key, out var cachedBitmap))
             {
-                SetIconToItem(item, cachedBitmap, key);
+                SetIconToItem(item, cachedBitmap, key, disposeAfterUpload: false, releaseSemaphore: false, Volatile.Read(ref _queueGeneration));
                 return;
             }
 
             // 読み込み待ちのチラつきを防ぐため、即座に事前作成済みデフォルトアイコン/拡張子別アイコンを同期適用
             ApplyImmediateDefaultIcon(item);
+
+            int gen = Volatile.Read(ref _queueGeneration);
+
+            // WSL UNC パス (\\wsl.localhost\*, \\wsl$\*) は 9P 越しの Shell/File.Exists 呼び出しが極端に遅いため、
+            // デフォルトアイコンまたは拡張子キャッシュのみを使用する
+            if (IsWslUncPath(item.FullPath))
+            {
+                if (item.IsDirectory || string.IsNullOrEmpty(item.Extension) || CustomIconExtensions.Contains(item.Extension))
+                {
+                    return;
+                }
+                if (_extensionSourceCache.ContainsKey(item.Extension))
+                {
+                    return;
+                }
+                if (_workQueue.Count < MaxWorkQueueSize && _queuedPaths.TryAdd(item.FullPath, 0))
+                {
+                    _workQueue.Add((item, gen));
+                }
+                return;
+            }
+
+            // 大量ファイル展開時のメモリスパイク防止のため、キュー上限を超える場合は追加抽出を抑制
+            if (_workQueue.Count >= MaxWorkQueueSize && !force)
+            {
+                return;
+            }
 
             // サムネイル無効モード（詳細・一覧・小アイコン）で、不要な重い抽出をスキップ
             if (!force && !item.AllowThumbnail)
@@ -435,12 +504,13 @@ namespace FastExplorer.Services
             // キュー内の重複排除
             if (_queuedPaths.TryAdd(item.FullPath, 0))
             {
-                _workQueue.Add(item);
+                _workQueue.Add((item, gen));
             }
         }
 
         public void ClearQueue()
         {
+            Interlocked.Increment(ref _queueGeneration);
             while (_workQueue.TryTake(out _)) { }
             _queuedPaths.Clear();
         }

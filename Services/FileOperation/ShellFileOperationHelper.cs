@@ -22,8 +22,6 @@ namespace FastExplorer.Services
             if (ex is COMException cex)
             {
                 uint hr = (uint)cex.HResult;
-                // E_ACCESSDENIED (0x80070005), Win32 ERROR_ACCESS_DENIED (5)
-                // COPYENGINE_E_ACCESS_DENIED_SRC (0x80270000), COPYENGINE_E_ACCESS_DENIED_DEST (0x80270001)
                 return hr == 0x80070005 || (hr & 0xFFFF) == 5 || hr == 0x80270000 || hr == 0x80270001;
             }
             return false;
@@ -42,7 +40,6 @@ namespace FastExplorer.Services
                 string testPath = Path.Combine(directoryPath, $".fe_perm_check_{Guid.NewGuid():N}.tmp");
                 using (var fs = new FileStream(testPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1, FileOptions.DeleteOnClose))
                 {
-                    // 書き込み可能
                 }
                 return true;
             }
@@ -50,13 +47,12 @@ namespace FastExplorer.Services
             {
                 return false;
             }
-            catch (IOException ex) when ((ex.HResult & 0xFFFF) == 5) // ERROR_ACCESS_DENIED
+            catch (IOException ex) when ((ex.HResult & 0xFFFF) == 5)
             {
                 return false;
             }
             catch
             {
-                // 容量不足などの一時的要因は true 扱いとする
                 return true;
             }
         }
@@ -89,47 +85,8 @@ namespace FastExplorer.Services
             return await tcs.Task;
         }
 
-        private static Win32Interop.IFileOperation? CreateFileOperation(nint ownerHwnd, bool elevated)
-        {
-            if (elevated)
-            {
-                try
-                {
-                    var bindOpts = new Win32Interop.BIND_OPTS3
-                    {
-                        cbStruct = (uint)Marshal.SizeOf<Win32Interop.BIND_OPTS3>(),
-                        dwClassContext = Win32Interop.CLSCTX_LOCAL_SERVER,
-                        hwnd = ownerHwnd
-                    };
-
-                    string moniker = $"Elevation:Administrator!new:{Win32Interop.CLSID_FileOperation:B}";
-                    int hr = Win32Interop.CoGetObject(moniker, ref bindOpts, in Win32Interop.IID_IFileOperation, out nint ppv);
-                    if (hr == 0 && ppv != 0)
-                    {
-                        var elevatedOp = (Win32Interop.IFileOperation)Marshal.GetObjectForIUnknown(ppv);
-                        Marshal.Release(ppv);
-                        return elevatedOp;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[ShellFileOp] CoGetObject elevation moniker failed: {ex.Message}");
-                }
-            }
-
-            try
-            {
-                return (Win32Interop.IFileOperation)new Win32Interop.FileOperationClass();
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[ShellFileOp] FileOperationClass creation failed: {ex.Message}");
-                return null;
-            }
-        }
-
         /// <summary>
-        /// Windows シェル (IFileOperation) を使用してコピーまたは移動を実行（UAC 昇格プロンプト完全サポート）
+        /// 管理者権限でのコピーまたは移動を実行（FastExplorer.exe ヘッドレス昇格、PowerShell 不使用）
         /// </summary>
         public static async Task<bool> ExecuteCopyOrMoveAsync(
             IEnumerable<string> sourcePaths,
@@ -144,135 +101,17 @@ namespace FastExplorer.Services
             var pathList = sourcePaths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
             if (pathList.Count == 0) return false;
 
-            if (ownerHwnd == 0) ownerHwnd = FileOperationService.DefaultOwnerHwnd;
-
-            bool requiresElevation = forceElevate || !HasWritePermission(destinationDirectory);
-
-            return await RunInStaAsync(() =>
+            var res = await ElevatedOperationRunner.RunElevatedAsync(new ElevatedOpRequest
             {
-                // 1. IFileOperation によるシェル実行 (FOFX_SHOWELEVATIONPROMPT 付きで Windows ネイティブの昇格ダイアログを表示)
-                var (success, aborted, isAccessDenied) = TryExecuteOperation(
-                    pathList, destinationDirectory, isMove, ownerHwnd, elevated: requiresElevation);
-
-                // 2. 通常実行でアクセス拒否または失敗した場合、昇格モードで再試行
-                if (!success && !aborted && !requiresElevation)
-                {
-                    (success, aborted, isAccessDenied) = TryExecuteOperation(
-                        pathList, destinationDirectory, isMove, ownerHwnd, elevated: true);
-                }
-
-                // 3. IFileOperation が失敗または完了しなかった場合の管理者権限プロセス (runas) フォールバック
-                if (!success && !aborted)
-                {
-                    bool destStillEmpty = pathList.All(p =>
-                    {
-                        string target = Path.Combine(destinationDirectory, Path.GetFileName(p));
-                        return !File.Exists(target) && !Directory.Exists(target);
-                    });
-
-                    if (destStillEmpty)
-                    {
-                        Debug.WriteLine("[ShellFileOp] IFileOperation did not complete, falling back to elevated process.");
-                        success = TryExecuteElevatedFallback(pathList, destinationDirectory, isMove);
-                    }
-                }
-
-                return success;
+                Action = isMove ? "Move" : "Copy",
+                SourcePaths = pathList,
+                DestinationPath = destinationDirectory
             });
-        }
-
-        private static (bool Success, bool Aborted, bool IsAccessDenied) TryExecuteOperation(
-            List<string> pathList,
-            string destinationDirectory,
-            bool isMove,
-            nint ownerHwnd,
-            bool elevated)
-        {
-            var fileOp = CreateFileOperation(ownerHwnd, elevated);
-            if (fileOp == null) return (false, false, false);
-
-            try
-            {
-                uint flags = Win32Interop.FOF_ALLOWUNDO |
-                             Win32Interop.FOFX_MOVEACROSSVOLUMES |
-                             Win32Interop.FOFX_SHOWELEVATIONPROMPT;
-
-                if (elevated)
-                {
-                    flags |= Win32Interop.FOFX_REQUIREELEVATION;
-                }
-                fileOp.SetOperationFlags(flags);
-
-                if (ownerHwnd != 0)
-                {
-                    fileOp.SetOwnerWindow(ownerHwnd);
-                }
-
-                int hrDest = Win32Interop.SHCreateItemFromParsingName(
-                    destinationDirectory, 0, in Win32Interop.IID_IShellItem, out nint pDestItem);
-                if (hrDest != 0 || pDestItem == 0) return (false, false, hrDest == unchecked((int)0x80070005));
-
-                try
-                {
-                    bool addedAny = false;
-                    foreach (var src in pathList)
-                    {
-                        int hrSrc = Win32Interop.SHCreateItemFromParsingName(
-                            src, 0, in Win32Interop.IID_IShellItem, out nint pSrcItem);
-                        if (hrSrc == 0 && pSrcItem != 0)
-                        {
-                            try
-                            {
-                                if (isMove)
-                                {
-                                    fileOp.MoveItem(pSrcItem, pDestItem, null!, 0);
-                                }
-                                else
-                                {
-                                    fileOp.CopyItem(pSrcItem, pDestItem, null!, 0);
-                                }
-                                addedAny = true;
-                            }
-                            finally
-                            {
-                                Marshal.Release(pSrcItem);
-                            }
-                        }
-                    }
-
-                    if (!addedAny) return (false, false, false);
-
-                    fileOp.PerformOperations();
-                    bool aborted = fileOp.GetAnyOperationsAborted();
-
-                    // 実際にファイル・フォルダが転送されたか確認
-                    bool anyExists = pathList.Any(p =>
-                    {
-                        string target = Path.Combine(destinationDirectory, Path.GetFileName(p));
-                        return File.Exists(target) || Directory.Exists(target);
-                    });
-
-                    return (!aborted && anyExists, aborted, false);
-                }
-                finally
-                {
-                    Marshal.Release(pDestItem);
-                }
-            }
-            catch (Exception ex)
-            {
-                bool isDenied = IsAccessDeniedException(ex);
-                Debug.WriteLine($"[ShellFileOp] PerformOperations error (elevated={elevated}, isDenied={isDenied}): {ex.Message}");
-                return (false, false, isDenied);
-            }
-            finally
-            {
-                try { Marshal.FinalReleaseComObject(fileOp); } catch { }
-            }
+            return res.Success;
         }
 
         /// <summary>
-        /// Windows シェルを使用して新規アイテム（フォルダーまたはファイル）を作成（権限不足時のみ UAC 昇格をサポート）
+        /// 管理者権限で新規アイテム（フォルダーまたはファイル）を作成
         /// </summary>
         public static async Task<bool> ExecuteNewItemAsync(
             string parentDirectory,
@@ -284,89 +123,17 @@ namespace FastExplorer.Services
             if (string.IsNullOrWhiteSpace(parentDirectory) || !Directory.Exists(parentDirectory))
                 return false;
 
-            if (ownerHwnd == 0) ownerHwnd = FileOperationService.DefaultOwnerHwnd;
-
-            bool requiresElevation = forceElevate || !HasWritePermission(parentDirectory);
-
-            return await RunInStaAsync(() =>
+            var res = await ElevatedOperationRunner.RunElevatedAsync(new ElevatedOpRequest
             {
-                var (success, aborted, isAccessDenied) = TryExecuteNewItem(
-                    parentDirectory, name, isDirectory, ownerHwnd, elevated: requiresElevation);
-
-                if (!success && !aborted && !requiresElevation)
-                {
-                    (success, aborted, isAccessDenied) = TryExecuteNewItem(
-                        parentDirectory, name, isDirectory, ownerHwnd, elevated: true);
-                }
-
-                if (!success && !aborted)
-                {
-                    string target = Path.Combine(parentDirectory, name);
-                    if (!File.Exists(target) && !Directory.Exists(target))
-                    {
-                        success = TryExecuteNewItemElevatedFallback(parentDirectory, name, isDirectory);
-                    }
-                }
-
-                return success;
+                Action = isDirectory ? "NewFolder" : "NewFile",
+                DestinationPath = parentDirectory,
+                NewName = name
             });
-        }
-
-        private static (bool Success, bool Aborted, bool IsAccessDenied) TryExecuteNewItem(
-            string parentDirectory,
-            string name,
-            bool isDirectory,
-            nint ownerHwnd,
-            bool elevated)
-        {
-            var fileOp = CreateFileOperation(ownerHwnd, elevated);
-            if (fileOp == null) return (false, false, false);
-
-            try
-            {
-                uint flags = Win32Interop.FOF_ALLOWUNDO |
-                             Win32Interop.FOF_NOCONFIRMATION |
-                             Win32Interop.FOFX_SHOWELEVATIONPROMPT;
-
-                if (elevated) flags |= Win32Interop.FOFX_REQUIREELEVATION;
-                fileOp.SetOperationFlags(flags);
-
-                if (ownerHwnd != 0) fileOp.SetOwnerWindow(ownerHwnd);
-
-                int hr = Win32Interop.SHCreateItemFromParsingName(
-                    parentDirectory, 0, in Win32Interop.IID_IShellItem, out nint pParentItem);
-                if (hr != 0 || pParentItem == 0) return (false, false, hr == unchecked((int)0x80070005));
-
-                try
-                {
-                    uint attr = isDirectory ? 0x00000010u /* FILE_ATTRIBUTE_DIRECTORY */ : 0x00000080u /* FILE_ATTRIBUTE_NORMAL */;
-                    fileOp.NewItem(pParentItem, attr, name, null!, 0);
-                    fileOp.PerformOperations();
-                    bool aborted = fileOp.GetAnyOperationsAborted();
-
-                    string target = Path.Combine(parentDirectory, name);
-                    bool created = isDirectory ? Directory.Exists(target) : File.Exists(target);
-                    return (!aborted && created, aborted, false);
-                }
-                finally
-                {
-                    Marshal.Release(pParentItem);
-                }
-            }
-            catch (Exception ex)
-            {
-                bool isDenied = IsAccessDeniedException(ex);
-                Debug.WriteLine($"[ShellFileOp] NewItem error (elevated={elevated}, isDenied={isDenied}): {ex.Message}");
-                return (false, false, isDenied);
-            }
-            finally
-            {
-                try { Marshal.FinalReleaseComObject(fileOp); } catch { }
-            }
+            return res.Success;
         }
 
         /// <summary>
-        /// Windows シェルを使用して名前変更を実行（権限不足時のみ UAC 昇格をサポート）
+        /// 管理者権限でアイテム名を変更
         /// </summary>
         public static async Task<bool> ExecuteRenameAsync(
             string itemPath,
@@ -377,88 +144,19 @@ namespace FastExplorer.Services
             if (string.IsNullOrWhiteSpace(itemPath) || (!File.Exists(itemPath) && !Directory.Exists(itemPath)))
                 return false;
 
-            if (ownerHwnd == 0) ownerHwnd = FileOperationService.DefaultOwnerHwnd;
-
-            string? parentDir = Path.GetDirectoryName(itemPath);
-            bool requiresElevation = forceElevate || (parentDir != null && !HasWritePermission(parentDir));
-
-            return await RunInStaAsync(() =>
+            string parentDir = Path.GetDirectoryName(itemPath) ?? "";
+            var res = await ElevatedOperationRunner.RunElevatedAsync(new ElevatedOpRequest
             {
-                var (success, aborted, isAccessDenied) = TryExecuteRename(
-                    itemPath, newName, ownerHwnd, elevated: requiresElevation);
-
-                if (!success && !aborted && !requiresElevation)
-                {
-                    (success, aborted, isAccessDenied) = TryExecuteRename(
-                        itemPath, newName, ownerHwnd, elevated: true);
-                }
-
-                if (!success && !aborted && parentDir != null)
-                {
-                    string target = Path.Combine(parentDir, newName);
-                    if (!File.Exists(target) && !Directory.Exists(target))
-                    {
-                        success = TryExecuteRenameElevatedFallback(itemPath, newName);
-                    }
-                }
-
-                return success;
+                Action = "Rename",
+                SourcePaths = [itemPath],
+                DestinationPath = parentDir,
+                NewName = newName
             });
-        }
-
-        private static (bool Success, bool Aborted, bool IsAccessDenied) TryExecuteRename(
-            string itemPath,
-            string newName,
-            nint ownerHwnd,
-            bool elevated)
-        {
-            var fileOp = CreateFileOperation(ownerHwnd, elevated);
-            if (fileOp == null) return (false, false, false);
-
-            try
-            {
-                uint flags = Win32Interop.FOF_ALLOWUNDO |
-                             Win32Interop.FOF_NOCONFIRMATION |
-                             Win32Interop.FOFX_SHOWELEVATIONPROMPT;
-
-                if (elevated) flags |= Win32Interop.FOFX_REQUIREELEVATION;
-                fileOp.SetOperationFlags(flags);
-
-                if (ownerHwnd != 0) fileOp.SetOwnerWindow(ownerHwnd);
-
-                int hr = Win32Interop.SHCreateItemFromParsingName(
-                    itemPath, 0, in Win32Interop.IID_IShellItem, out nint pItem);
-                if (hr != 0 || pItem == 0) return (false, false, hr == unchecked((int)0x80070005));
-
-                try
-                {
-                    fileOp.RenameItem(pItem, newName, 0);
-                    fileOp.PerformOperations();
-                    bool aborted = fileOp.GetAnyOperationsAborted();
-
-                    string? parentDir = Path.GetDirectoryName(itemPath);
-                    bool renamed = parentDir != null && (File.Exists(Path.Combine(parentDir, newName)) || Directory.Exists(Path.Combine(parentDir, newName)));
-                    return (!aborted && renamed, aborted, false);
-                }
-                finally
-                {
-                    Marshal.Release(pItem);
-                }
-            }
-            catch (Exception ex)
-            {
-                bool isDenied = IsAccessDeniedException(ex);
-                Debug.WriteLine($"[ShellFileOp] Rename error (elevated={elevated}, isDenied={isDenied}): {ex.Message}");
-                return (false, false, isDenied);
-            }
-            finally
-            {
-                try { Marshal.FinalReleaseComObject(fileOp); } catch { }
-            }
+            return res.Success;
         }
 
         /// <summary>
-        /// 通常権限で直接削除またはゴミ箱移動を試行（STA スレッド不要の直接呼び出し可能メソッド）
+        /// 通常権限で直接ゴミ箱移動または削除を試行（UI ダイアログなし・高速）
         /// </summary>
         public static (bool Success, bool Aborted, bool IsAccessDenied) TryExecuteDeleteDirect(
             IEnumerable<string> paths,
@@ -470,74 +168,59 @@ namespace FastExplorer.Services
             if (validPaths.Count == 0) return (true, false, false);
 
             if (ownerHwnd == 0) ownerHwnd = FileOperationService.DefaultOwnerHwnd;
-            return TryExecuteDelete(validPaths, recycle, ownerHwnd, elevated);
+            return TryExecuteDeleteNormal(validPaths, recycle, ownerHwnd);
         }
 
         /// <summary>
-        /// Windows シェルを使用して削除またはゴミ箱移動を実行（権限不足時のみ UAC 昇格をサポート）
+        /// 管理者権限で削除またはゴミ箱移動を実行（FastExplorer.exe ヘッドレス昇格）
         /// </summary>
+        public static async Task<ElevatedOpResponse> ExecuteDeleteWithResultAsync(
+            IEnumerable<string> paths,
+            bool recycle)
+        {
+            var validPaths = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+            if (validPaths.Count == 0) return new ElevatedOpResponse { Success = true };
+
+            string parentDir = Path.GetDirectoryName(validPaths[0]) ?? "";
+            return await ElevatedOperationRunner.RunElevatedAsync(new ElevatedOpRequest
+            {
+                Action = recycle ? "DeleteRecycle" : "DeletePermanent",
+                SourcePaths = validPaths,
+                DestinationPath = parentDir
+            });
+        }
+
         public static async Task<bool> ExecuteDeleteAsync(
             IEnumerable<string> paths,
             bool recycle,
             nint ownerHwnd = 0,
             bool forceElevate = false)
         {
-            var validPaths = paths.Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
-            if (validPaths.Count == 0) return true;
-
-            if (ownerHwnd == 0) ownerHwnd = FileOperationService.DefaultOwnerHwnd;
-
-            return await RunInStaAsync(() =>
-            {
-                if (forceElevate)
-                {
-                    var (elevatedSuccess, _, _) = TryExecuteDelete(validPaths, recycle, ownerHwnd, elevated: true);
-                    if (!elevatedSuccess)
-                    {
-                        elevatedSuccess = TryExecuteDeleteElevatedFallback(validPaths, recycle);
-                    }
-                    return elevatedSuccess;
-                }
-
-                var (success, aborted, isAccessDenied) = TryExecuteDelete(validPaths, recycle, ownerHwnd, elevated: false);
-                if (!success && !aborted)
-                {
-                    (success, _, _) = TryExecuteDelete(validPaths, recycle, ownerHwnd, elevated: true);
-                    if (!success)
-                    {
-                        success = TryExecuteDeleteElevatedFallback(validPaths, recycle);
-                    }
-                }
-                return success;
-            });
+            var res = await ExecuteDeleteWithResultAsync(paths, recycle);
+            return res.Success;
         }
 
-        private static (bool Success, bool Aborted, bool IsAccessDenied) TryExecuteDelete(
+        private static (bool Success, bool Aborted, bool IsAccessDenied) TryExecuteDeleteNormal(
             List<string> validPaths,
             bool recycle,
-            nint ownerHwnd,
-            bool elevated)
+            nint ownerHwnd)
         {
-            var fileOp = CreateFileOperation(ownerHwnd, elevated);
-            if (fileOp == null) return (false, false, false);
-
+            Win32Interop.IFileOperation? fileOp = null;
             try
             {
+                fileOp = (Win32Interop.IFileOperation)new Win32Interop.FileOperationClass();
+
+                // Windows 独自の昇格・エラーポップアップを出さずサイレント実行し、失敗時は FastExplorer 側で判別する
                 uint flags = Win32Interop.FOF_NOCONFIRMATION |
                              Win32Interop.FOF_SILENT |
-                             Win32Interop.FOFX_SHOWELEVATIONPROMPT;
+                             Win32Interop.FOF_NOERRORUI;
 
                 if (recycle)
                 {
                     flags |= Win32Interop.FOFX_RECYCLEONDELETE | Win32Interop.FOF_ALLOWUNDO;
                 }
-                if (elevated)
-                {
-                    flags |= Win32Interop.FOFX_REQUIREELEVATION;
-                }
 
                 fileOp.SetOperationFlags(flags);
-
                 if (ownerHwnd != 0) fileOp.SetOwnerWindow(ownerHwnd);
 
                 bool addedAny = false;
@@ -564,195 +247,22 @@ namespace FastExplorer.Services
                 fileOp.PerformOperations();
                 bool aborted = fileOp.GetAnyOperationsAborted();
 
-                // 削除後に項目がまだ残っている場合は成否を確認
                 bool anyStillExists = validPaths.Any(p => File.Exists(p) || Directory.Exists(p));
                 return (!aborted && !anyStillExists, aborted, false);
             }
             catch (Exception ex)
             {
                 bool isDenied = IsAccessDeniedException(ex);
-                Debug.WriteLine($"[ShellFileOp] Delete error (elevated={elevated}, isDenied={isDenied}): {ex.Message}");
+                Debug.WriteLine($"[ShellFileOp] Normal delete error (isDenied={isDenied}): {ex.Message}");
                 return (false, false, isDenied);
             }
             finally
             {
-                try { Marshal.FinalReleaseComObject(fileOp); } catch { }
+                if (fileOp != null)
+                {
+                    try { Marshal.FinalReleaseComObject(fileOp); } catch { }
+                }
             }
         }
-
-        #region Elevated Process Fallbacks (runas)
-
-        /// <summary>
-        /// UAC 昇格した管理者プロセス (runas) を通じてファイルを確実にコピーまたは移動
-        /// </summary>
-        private static bool TryExecuteElevatedFallback(List<string> pathList, string destinationDirectory, bool isMove)
-        {
-            try
-            {
-                string tempScript = Path.Combine(Path.GetTempPath(), $"fe_elev_{Guid.NewGuid():N}.ps1");
-                var lines = new List<string>();
-                string escapedDest = destinationDirectory.Replace("'", "''");
-
-                foreach (var src in pathList)
-                {
-                    string escapedSrc = src.Replace("'", "''");
-                    if (isMove)
-                    {
-                        lines.Add($"Move-Item -LiteralPath '{escapedSrc}' -Destination '{escapedDest}' -Force");
-                    }
-                    else
-                    {
-                        lines.Add($"Copy-Item -LiteralPath '{escapedSrc}' -Destination '{escapedDest}' -Recurse -Force");
-                    }
-                }
-                lines.Add($"Remove-Item -LiteralPath '{tempScript.Replace("'", "''")}' -Force -ErrorAction SilentlyContinue");
-
-                File.WriteAllLines(tempScript, lines, System.Text.Encoding.UTF8);
-
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{tempScript}\"",
-                    UseShellExecute = true,
-                    Verb = "runas"
-                };
-
-                using var proc = Process.Start(psi);
-                if (proc != null)
-                {
-                    proc.WaitForExit();
-                    return proc.ExitCode == 0;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[ShellFileOp] Elevated copy fallback failed: {ex.Message}");
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// UAC 昇格した管理者プロセス (runas) を通じて新規アイテムを作成
-        /// </summary>
-        private static bool TryExecuteNewItemElevatedFallback(string parentDirectory, string name, bool isDirectory)
-        {
-            try
-            {
-                string tempScript = Path.Combine(Path.GetTempPath(), $"fe_elev_new_{Guid.NewGuid():N}.ps1");
-                string targetPath = Path.Combine(parentDirectory, name).Replace("'", "''");
-                string itemType = isDirectory ? "Directory" : "File";
-                var lines = new List<string>
-                {
-                    $"New-Item -ItemType {itemType} -Path '{targetPath}' -Force",
-                    $"Remove-Item -LiteralPath '{tempScript.Replace("'", "''")}' -Force -ErrorAction SilentlyContinue"
-                };
-
-                File.WriteAllLines(tempScript, lines, System.Text.Encoding.UTF8);
-
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{tempScript}\"",
-                    UseShellExecute = true,
-                    Verb = "runas"
-                };
-
-                using var proc = Process.Start(psi);
-                if (proc != null)
-                {
-                    proc.WaitForExit();
-                    return isDirectory ? Directory.Exists(Path.Combine(parentDirectory, name)) : File.Exists(Path.Combine(parentDirectory, name));
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[ShellFileOp] Elevated new item fallback failed: {ex.Message}");
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// UAC 昇格した管理者プロセス (runas) を通じてアイテム名を変更
-        /// </summary>
-        private static bool TryExecuteRenameElevatedFallback(string itemPath, string newName)
-        {
-            try
-            {
-                string tempScript = Path.Combine(Path.GetTempPath(), $"fe_elev_ren_{Guid.NewGuid():N}.ps1");
-                string escapedSrc = itemPath.Replace("'", "''");
-                string escapedName = newName.Replace("'", "''");
-                var lines = new List<string>
-                {
-                    $"Rename-Item -LiteralPath '{escapedSrc}' -NewName '{escapedName}' -Force",
-                    $"Remove-Item -LiteralPath '{tempScript.Replace("'", "''")}' -Force -ErrorAction SilentlyContinue"
-                };
-
-                File.WriteAllLines(tempScript, lines, System.Text.Encoding.UTF8);
-
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{tempScript}\"",
-                    UseShellExecute = true,
-                    Verb = "runas"
-                };
-
-                using var proc = Process.Start(psi);
-                if (proc != null)
-                {
-                    proc.WaitForExit();
-                    string? parent = Path.GetDirectoryName(itemPath);
-                    return parent != null && (File.Exists(Path.Combine(parent, newName)) || Directory.Exists(Path.Combine(parent, newName)));
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[ShellFileOp] Elevated rename fallback failed: {ex.Message}");
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// UAC 昇格した管理者プロセス (runas) を通じてアイテムを直接削除
-        /// </summary>
-        private static bool TryExecuteDeleteElevatedFallback(List<string> paths, bool recycle)
-        {
-            try
-            {
-                string tempScript = Path.Combine(Path.GetTempPath(), $"fe_elev_del_{Guid.NewGuid():N}.ps1");
-                var lines = new List<string>();
-
-                foreach (var path in paths)
-                {
-                    string escaped = path.Replace("'", "''");
-                    lines.Add($"Remove-Item -LiteralPath '{escaped}' -Recurse -Force -ErrorAction SilentlyContinue");
-                }
-                lines.Add($"Remove-Item -LiteralPath '{tempScript.Replace("'", "''")}' -Force -ErrorAction SilentlyContinue");
-
-                File.WriteAllLines(tempScript, lines, System.Text.Encoding.UTF8);
-
-                var psi = new ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{tempScript}\"",
-                    UseShellExecute = true,
-                    Verb = "runas"
-                };
-
-                using var proc = Process.Start(psi);
-                if (proc != null)
-                {
-                    proc.WaitForExit();
-                    return paths.All(p => !File.Exists(p) && !Directory.Exists(p));
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[ShellFileOp] Elevated delete fallback failed: {ex.Message}");
-            }
-            return false;
-        }
-
-        #endregion
     }
 }

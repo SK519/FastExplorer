@@ -113,6 +113,10 @@ namespace FastExplorer.Views.Settings
                     };
                 }
                 if (WallpaperOptionsPanel != null) WallpaperOptionsPanel.Opacity = string.IsNullOrWhiteSpace(config.Ui.BackgroundImagePath) ? 0.6 : 1.0;
+                if (DisableWallpaperOutsideHomeToggle != null) DisableWallpaperOutsideHomeToggle.IsOn = config.Ui.DisableWallpaperOutsideHome;
+                if (OutsideHomeConfigPanel != null) OutsideHomeConfigPanel.Visibility = config.Ui.DisableWallpaperOutsideHome ? Visibility.Visible : Visibility.Collapsed;
+                if (HomeSsidsTextBox != null) HomeSsidsTextBox.Text = string.Join(", ", config.Ui.HomeSsids ?? []);
+                if (HomeMacsTextBox != null) HomeMacsTextBox.Text = string.Join(", ", config.Ui.HomeMacs ?? []);
 
                 // ショートカット一覧初期化
                 InitShortcutsSection();

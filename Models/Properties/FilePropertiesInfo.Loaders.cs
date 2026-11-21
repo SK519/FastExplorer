@@ -225,6 +225,42 @@ namespace FastExplorer
 
                 try
                 {
+                    // Rust ネイティブ並列集計を最優先で試行 (ゼロ FileInfo アロケーション & マルチコア並列)
+                    if (NativeArchiveInterop.CalcFolderSize(
+                            targetPaths,
+                            (curSize, curFiles, curFolders) =>
+                            {
+                                if (token.IsCancellationRequested) return;
+                                _dispatcherQueue?.TryEnqueue(() =>
+                                {
+                                    if (token.IsCancellationRequested) return;
+                                    Size = curSize;
+                                    SizeOnDisk = CalculateSizeOnDisk(curSize);
+                                    FileCount = curFiles;
+                                    FolderCount = curFolders;
+                                });
+                            },
+                            token,
+                            out totalSize,
+                            out totalFiles,
+                            out totalFolders))
+                    {
+                        if (!token.IsCancellationRequested)
+                        {
+                            _dispatcherQueue?.TryEnqueue(() =>
+                            {
+                                if (token.IsCancellationRequested) return;
+                                Size = totalSize;
+                                SizeOnDisk = CalculateSizeOnDisk(totalSize);
+                                FileCount = totalFiles;
+                                FolderCount = totalFolders;
+                                IsCalculatingSize = false;
+                                CalculationStatus = string.Empty;
+                            });
+                        }
+                        return;
+                    }
+
                     var queue = new Queue<string>();
                     foreach (var p in targetPaths)
                     {

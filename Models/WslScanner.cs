@@ -36,8 +36,21 @@ namespace FastExplorer.Models
                 return items;
             }
 
-            // ディストリビューション内のパスをスキャン
-            items.AddRange(ScanDistroPath(distroName, linuxPath, wslUncPath.TrimEnd('\\'), showHidden));
+            // ディストリビューション内のパスはまず Win32 FindFirstFileExW (NativeFileScanner) で高速スキャンする
+            // (IconThumbnailService 側で 9P 越しの個別 Shell/File.Exists 呼び出しをスキップしているため、数秒の wsl.exe 起動より大幅に高速)
+            string cleanPath = wslUncPath.TrimEnd('\\');
+            var fastItems = NativeFileScanner.ScanDirectory(cleanPath, showHidden);
+            if (fastItems.Count > 0)
+            {
+                if (!showHidden)
+                {
+                    fastItems.RemoveAll(i => i.Name.StartsWith(".", StringComparison.Ordinal));
+                }
+                return fastItems;
+            }
+
+            // 取得件数が 0 の場合（空ディレクトリまたは 9P 未マウント時のフォールバック）のみ wsl.exe を試行
+            items.AddRange(ScanDistroPath(distroName, linuxPath, cleanPath, showHidden));
             return items;
         }
 
@@ -187,9 +200,15 @@ namespace FastExplorer.Models
                 using var proc = Process.Start(psi);
                 if (proc == null) return items;
 
+                // StandardError バッファ詰まり防止のため非同期で読み捨て
+                proc.BeginErrorReadLine();
+
                 // タイムアウト付きで読み取り (WSL 起動に時間がかかることがある)
                 string output = proc.StandardOutput.ReadToEnd();
-                proc.WaitForExit(30000);
+                if (!proc.WaitForExit(30000))
+                {
+                    try { proc.Kill(entireProcessTree: true); } catch { }
+                }
 
                 // 出力をパース
                 // 例: "drwxr-xr-x  3 root root 4096 2026-08-02 15:12 home"

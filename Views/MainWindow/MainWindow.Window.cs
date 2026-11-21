@@ -254,11 +254,37 @@ namespace FastExplorer
                 }
 
                 AppWindow.Closing += (s, e) => SaveWindowState();
+                AppWindow.Changed += (s, e) =>
+                {
+                    if (e.DidPresenterChange &&
+                        AppWindow.Presenter is OverlappedPresenter p &&
+                        p.State == OverlappedPresenterState.Minimized)
+                    {
+                        TrimWorkingMemory(aggressive: true);
+                    }
+                };
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[WindowState] Error restoring: {ex.Message}");
             }
+        }
+
+        private static void TrimWorkingMemory(bool aggressive = false)
+        {
+            IconThumbnailService.Instance.TrimCache(aggressive ? 150 : 300);
+            if (!aggressive) return;
+
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    GC.Collect(2, GCCollectionMode.Optimized, blocking: false);
+                    using var proc = Process.GetCurrentProcess();
+                    Win32Interop.SetProcessWorkingSetSize(proc.Handle, (nint)(-1), (nint)(-1));
+                }
+                catch { }
+            });
         }
 
         private void SaveWindowState()

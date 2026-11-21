@@ -9,6 +9,7 @@ struct ExplorerRedirectContext
     DWORD pid;
     RECT origRect;
     LONG_PTR origExStyle;
+    bool wasVisible;
 };
 
 // バックグラウンドでコマンドラインまたは IShellWindows からフォルダパスを解決して FastExplorer に転送 (超高速・低遅延最適化)
@@ -21,6 +22,7 @@ static DWORD WINAPI ExplorerRedirectThread(LPVOID lpParam)
     DWORD pid = ctx->pid;
     RECT origRect = ctx->origRect;
     LONG_PTR origExStyle = ctx->origExStyle;
+    bool wasVisible = ctx->wasVisible;
     delete ctx;
 
     std::wstring targetPath = L"";
@@ -151,25 +153,28 @@ static DWORD WINAPI ExplorerRedirectThread(LPVOID lpParam)
 
     if (targetPath.empty())
     {
-        // タイムアウト等でパス解決ができなかった場合はエクスプローラーを破棄せず、元の状態に復元
+        // タイムアウト等でパス解決ができなかった場合は元の状態に復元 (元々非表示のウィンドウは絶対に可視化しない)
         if (IsWindow(hwnd))
         {
             RemovePropW(hwnd, HOOK_PROP_NAME);
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, origExStyle);
-            int width = origRect.right - origRect.left;
-            int height = origRect.bottom - origRect.top;
-            if (width > 100 && height > 100)
+            if (wasVisible)
             {
-                SetWindowPos(hwnd, HWND_TOP, origRect.left, origRect.top, width, height, SWP_SHOWWINDOW);
+                int width = origRect.right - origRect.left;
+                int height = origRect.bottom - origRect.top;
+                if (width > 100 && height > 100)
+                {
+                    SetWindowPos(hwnd, HWND_TOP, origRect.left, origRect.top, width, height, SWP_SHOWWINDOW);
+                }
+                else
+                {
+                    SetWindowPos(hwnd, HWND_TOP, 100, 100, 1000, 700, SWP_SHOWWINDOW);
+                }
+                ShowWindow(hwnd, SW_SHOW);
+                SetForegroundWindow(hwnd);
             }
-            else
-            {
-                SetWindowPos(hwnd, HWND_TOP, 100, 100, 1000, 700, SWP_SHOWWINDOW);
-            }
-            ShowWindow(hwnd, SW_SHOW);
-            SetForegroundWindow(hwnd);
         }
-        LogWatcher(L"[Redirect] Fallback: targetPath could not be resolved, restored Explorer window.");
+        LogWatcher(L"[Redirect] Fallback: targetPath could not be resolved, restored Explorer state (wasVisible=%d).", wasVisible ? 1 : 0);
         return 0;
     }
 
@@ -209,6 +214,14 @@ static void CALLBACK WinEventProc(
 
     if (!IsDefaultExplorerEnabledInRegistry()) return;
 
+    // Windows 11 がバックグラウンドで生成する非表示の CabinetWClass (事前ロード等) は捕捉しない
+    LONG_PTR origStyle = GetWindowLongPtrW(hwnd, GWL_STYLE);
+    bool isVisible = IsWindowVisible(hwnd) || ((origStyle & WS_VISIBLE) != 0);
+    if (event == EVENT_OBJECT_CREATE && !isVisible)
+    {
+        return;
+    }
+
     if (GetPropW(hwnd, HOOK_PROP_NAME) != NULL) return;
     SetPropW(hwnd, HOOK_PROP_NAME, (HANDLE)1);
 
@@ -232,6 +245,7 @@ static void CALLBACK WinEventProc(
     ctx->pid = pid;
     ctx->origRect = origRect;
     ctx->origExStyle = origExStyle;
+    ctx->wasVisible = isVisible;
 
     HANDLE hThread = CreateThread(NULL, 0, ExplorerRedirectThread, ctx, 0, NULL);
     if (hThread != NULL)

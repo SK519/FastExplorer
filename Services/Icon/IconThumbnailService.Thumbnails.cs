@@ -60,7 +60,21 @@ namespace FastExplorer.Services
         {
             try
             {
-                if (!File.Exists(fullPath)) return null;
+                var fi = new FileInfo(fullPath);
+                if (!fi.Exists || fi.Length == 0) return null;
+
+                // 20MB 超の超高解像度画像はまず Windows シェル既存サムネイルキャッシュのみをゼロデコード試行
+                if (fi.Length > 20L * 1024 * 1024)
+                {
+                    var cachedThumb = ExtractThumbnailViaShellItem(
+                        fullPath,
+                        (int)targetSize,
+                        Win32Interop.SIIGBF.SIIGBF_INCACHEONLY | Win32Interop.SIIGBF.SIIGBF_THUMBNAILONLY);
+                    if (cachedThumb != null)
+                    {
+                        return cachedThumb;
+                    }
+                }
 
                 using var stream = File.Open(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 using var randomStream = stream.AsRandomAccessStream();

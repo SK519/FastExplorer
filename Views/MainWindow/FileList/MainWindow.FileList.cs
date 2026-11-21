@@ -159,6 +159,29 @@ namespace FastExplorer
         {
         }
 
+        /// <summary>
+        /// UI 仮想化コンテナの表示/リサイクルと連動し、可視範囲のアイテムのみオンデマンドでサムネイル読み込みし、
+        /// 画面外へリサイクルされた画像サムネイルはデフォルトアイコンへ戻して RAM / GPU テクスチャを即座に解放する。
+        /// </summary>
+        private void FileList_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+        {
+            if (args.Item is not FileItem item) return;
+
+            if (args.InRecycleQueue)
+            {
+                if (item.AllowThumbnail && !item.IsDirectory && !item.IsDrive)
+                {
+                    IconThumbnailService.Instance.ResetToDefaultIcon(item);
+                }
+                return;
+            }
+
+            if (args.Phase == 0)
+            {
+                IconThumbnailService.Instance.Enqueue(item);
+            }
+        }
+
         public void SelectSingleItem(FileItem target)
         {
             if (CurrentTab?.Items == null) return;

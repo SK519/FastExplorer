@@ -3,11 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using FastExplorer.Models;
-using SharpCompress.Archives;
-using SharpCompress.Common;
-using SharpCompress.Readers;
 
 namespace FastExplorer.Services
 {
@@ -16,7 +14,7 @@ namespace FastExplorer.Services
         #region Archive Preview
 
         /// <summary>
-        /// アーカイブファイル内のエントリ一覧のプレビューテキストを非同期で生成
+        /// アーカイブファイル内のエントリ一覧のプレビューテキストを非同期で生成 (Rust ネイティブ優先)
         /// </summary>
         public static async Task<string?> GetArchivePreviewTextAsync(string archivePath, int maxEntries = 100)
         {
@@ -26,88 +24,80 @@ namespace FastExplorer.Services
             {
                 try
                 {
-                    var sb = new System.Text.StringBuilder();
-                    var readerOptions = new ReaderOptions
+                    var nativeEntries = NativeArchiveInterop.ListEntries(archivePath);
+                    if (nativeEntries != null)
                     {
-                        ArchiveEncoding = new ArchiveEncoding { Default = System.Text.Encoding.UTF8 }
-                    };
+                        var sb = new StringBuilder();
+                        int totalEntries = nativeEntries.Count;
+                        int fileCount = nativeEntries.Count(e => !e.IsDirectory);
+                        int dirCount = nativeEntries.Count(e => e.IsDirectory);
+                        long totalSize = nativeEntries.Where(e => !e.IsDirectory).Sum(e => e.Size);
 
-                    using var archive = ArchiveFactory.OpenArchive(archivePath, readerOptions);
-                    var entries = archive.Entries.ToList();
+                        sb.AppendLine($"📦 アーカイブ内容 (全 {fileCount} ファイル, {dirCount} フォルダー / {FileItem.FormatFileSize(totalSize)}):");
+                        sb.AppendLine(new string('-', 50));
 
-                    int totalEntries = entries.Count;
-                    int fileCount = entries.Count(e => !e.IsDirectory);
-                    int dirCount = entries.Count(e => e.IsDirectory);
-                    long totalSize = entries.Where(e => !e.IsDirectory).Sum(e => e.Size);
-
-                    sb.AppendLine($"📦 アーカイブ内容 (全 {fileCount} ファイル, {dirCount} フォルダー / {FileItem.FormatFileSize(totalSize)}):");
-                    sb.AppendLine(new string('-', 50));
-
-                    int count = 0;
-                    foreach (var entry in entries)
-                    {
-                        if (count >= maxEntries)
+                        int count = 0;
+                        foreach (var entry in nativeEntries)
                         {
-                            sb.AppendLine($"... 他 {totalEntries - maxEntries} 項目省略");
-                            break;
+                            if (count >= maxEntries)
+                            {
+                                sb.AppendLine($"... 他 {totalEntries - maxEntries} 項目省略");
+                                break;
+                            }
+
+                            if (entry.IsDirectory)
+                            {
+                                sb.AppendLine($"📁 {entry.Key.TrimEnd('/', '\\')}/");
+                            }
+                            else
+                            {
+                                string sizeStr = FileItem.FormatFileSize(entry.Size);
+                                sb.AppendLine($"📄 {entry.Key} ({sizeStr})");
+                            }
+                            count++;
                         }
 
-                        string key = entry.Key ?? "";
-                        if (entry.IsDirectory)
-                        {
-                            sb.AppendLine($"📁 {key.TrimEnd('/', '\\')}/");
-                        }
-                        else
-                        {
-                            string sizeStr = FileItem.FormatFileSize(entry.Size);
-                            sb.AppendLine($"📄 {key} ({sizeStr})");
-                        }
-                        count++;
+                        return sb.ToString();
                     }
-
-                    return sb.ToString();
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[ArchiveService.GetArchivePreviewTextAsync] SharpCompress error: {ex.Message}");
 
                     // ZIP フォールバック
                     if (archivePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
                     {
-                        try
+                        using var zip = ZipFile.OpenRead(archivePath);
+                        var sb = new StringBuilder();
+                        int total = zip.Entries.Count;
+                        long totalSize = zip.Entries.Sum(e => e.Length);
+                        sb.AppendLine($"📦 ZIP アーカイブ内容 (全 {total} 項目 / {FileItem.FormatFileSize(totalSize)}):");
+                        sb.AppendLine(new string('-', 50));
+
+                        int count = 0;
+                        foreach (var entry in zip.Entries)
                         {
-                            using var zip = ZipFile.OpenRead(archivePath);
-                            var sb = new System.Text.StringBuilder();
-                            int total = zip.Entries.Count;
-                            long totalSize = zip.Entries.Sum(e => e.Length);
-                            sb.AppendLine($"📦 ZIP アーカイブ内容 (全 {total} 項目 / {FileItem.FormatFileSize(totalSize)}):");
-                            sb.AppendLine(new string('-', 50));
-
-                            int count = 0;
-                            foreach (var entry in zip.Entries)
+                            if (count >= maxEntries)
                             {
-                                if (count >= maxEntries)
-                                {
-                                    sb.AppendLine($"... 他 {total - maxEntries} 項目省略");
-                                    break;
-                                }
-
-                                if (entry.FullName.EndsWith("/") || entry.FullName.EndsWith("\\"))
-                                {
-                                    sb.AppendLine($"📁 {entry.FullName.TrimEnd('/', '\\')}/");
-                                }
-                                else
-                                {
-                                    string sizeStr = FileItem.FormatFileSize(entry.Length);
-                                    sb.AppendLine($"📄 {entry.FullName} ({sizeStr})");
-                                }
-                                count++;
+                                sb.AppendLine($"... 他 {total - maxEntries} 項目省略");
+                                break;
                             }
-                            return sb.ToString();
+
+                            if (entry.FullName.EndsWith("/") || entry.FullName.EndsWith("\\"))
+                            {
+                                sb.AppendLine($"📁 {entry.FullName.TrimEnd('/', '\\')}/");
+                            }
+                            else
+                            {
+                                string sizeStr = FileItem.FormatFileSize(entry.Length);
+                                sb.AppendLine($"📄 {entry.FullName} ({sizeStr})");
+                            }
+                            count++;
                         }
-                        catch { }
+                        return sb.ToString();
                     }
 
+                    return null;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[ArchiveService.GetArchivePreviewTextAsync] error: {ex.Message}");
                     return null;
                 }
             });
@@ -160,7 +150,7 @@ namespace FastExplorer.Services
         }
 
         /// <summary>
-        /// アーカイブ内の指定されたサブパス直下のファイル・フォルダー一覧を取得
+        /// アーカイブ内の指定されたサブパス直下のファイル・フォルダー一覧を取得 (Rust ネイティブ + キャッシュ)
         /// </summary>
         public static List<FileItem> GetArchiveFolderItems(string archiveFile, string internalSubPath)
         {
@@ -169,26 +159,18 @@ namespace FastExplorer.Services
 
             string normalizedPrefix = string.IsNullOrEmpty(internalSubPath) ? "" : internalSubPath.Replace('\\', '/').Trim('/') + "/";
 
-            try
+            var nativeEntries = NativeArchiveInterop.ListEntries(archiveFile);
+            if (nativeEntries != null)
             {
-                var readerOptions = new ReaderOptions
-                {
-                    ArchiveEncoding = new ArchiveEncoding { Default = System.Text.Encoding.UTF8 }
-                };
-
                 var folderSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-                using var archive = ArchiveFactory.OpenArchive(archiveFile, readerOptions);
-                foreach (var entry in archive.Entries)
+                foreach (var entry in nativeEntries)
                 {
                     if (string.IsNullOrEmpty(entry.Key)) continue;
-                    string key = entry.Key.Replace('\\', '/').TrimStart('/');
-                    string[] segments = key.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                    if (segments.Any(s => s == ".." || s == "." || s.Contains(':'))) continue;
+                    string key = entry.Key;
 
                     if (string.IsNullOrEmpty(normalizedPrefix))
                     {
-                        // ルート階層
                         int slashIndex = key.IndexOf('/');
                         if (slashIndex >= 0)
                         {
@@ -206,12 +188,24 @@ namespace FastExplorer.Services
                                 });
                             }
                         }
+                        else if (entry.IsDirectory)
+                        {
+                            if (folderSet.Add(key))
+                            {
+                                results.Add(new FileItem
+                                {
+                                    Name = key,
+                                    FullPath = Path.Combine(archiveFile, key),
+                                    IsDirectory = true,
+                                    FileType = "フォルダー",
+                                    GlyphIcon = "\uE8B7",
+                                    DateModified = entry.LastModifiedTime ?? DateTime.MinValue
+                                });
+                            }
+                        }
                         else
                         {
-                            if (!entry.IsDirectory)
-                            {
-                                results.Add(CreateArchiveFileItem(archiveFile, key, entry.Size, entry.LastModifiedTime));
-                            }
+                            results.Add(CreateArchiveFileItem(archiveFile, key, entry.Size, entry.LastModifiedTime));
                         }
                     }
                     else if (key.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase))
@@ -237,91 +231,103 @@ namespace FastExplorer.Services
                                 });
                             }
                         }
+                        else if (entry.IsDirectory)
+                        {
+                            if (folderSet.Add(sub))
+                            {
+                                string relativeFolderPath = normalizedPrefix.Replace('/', '\\') + sub;
+                                results.Add(new FileItem
+                                {
+                                    Name = sub,
+                                    FullPath = Path.Combine(archiveFile, relativeFolderPath),
+                                    IsDirectory = true,
+                                    FileType = "フォルダー",
+                                    GlyphIcon = "\uE8B7",
+                                    DateModified = entry.LastModifiedTime ?? DateTime.MinValue
+                                });
+                            }
+                        }
                         else
                         {
-                            if (!entry.IsDirectory)
+                            string relativeFilePath = normalizedPrefix.Replace('/', '\\') + sub;
+                            results.Add(CreateArchiveFileItem(archiveFile, relativeFilePath, entry.Size, entry.LastModifiedTime));
+                        }
+                    }
+                }
+
+                return results;
+            }
+
+            // ZIP フォールバック
+            if (archiveFile.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    using var zip = ZipFile.OpenRead(archiveFile);
+                    var folderSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var entry in zip.Entries)
+                    {
+                        string key = entry.FullName.Replace('\\', '/').TrimStart('/');
+                        string[] segments = key.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                        if (segments.Any(s => s == ".." || s == "." || s.Contains(':'))) continue;
+
+                        if (string.IsNullOrEmpty(normalizedPrefix))
+                        {
+                            int slashIndex = key.IndexOf('/');
+                            if (slashIndex >= 0)
+                            {
+                                string topFolder = key[..slashIndex];
+                                if (folderSet.Add(topFolder))
+                                {
+                                    results.Add(new FileItem
+                                    {
+                                        Name = topFolder,
+                                        FullPath = Path.Combine(archiveFile, topFolder),
+                                        IsDirectory = true,
+                                        FileType = "フォルダー",
+                                        GlyphIcon = "\uE8B7",
+                                        DateModified = entry.LastWriteTime.DateTime
+                                    });
+                                }
+                            }
+                            else if (!key.EndsWith('/'))
+                            {
+                                results.Add(CreateArchiveFileItem(archiveFile, key, entry.Length, entry.LastWriteTime.DateTime));
+                            }
+                        }
+                        else if (key.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase))
+                        {
+                            string sub = key[normalizedPrefix.Length..];
+                            if (string.IsNullOrEmpty(sub)) continue;
+
+                            int slashIndex = sub.IndexOf('/');
+                            if (slashIndex >= 0)
+                            {
+                                string subFolder = sub[..slashIndex];
+                                if (folderSet.Add(subFolder))
+                                {
+                                    string relativeFolderPath = normalizedPrefix.Replace('/', '\\') + subFolder;
+                                    results.Add(new FileItem
+                                    {
+                                        Name = subFolder,
+                                        FullPath = Path.Combine(archiveFile, relativeFolderPath),
+                                        IsDirectory = true,
+                                        FileType = "フォルダー",
+                                        GlyphIcon = "\uE8B7",
+                                        DateModified = entry.LastWriteTime.DateTime
+                                    });
+                                }
+                            }
+                            else if (!sub.EndsWith('/'))
                             {
                                 string relativeFilePath = normalizedPrefix.Replace('/', '\\') + sub;
-                                results.Add(CreateArchiveFileItem(archiveFile, relativeFilePath, entry.Size, entry.LastModifiedTime));
+                                results.Add(CreateArchiveFileItem(archiveFile, relativeFilePath, entry.Length, entry.LastWriteTime.DateTime));
                             }
                         }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"[ArchiveService.GetArchiveFolderItems] SharpCompress error: {ex.Message}");
-
-                // ZIP フォールバック
-                if (archiveFile.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                {
-                    try
-                    {
-                        using var zip = ZipFile.OpenRead(archiveFile);
-                        var folderSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                        foreach (var entry in zip.Entries)
-                        {
-                            string key = entry.FullName.Replace('\\', '/').TrimStart('/');
-                            string[] segments = key.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                            if (segments.Any(s => s == ".." || s == "." || s.Contains(':'))) continue;
-                            if (string.IsNullOrEmpty(normalizedPrefix))
-                            {
-                                int slashIndex = key.IndexOf('/');
-                                if (slashIndex >= 0)
-                                {
-                                    string topFolder = key[..slashIndex];
-                                    if (folderSet.Add(topFolder))
-                                    {
-                                        results.Add(new FileItem
-                                        {
-                                            Name = topFolder,
-                                            FullPath = Path.Combine(archiveFile, topFolder),
-                                            IsDirectory = true,
-                                            FileType = "フォルダー",
-                                            GlyphIcon = "\uE8B7",
-                                            DateModified = entry.LastWriteTime.DateTime
-                                        });
-                                    }
-                                }
-                                else if (!key.EndsWith('/'))
-                                {
-                                    results.Add(CreateArchiveFileItem(archiveFile, key, entry.Length, entry.LastWriteTime.DateTime));
-                                }
-                            }
-                            else if (key.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase))
-                            {
-                                string sub = key[normalizedPrefix.Length..];
-                                if (string.IsNullOrEmpty(sub)) continue;
-
-                                int slashIndex = sub.IndexOf('/');
-                                if (slashIndex >= 0)
-                                {
-                                    string subFolder = sub[..slashIndex];
-                                    if (folderSet.Add(subFolder))
-                                    {
-                                        string relativeFolderPath = normalizedPrefix.Replace('/', '\\') + subFolder;
-                                        results.Add(new FileItem
-                                        {
-                                            Name = subFolder,
-                                            FullPath = Path.Combine(archiveFile, relativeFolderPath),
-                                            IsDirectory = true,
-                                            FileType = "フォルダー",
-                                            GlyphIcon = "\uE8B7",
-                                            DateModified = entry.LastWriteTime.DateTime
-                                        });
-                                    }
-                                }
-                                else if (!sub.EndsWith('/'))
-                                {
-                                    string relativeFilePath = normalizedPrefix.Replace('/', '\\') + sub;
-                                    results.Add(CreateArchiveFileItem(archiveFile, relativeFilePath, entry.Length, entry.LastWriteTime.DateTime));
-                                }
-                            }
-                        }
-                    }
-                    catch { }
-                }
+                catch { }
             }
 
             return results;
@@ -362,7 +368,7 @@ namespace FastExplorer.Services
         }
 
         /// <summary>
-        /// アーカイブ内の特定エントリを一時フォルダーに展開
+        /// アーカイブ内の特定エントリを一時フォルダーに展開 (Rust ネイティブ優先)
         /// </summary>
         public static async Task<string?> ExtractEntryToTempAsync(string archiveFile, string entryKey)
         {
@@ -391,35 +397,18 @@ namespace FastExplorer.Services
 
                     const long MaxTempExtractionBytes = 250 * 1024 * 1024; // 250MB 安全上限
 
-                    var readerOptions = new ReaderOptions
+                    if (NativeArchiveInterop.IsAvailable)
                     {
-                        ArchiveEncoding = new ArchiveEncoding { Default = System.Text.Encoding.UTF8 }
-                    };
-
-                    using var archive = ArchiveFactory.OpenArchive(archiveFile, readerOptions);
-                    var entry = archive.Entries.FirstOrDefault(e => e.Key?.Replace('\\', '/').TrimStart('/').Equals(normalizedKey, StringComparison.OrdinalIgnoreCase) == true);
-                    if (entry != null)
-                    {
-                        if (entry.Size > MaxTempExtractionBytes)
+                        int code = NativeArchiveInterop.ExtractEntry(archiveFile, normalizedKey, destPath, (ulong)MaxTempExtractionBytes, out string? err);
+                        if (code == NativeArchiveInterop.FA_OK)
                         {
-                            throw new InvalidOperationException("展開サイズが安全上限(250MB)を超過しています。");
+                            return destPath;
                         }
-
-                        using var entryStream = entry.OpenEntryStream();
-                        using var outStream = File.Create(destPath);
-                        byte[] buffer = new byte[8192];
-                        long totalRead = 0;
-                        int read;
-                        while ((read = entryStream.Read(buffer, 0, buffer.Length)) > 0)
+                        System.Diagnostics.Debug.WriteLine($"[ArchiveService.ExtractEntryToTempAsync] Native Rust failed ({code}): {err}");
+                        if (code == NativeArchiveInterop.FA_ERR_SIZE_LIMIT)
                         {
-                            totalRead += read;
-                            if (totalRead > MaxTempExtractionBytes)
-                            {
-                                throw new InvalidOperationException("展開サイズが安全上限(250MB)を超過しました。");
-                            }
-                            outStream.Write(buffer, 0, read);
+                            return null;
                         }
-                        return destPath;
                     }
 
                     // ZIP フォールバック

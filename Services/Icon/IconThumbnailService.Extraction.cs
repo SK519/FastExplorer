@@ -134,6 +134,22 @@ namespace FastExplorer.Services
                     return GetWslSoftwareBitmap(item.AllowThumbnail ? 96 : 32);
                 }
 
+                // WSL UNC パス (\\wsl.localhost\*, \\wsl$\*) は 9P 越しの Shell API / File.Exists を回避し、
+                // 拡張子キャッシュまたはデフォルトアイコンのみを使用する
+                if (IsWslUncPath(item.FullPath))
+                {
+                    if (item.IsDirectory)
+                    {
+                        return DefaultFolderBitmap;
+                    }
+                    if (!string.IsNullOrEmpty(item.Extension))
+                    {
+                        var extIcon = GetSoftwareBitmapForExtension(item.Extension);
+                        if (extIcon != null) return extIcon;
+                    }
+                    return DefaultFileBitmap;
+                }
+
                 if (item.FullPath.StartsWith("::") || item.FullPath.StartsWith("shell:") || item.FullPath.StartsWith("urn:"))
                 {
                     int parseHr = Win32Interop.SHParseDisplayName(item.FullPath, nint.Zero, out nint pidl, 0, out _);
@@ -327,6 +343,26 @@ namespace FastExplorer.Services
                 if (fullPath.Equals("ThisPC", StringComparison.OrdinalIgnoreCase))
                 {
                     return DefaultPcBitmap;
+                }
+
+                if (IsWslRootPath(fullPath))
+                {
+                    return DefaultWslBitmap;
+                }
+
+                if (IsWslUncPath(fullPath))
+                {
+                    if (isDirectory)
+                    {
+                        return DefaultFolderBitmap;
+                    }
+                    string wslExt = Path.GetExtension(fullPath);
+                    if (!string.IsNullOrEmpty(wslExt))
+                    {
+                        var extIcon = GetSoftwareBitmapForExtension(wslExt);
+                        if (extIcon != null) return extIcon;
+                    }
+                    return DefaultFileBitmap;
                 }
 
                 if (fullPath.StartsWith("::") || fullPath.StartsWith("shell:") || fullPath.StartsWith("urn:"))

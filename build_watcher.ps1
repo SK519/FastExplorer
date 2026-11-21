@@ -1,79 +1,44 @@
-# Build script for FastExplorerWatcher (C++ Native)
+# Build script for FastExplorerWatcher (Rust Native - windows-rs)
+param(
+    [string]$Arch = "x64", # "x64" or "arm64"
+    [switch]$DebugBuild
+)
+
 $ErrorActionPreference = "Stop"
 
 $ProjectDir = $PSScriptRoot
-$SourceFile = "$ProjectDir\Watcher\FastExplorerWatcher.cpp"
+$CrateDir = "$ProjectDir\Native\fast_watcher"
+$Target = if ($Arch -ieq "arm64") { "aarch64-pc-windows-msvc" } else { "x86_64-pc-windows-msvc" }
+$Profile = if ($DebugBuild) { "debug" } else { "release" }
 $OutputDir = "$ProjectDir\Watcher\bin"
 
 if (-not (Test-Path $OutputDir)) {
     New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
 }
 
-# Find vcvars64.bat using vswhere or standard search paths
-$vcvars = $null
+Write-Host "Building FastExplorerWatcher.exe (Rust) for $Target ($Profile)..." -ForegroundColor Cyan
 
-# 1. vswhere.exe detection (official VS locator)
-$vswherePaths = @(
-    "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe",
-    "${env:ProgramFiles}\Microsoft Visual Studio\Installer\vswhere.exe"
-)
-foreach ($vsw in $vswherePaths) {
-    if (Test-Path $vsw) {
-        $installPath = & $vsw -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-        if ($installPath -and (Test-Path "$installPath\VC\Auxiliary\Build\vcvars64.bat")) {
-            $vcvars = "$installPath\VC\Auxiliary\Build\vcvars64.bat"
-            break
-        }
+Push-Location $CrateDir
+try {
+    $cargoArgs = @("build", "--target", $Target)
+    if (-not $DebugBuild) {
+        $cargoArgs += "--release"
+    }
+    & cargo @cargoArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "cargo build failed with exit code $LASTEXITCODE"
     }
 }
-
-# 2. Dynamic ProgramFiles fallback paths
-if (-not $vcvars) {
-    $pfList = @(${env:ProgramFiles}, ${env:ProgramFiles(x86)}, ${env:ProgramW6432}, "C:\Program Files", "C:\Program Files (x86)") | Where-Object { $_ -and (Test-Path $_) } | Select-Object -Unique
-    foreach ($pf in $pfList) {
-        $candidates = @(
-            "$pf\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat",
-            "$pf\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat",
-            "$pf\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat",
-            "$pf\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat",
-            "$pf\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat",
-            "$pf\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvars64.bat",
-            "$pf\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-        )
-        foreach ($c in $candidates) {
-            if (Test-Path $c) {
-                $vcvars = $c
-                break 2
-            }
-        }
-    }
+finally {
+    Pop-Location
 }
 
-# 3. Recursive fallback search
-if (-not $vcvars) {
-    foreach ($pf in $pfList) {
-        $vsRoot = "$pf\Microsoft Visual Studio"
-        if (Test-Path $vsRoot) {
-            $vcvars = Get-ChildItem $vsRoot -Recurse -Filter "vcvars64.bat" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
-            if ($vcvars) { break }
-        }
-    }
-}
-
-if (-not $vcvars) {
-    Write-Error "vcvars64.bat was not found!"
+$BuiltExe = "$CrateDir\target\$Target\$Profile\FastExplorerWatcher.exe"
+if (-not (Test-Path $BuiltExe)) {
+    Write-Error "Expected executable not found at $BuiltExe"
     exit 1
 }
 
-Write-Host "Compiling FastExplorerWatcher with MSVC ($vcvars)..." -ForegroundColor Cyan
-
-$cmd = "`"$vcvars`" && cl.exe /O1 /Os /GL /Gy /GF /MT /utf-8 /DUNICODE /D_UNICODE /Fo`"$OutputDir\FastExplorerWatcher.obj`" /Fe`"$OutputDir\FastExplorerWatcher.exe`" `"$SourceFile`" /link /LTCG /OPT:REF /OPT:ICF user32.lib shell32.lib advapi32.lib ole32.lib oleaut32.lib shlwapi.lib /SUBSYSTEM:WINDOWS"
-cmd.exe /c $cmd
-
-if (Test-Path "$OutputDir\FastExplorerWatcher.exe") {
-    $size = (Get-Item "$OutputDir\FastExplorerWatcher.exe").Length
-    Write-Host "Build SUCCESS: $OutputDir\FastExplorerWatcher.exe (Size: $size bytes)" -ForegroundColor Green
-} else {
-    Write-Error "Build failed!"
-    exit 1
-}
+Copy-Item $BuiltExe "$OutputDir\FastExplorerWatcher.exe" -Force
+$size = (Get-Item "$OutputDir\FastExplorerWatcher.exe").Length
+Write-Host "Build SUCCESS: $OutputDir\FastExplorerWatcher.exe (Size: $([math]::Round($size / 1KB, 1)) KB / $size bytes)" -ForegroundColor Green

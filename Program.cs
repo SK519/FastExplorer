@@ -26,6 +26,14 @@ namespace FastExplorer
         [STAThread]
         public static void Main(string[] args)
         {
+            // ヘッドレス管理者ワーカーモード (--elevated-op): WinUI を起動せず即座にファイル操作を実行して終了
+            if (args.Length >= 2 && string.Equals(args[0], FastExplorer.Services.ElevatedOperationRunner.CommandLineSwitch, StringComparison.OrdinalIgnoreCase))
+            {
+                int exitCode = FastExplorer.Services.ElevatedOperationRunner.ExecuteHeadlessFromFile(args[1]);
+                Environment.Exit(exitCode);
+                return;
+            }
+
             string[] fullCmdArgs = Environment.GetCommandLineArgs();
 
             using var mutex = new Mutex(true, MutexName, out bool isFirstInstance);

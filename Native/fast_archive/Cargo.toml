@@ -1,0 +1,36 @@
+[package]
+name = "fast_archive"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance native archive engine for FastExplorer"
+
+[lib]
+name = "fast_archive"
+crate-type = ["cdylib"]
+
+[dependencies]
+# Compression & archive formats
+flate2 = { version = "1", default-features = false, features = ["zlib-rs"] }
+zip = { version = "2", default-features = false, features = ["deflate", "bzip2", "zstd", "time"] }
+tar = "0.4"
+bzip2 = "0.5"
+zstd = "0.13"
+lzma-rust2 = { version = "0.13", features = ["encoder", "xz"] }
+sevenz-rust2 = { version = "0.15", default-features = false, features = ["compress", "util", "brotli", "bzip2", "deflate", "zstd", "aes256"] }
+unrar = "0.5"
+
+# Parallelism & filesystem traversal
+rayon = "1.10"
+jwalk = "0.8"
+
+# Serialization for FFI
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+time = "0.3"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"

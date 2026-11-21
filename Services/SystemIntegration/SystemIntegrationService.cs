@@ -119,9 +119,8 @@ namespace FastExplorer.Services
 
                     if (enable)
                     {
-                        const string explorerDelegateExecuteGuid = "{11dbb47c-a525-400b-9e80-a54615a090c0}";
-
                         // 1. Directory (フォルダーのダブルクリック / 開く / 探索)
+                        // ※ Windows 標準の DelegateExecute (CLSID_ExecuteFolder) を残すと標準エクスプローラーが優先起動する場合があるため削除する
                         using (var shellKey = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\shell"))
                         {
                             shellKey?.SetValue(null, "open");
@@ -129,12 +128,12 @@ namespace FastExplorer.Services
                         using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\shell\open\command"))
                         {
                             key?.SetValue(null, commandValue);
-                            key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
+                            key?.DeleteValue("DelegateExecute", false);
                         }
                         using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Directory\shell\explore\command"))
                         {
                             key?.SetValue(null, commandValue);
-                            key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
+                            key?.DeleteValue("DelegateExecute", false);
                         }
 
                         // 2. Folder の不正なオーバーライドを削除して Windows シェルの破損を防止
@@ -153,12 +152,12 @@ namespace FastExplorer.Services
                         using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Drive\shell\open\command"))
                         {
                             key?.SetValue(null, commandValue);
-                            key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
+                            key?.DeleteValue("DelegateExecute", false);
                         }
                         using (var key = Registry.CurrentUser.CreateSubKey(@"Software\Classes\Drive\shell\explore\command"))
                         {
                             key?.SetValue(null, commandValue);
-                            key?.SetValue("DelegateExecute", explorerDelegateExecuteGuid);
+                            key?.DeleteValue("DelegateExecute", false);
                         }
 
                         // 4. ごみ箱 (CLSID)
@@ -265,8 +264,9 @@ namespace FastExplorer.Services
 
                 System.Threading.Tasks.Task.Run(async () =>
                 {
-                    await System.Threading.Tasks.Task.Delay(800);
-                    if (Process.GetProcessesByName("explorer").Length == 0)
+                    await System.Threading.Tasks.Task.Delay(1200);
+                    if (Win32Interop.FindWindowW("Shell_TrayWnd", null) == nint.Zero &&
+                        Process.GetProcessesByName("explorer").Length == 0)
                     {
                         try
                         {

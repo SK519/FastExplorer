@@ -84,7 +84,9 @@ namespace FastExplorer
             {
                 try
                 {
-                    var subItems = NativeFileScanner.ScanDirectory(item.FullPath, ConfigService.Current.Ui.ShowHiddenFiles);
+                    var subItems = item.FullPath.StartsWith(@"\\wsl", StringComparison.OrdinalIgnoreCase)
+                        ? WslScanner.ScanWslPath(item.FullPath, ConfigService.Current.Ui.ShowHiddenFiles)
+                        : NativeFileScanner.ScanDirectory(item.FullPath, ConfigService.Current.Ui.ShowHiddenFiles);
                     var subFolders = subItems.Where(i => i.IsDirectory).OrderBy(i => i.Name, FastExplorer.Helpers.NaturalStringComparer.Instance).ToList();
 
                     if (subFolders.Count == 0)

@@ -70,7 +70,12 @@ namespace FastExplorer
                 }
                 AppWindow.Resize(new Windows.Graphics.SizeInt32(980, 680));
             }
-            this.Closed += (s, e) => { if (createInitialTab) SaveWindowState(); };
+            this.Closed += (s, e) =>
+            {
+                if (createInitialTab) SaveWindowState();
+                NetworkLocationService.Instance.NetworkLocationChanged -= OnNetworkLocationChanged;
+                _wallpaperEvalCts?.Cancel();
+            };
 
             // サイドバー構築
             InitializeSidebar();
@@ -105,6 +110,8 @@ namespace FastExplorer
 
             // 項目チェックボックス表示の初期化
             ApplyItemCheckBoxesState();
+            NetworkLocationService.Instance.StartMonitoring();
+            NetworkLocationService.Instance.NetworkLocationChanged += OnNetworkLocationChanged;
             ApplyWallpaper();
             InitializeFileListEvents();
             InitializeColumnResize();
@@ -126,6 +133,17 @@ namespace FastExplorer
 
             // 起動時の更新確認
             TriggerStartupUpdateCheck();
+        }
+
+        private void OnNetworkLocationChanged()
+        {
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+            {
+                if (ConfigService.Current.Ui.DisableWallpaperOutsideHome)
+                {
+                    ApplyWallpaper();
+                }
+            });
         }
 
         private void TriggerStartupUpdateCheck()
